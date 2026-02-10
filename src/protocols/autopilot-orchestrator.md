@@ -397,6 +397,9 @@ Spawn via **Task tool**: `subagent_type: "autopilot-phase-runner"`, `run_in_back
 > **Phase type:** {ui|protocol|data|mixed} — derived from phase content (see below)
 > **Estimated cost:** {estimated_tokens} tokens (from MTRC-02 pre-spawn estimate)
 > **ENFORCEMENT: Verify and judge steps MUST spawn independent subagents. Self-assessment is rejected by the orchestrator.**
+> **Remediation feedback:** {remediation_feedback || "null" -- structured list of specific deficiencies from judge/verifier, provided during remediation cycles}
+> **Remediation cycle:** {remediation_cycle || 0 -- current remediation cycle number, 0 = initial run, 1-2 = remediation}
+> **Pass threshold:** {pass_threshold || 9 -- alignment score threshold, 9 default, 7 with --lenient}
 >
 > **Phase directory resolution:** Use Glob to find your phase directory (e.g., `.planning/phases/*{phase_id}*` or `.planning/phases/{phase_number}-*/`) rather than assuming a fixed path format.
 >
@@ -578,6 +581,115 @@ Before applying gate logic, validate the phase-runner's return:
     - Each failure MUST include a `category` from the defined taxonomy: `executor_incomplete`, `executor_wrong_approach`, `compilation_failure`, `lint_failure`, `build_failure`, `acceptance_criteria_unmet`, `scope_creep`, `context_exhaustion`, `tool_failure`, `coordination_failure`.
     - If any failure lacks a category: Log warning: "Unclassified failure detected: {failure_description}." This is a WARNING, not a rejection.
 
+### Confidence Enforcement (CENF-01 through CENF-05)
+
+15. **Diagnostic file generation (CENF-02, CENF-05):** After EVERY phase completion where `alignment_score < 9` (regardless of `--lenient` status), the orchestrator writes a diagnostic file:
+
+    **Path:** `.autopilot/diagnostics/phase-{N}-confidence.md`
+
+    **Content:**
+    ```markdown
+    # Phase {N} Confidence Diagnostic
+
+    **Score:** {alignment_score}/10
+    **Threshold:** {pass_threshold}/10 (default 9, lenient 7)
+    **Status:** {passed | force_incomplete | remediated_to_{final_score}}
+
+    ## Judge Concerns
+    {Extracted from return JSON concerns[] -- one bullet per concern}
+
+    ## Acceptance Criteria Status
+    | Criterion | Status | Evidence | Gap |
+    |-----------|--------|----------|-----|
+    {From verifier criteria_results: criterion text | verified/failed | file:line evidence | what is missing}
+
+    ## Automated Check Results
+    | Check | Result | Details |
+    |-------|--------|---------|
+    | compile | {pass/fail} | {detail from automated_checks} |
+    | lint | {pass/fail} | {detail} |
+    | build | {pass/fail/n/a} | {detail} |
+
+    ## Path to 9/10
+    {For each item: specific file path, specific deficiency, expected score impact}
+    1. **{file_path}**: {specific deficiency} -- fixing this addresses {judge_concern} and would resolve {N} of {M} remaining issues
+    2. **{file_path}**: {specific deficiency} -- {expected impact}
+    ```
+
+    **CENF-05 enforcement:** Every item in the "Path to 9/10" section MUST contain: (a) a specific file path, (b) the specific deficiency in that file, and (c) the expected impact on the score. Vague advice like "improve code quality" or "add more tests" is NOT acceptable. If the judge's concerns are vague, the orchestrator extracts the most specific information available from `criteria_results`, `failures`, and `independent_evidence`.
+
+    **Generation logic:**
+    ```
+    if alignment_score < 9:
+      build diagnostic content from:
+        - judge return JSON: concerns[], independent_evidence[]
+        - verifier return JSON: criteria_results[], automated_checks, failures[]
+        - phase plan: acceptance criteria from PLAN.md
+      construct "Path to 9/10" by:
+        for each failed/partial criterion in criteria_results:
+          identify the target file from the criterion
+          describe what is missing or wrong
+          estimate impact: "resolves {criterion_description}"
+        for each judge concern not already covered:
+          map to a specific file if possible
+          describe what would address the concern
+      write to .autopilot/diagnostics/phase-{N}-confidence.md
+      append confidence_diagnostic_written event to event_log
+    ```
+
+16. **Remediation cycle (CENF-01, CENF-03):** When a phase hits the REMEDIATE row in the gate table (score >= 7 but < `pass_threshold`, and `pass_threshold` > 7):
+
+    **Remediation cycle mechanics:**
+    ```
+    remediation_cycle = 0
+    current_score = alignment_score from initial return
+
+    while current_score < pass_threshold AND remediation_cycle < 2:
+      remediation_cycle += 1
+      log: "Phase {N}: score {current_score}/10 below threshold {pass_threshold}. Remediation cycle {remediation_cycle}/2."
+      append remediation_started event to event_log
+
+      extract targeted_feedback from:
+        - judge concerns[]
+        - verifier failures[]
+        - diagnostic file "Path to 9/10" items
+
+      re-spawn phase-runner with:
+        existing_plan: true
+        skip_research: true
+        remediation_feedback: targeted_feedback (structured list of specific deficiencies)
+        remediation_cycle: {remediation_cycle}
+        pass_threshold: {pass_threshold}
+
+      parse new return JSON
+      new_score = new alignment_score
+
+      append remediation_completed event with {cycle, old_score, new_score}
+      generate updated diagnostic file (overwrites previous)
+
+      if new_score >= pass_threshold:
+        log: "Phase {N}: remediation successful. Score improved {current_score} -> {new_score}."
+        current_score = new_score
+        break
+      else:
+        current_score = new_score
+
+    if current_score >= pass_threshold:
+      PASS -- checkpoint, next phase
+    else:
+      log: "Phase {N}: remediation exhausted (2 cycles). Passing with force_incomplete."
+      mark phase in state.json:
+        force_incomplete: true
+        diagnostic_path: ".autopilot/diagnostics/phase-{N}-confidence.md"
+        remediation_cycles: {remediation_cycle}
+      append force_incomplete_marked event to event_log
+      PASS -- checkpoint, next phase (phase is NOT failed, progress is preserved)
+    ```
+
+    **Token cost:** Each remediation cycle costs approximately 60k tokens (targeted execute ~30k + verify ~20k + judge ~10k). Maximum additional cost per phase: ~120k tokens (2 cycles). For a 10-phase run, worst case adds up to 1.2M tokens.
+
+    **CENF-03 behavior:** When remediation cycles exhaust without reaching `pass_threshold`, the phase is NOT failed. It passes at its current score but is marked `force_incomplete: true` in state.json with the diagnostic file path. This preserves progress while clearly documenting what could not be achieved autonomously. The user can review the diagnostic file and decide whether to address the remaining deficiencies manually.
+
 ### Status Decision Governance Checks
 
 13. **Human-verify justification required (STAT-02):** If `status` is `"needs_human_verification"`:
@@ -616,6 +728,10 @@ After each phase, update `.autopilot/state.json`:
 6. `last_checkpoint_sha` = `git rev-parse HEAD`.
 7. Append `phase_completed` event to `event_log`.
 8. Update `_meta.human_deferred_count` and `_meta.total_phases_processed` counters (see Section 2, Human-Defer Rate Tracking).
+9. **Confidence enforcement fields (CENF-03):** If the phase was remediated or passed with `force_incomplete`:
+   - `phases.{N}.force_incomplete` = `true` if remediation exhausted without reaching `pass_threshold`, `false` otherwise.
+   - `phases.{N}.diagnostic_path` = `".autopilot/diagnostics/phase-{N}-confidence.md"` if a diagnostic file was generated, `null` otherwise.
+   - `phases.{N}.remediation_cycles` = number of remediation cycles run (0 if none).
 
 ---
 
