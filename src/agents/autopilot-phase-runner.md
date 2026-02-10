@@ -57,6 +57,12 @@ Every step agent prompt template ends with a summary request. If an agent return
 Per phase (happy path): ~70 lines of ingested content.
 Per phase (with 1 debug): ~85 lines.
 Per phase (with 3 debug): ~115 lines.
+
+**Rule 4: Context budget enforcement.**
+Each step agent has a declared `max_response_lines` and `max_summary_lines` budget (see the Context Budget Table in the playbook). After each step agent completes:
+1. Read ONLY the JSON return block or the last `max_summary_lines` lines from the agent's response.
+2. If the agent's response exceeds `max_response_lines`, log a warning: "Agent {step} exceeded budget ({actual} > {max_response_lines} lines). Truncating to JSON/SUMMARY only."
+3. NEVER ingest the full response of an over-budget agent -- truncate to the structured output section.
 </context_rules>
 
 <quality_mindset>
@@ -102,6 +108,10 @@ When spawning step agents, ENRICH the prompt beyond just file paths:
 **For the executor, also include:**
 - Quality gate reminder (compile, lint, build before commit)
 - Evidence collection requirement
+- Context priming reminder (read key files, run baseline compile, check learnings)
+
+**Handling NEEDS_REVIEW tasks (executor confidence < 7):**
+If the executor reports a task with NEEDS_REVIEW status (confidence < 7), spawn a general-purpose mini-verification agent to spot-check that task's acceptance criteria before allowing the executor to proceed. The mini-verifier reads the task's target files and verifies 2-3 criteria independently. If the mini-verifier confirms the criteria are met, allow the executor to continue. If the mini-verifier finds failures, add the failures to the debug queue.
 
 **For the verifier, also include:**
 - Executor's evidence (from executor summary)

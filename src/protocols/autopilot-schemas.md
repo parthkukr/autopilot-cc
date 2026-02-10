@@ -13,6 +13,7 @@
 2. [Circuit Breaker Configuration](#section-2-circuit-breaker-configuration)
 3. [Event Types](#section-3-event-types)
 4. [Directory Structure](#section-4-directory-structure)
+5. [Step Agent Handoff Protocol](#section-5-step-agent-handoff-protocol)
 
 ---
 
@@ -245,6 +246,64 @@ project-root/
 
 ---
 
+## Section 5: Step Agent Handoff Protocol
+
+> **All step agents return structured JSON.** The phase-runner reads ONLY the JSON block from each agent's response. Prose summaries are no longer used for handoff between pipeline steps. The canonical JSON schemas are defined in the playbook prompt templates; this section mirrors them for developer reference.
+
+### Researcher Return Schema
+
+```jsonc
+{
+  "key_findings": ["string"],        // 3-5 key research findings
+  "recommended_approach": "string",   // 1-2 sentence recommended approach
+  "risks": ["string"],               // Identified risks or blockers
+  "open_questions": ["string"]        // Unresolved questions for the planner
+}
+```
+
+### Planner Return Schema
+
+```jsonc
+{
+  "plans_created": 3,                // Number of plans written to PLAN.md
+  "waves": 2,                        // Number of execution waves
+  "total_tasks": 6,                  // Total task count across all plans
+  "complexity": "simple|medium|complex",  // Estimated phase complexity
+  "dependencies": ["string"],        // Inter-plan dependencies
+  "concerns": ["string"]             // Deferred decisions or concerns
+}
+```
+
+### Executor Return Schema
+
+```jsonc
+{
+  "tasks_completed": "N/M",          // Tasks completed out of total
+  "tasks_failed": "N/M",             // Tasks failed out of total
+  "commit_shas": ["string"],         // Git commit SHAs (one per task)
+  "evidence": [                       // Per-task evidence
+    {
+      "task_id": "XX-YY",            // Task identifier from PLAN.md
+      "criteria_met": ["string"],     // "criterion -- file:line -- finding"
+      "commands_run": ["string"]      // "command -> result"
+    }
+  ],
+  "deviations": ["string"]           // Any departures from plan
+}
+```
+
+### Existing Step Agent Return Schemas
+
+The following agents already used JSON returns before this handoff protocol was formalized. Their schemas are defined in the playbook prompt templates:
+
+- **Preflight**: `all_clear`, `spec_hash_match`, `working_tree_clean`, `dependencies_met`, `unresolved_debug`, `issues`
+- **Plan-checker**: `pass`, `issues`, `confidence`, `blocker_count`, `warning_count`
+- **Verifier**: `pass`, `automated_checks`, `criteria_results`, `executor_evidence_accurate`, `alignment_score`, `failures`, `scope_creep`
+- **Judge**: `alignment_score`, `recommendation`, `concerns`, `verifier_agreement`, `verifier_missed`, `scope_creep`, `missing_requirements`, `notes`
+- **Debugger**: `fixed`, `changes`, `commits`, `remaining_issues`
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, and (4) the directory structure for runtime and phase artifacts. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, and (5) the step agent handoff protocol with JSON return schemas for all agents. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
