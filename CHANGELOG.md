@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 (2026-02-10)
+
+### Features
+
+- **Verification Pipeline Hardening (Phase 4):** Blind verification (verifier never sees executor claims), JUDGE-REPORT.md artifact with divergence analysis, verifier rubber-stamp detection (2-min minimum + non-empty commands_run), judge rubber-stamp detection (independent evidence required), 10-category failure taxonomy
+- **Status Decision Governance (Phase 4.1):** Evidence validation applied to all status decisions regardless of final status, structured human_verify_justification field with orchestrator rejection, unnecessary deferral warnings, human-defer rate tracking with >50% warning, human verdict recording for confidence calibration
+
 ## 1.1.2 (2026-02-10)
 
 ### Features
