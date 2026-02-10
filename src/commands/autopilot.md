@@ -84,8 +84,8 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 1. Read installed version from `__INSTALL_BASE__/autopilot/VERSION`
 2. Check npm: run `npm view autopilot-cc version`
 3. If same version, say "Already up to date (vX.Y.Z)" and stop
-4. If update available: show "Update available: vX.Y.Z -> vA.B.C"
-5. On confirmation: run `npx autopilot-cc@latest` (preserving --global/--local based on current install location)
+4. If update available: show "Update available: vX.Y.Z -> vA.B.C. Installing..."
+5. Run `npx autopilot-cc@latest` (preserving --global/--local based on current install location)
 6. Show "Restart Claude Code to activate the update"
 
 ### If `resume`:
