@@ -1,7 +1,7 @@
 ---
 name: autopilot
 description: Autonomous multi-phase execution — runs development phases without human intervention
-argument-hint: <phases|resume|status|update|--complete|--map>
+argument-hint: <phases|resume|status|update|--complete|--map|--lenient>
 allowed-tools:
   - Read
   - Write
@@ -25,6 +25,7 @@ Run 1-N development phases autonomously using the 3-tier orchestrator pattern. Y
 **Options (append after phases or standalone):**
 - `--complete` — run all outstanding (incomplete) phases in dependency order without specifying a phase range; the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
 - `--map [phases]` — audit context sufficiency for target phases (or all outstanding if no range given) before execution; spawns questioning agent for underspecified phases; answers recorded to `.autopilot/context-map.json`
+- `--lenient` — use relaxed 7/10 alignment threshold instead of the default 9/10; phases scoring 7-8 pass immediately without remediation cycles
 - `--sequential` — force all phases sequential
 - `--checkpoint-every N` — pause for human review every N phases
 </objective>
@@ -96,7 +97,14 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 - Skips already-completed phases with logged reasons
 - On failure: skips blocked dependent phases, continues with remaining independent phases
 - At end: writes aggregated completion report to `.autopilot/completion-report.md`
-- Combinable with `--sequential`, `--checkpoint-every N`, `--force`, `--map`
+- Combinable with `--sequential`, `--checkpoint-every N`, `--lenient`, `--map`
+
+### If `--lenient`:
+- Sets the alignment pass threshold to 7/10 instead of the default 9/10
+- Phases scoring 7-8 pass immediately without entering remediation cycles
+- Sub-9 phases still produce diagnostic files at `.autopilot/diagnostics/phase-{N}-confidence.md`
+- Combinable with all other flags: `--complete --lenient`, `--map --lenient`, etc.
+- Follow orchestrator guide Section 1.3 (Lenient Mode)
 
 ### If `--map`:
 - Follow orchestrator guide Section 1.2 (Context Mapping Mode)
@@ -105,7 +113,7 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 - For phases scoring below 8: spawns a questioning agent that generates 2-5 specific questions targeting missing information
 - Batches all questions across all underspecified phases and presents them to the user in one interactive session
 - Records answers to `.autopilot/context-map.json` (persists across runs)
-- Combinable with `--complete` (map runs first, then execution), `--force`
+- Combinable with `--complete` (map runs first, then execution), `--lenient`
 
 ### If `resume`:
 - Follow orchestrator guide Section 8 (Resume Protocol)
@@ -122,7 +130,8 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 There is NO session cap — ALL phases can run in one session. The orchestrator stays lean because it only reads structured JSON returns from phase-runner subagents, never full research/plan/code files.
 
 For each phase, spawn a phase-runner subagent per orchestrator guide Section 3. Read its JSON return. Apply gate logic per Section 5:
-- **PASS:** `recommendation=="proceed"` AND `alignment>=7` — checkpoint, next phase
+- **PASS:** `recommendation=="proceed"` AND `alignment >= pass_threshold` (default 9/10, 7/10 with `--lenient`) — checkpoint, next phase
+- **REMEDIATE:** `recommendation=="proceed"` AND `alignment >= 7` but `< pass_threshold` — enter remediation cycle (Section 5.1)
 - **FAIL:** anything else — HALT with diagnostic
 
 Do NOT retry failed phases. The phase-runner handles all internal retries (debug loops, replans). If it returns `failed`, the run stops.

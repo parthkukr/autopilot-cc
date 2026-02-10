@@ -9,7 +9,7 @@ You are a loop. For each phase: spawn a phase-runner, wait for its JSON return, 
 When the user types `/autopilot <phases>`:
 
 1. **Resume check**: Read `.autopilot/state.json`. If it exists and `_meta.status` != `"completed"`, resume automatically (Section 8).
-2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1), `"--map"` or `"--map 3-7"` = context mapping mode (Section 1.2).
+2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1), `"--map"` or `"--map 3-7"` = context mapping mode (Section 1.2), `"--lenient"` = lenient mode (Section 1.3). **Set `pass_threshold`:** If `--lenient` is present, set `pass_threshold = 7`. Otherwise, `pass_threshold = 9` (default). Store in `_meta.pass_threshold` in state.json.
 3. **Read roadmap**: Find at `.planning/ROADMAP.md` (or project root). Extract phase names/goals for the requested range.
 4. **Locate frozen spec**: Read `project.spec_paths` from `.planning/config.json` and check each path in order until one exists. Default fallback order: `.planning/REQUIREMENTS.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`. Compute hash: `sha256sum <spec> | cut -d' ' -f1`.
 5. **Immediate start**: Show a 2-line status and begin the loop. No confirmation. No preview. The user invoked the command -- that is the instruction to proceed.
@@ -71,7 +71,7 @@ The orchestrator does not halt the entire run for a single failure in `--complet
 
 - `--complete --sequential`: Runs all outstanding phases sequentially (already the default behavior)
 - `--complete --checkpoint-every N`: Pauses for human review every N phases
-- `--complete --force`: Runs all outstanding phases with the 9/10 quality threshold (Phase 10)
+- `--complete --lenient`: Runs all outstanding phases with the relaxed 7/10 quality threshold instead of the default 9/10
 - `--complete --map`: Runs context mapping first on all outstanding phases, then executes (Phase 9)
 
 ---
@@ -224,7 +224,27 @@ After all questioning agents return:
 - `--map` alone: Audit and question only. Does NOT execute phases.
 - `--map 3-7`: Audit only phases 3-7.
 - `--complete --map`: Run context mapping on all outstanding phases first, then proceed with batch completion. The `--map` step runs before any phase-runner is spawned.
-- `--map --force`: Map first, then if combined with execution, use the 9/10 threshold.
+- `--map --lenient`: Map first, then if combined with execution, use the relaxed 7/10 threshold instead of the default 9/10.
+
+---
+
+## 1.3 Lenient Mode (CENF-01, CENF-04)
+
+When the user passes `--lenient` (e.g., `/autopilot 3-7 --lenient`, `/autopilot --complete --lenient`), the orchestrator lowers the alignment pass threshold from the default 9/10 to 7/10. This is the original threshold from before Phase 10.
+
+### Behavior
+
+1. **Set pass_threshold:** At invocation, set `pass_threshold = 7` (stored in `_meta.pass_threshold` in state.json). Without `--lenient`, `pass_threshold = 9` (the default).
+2. **Gate logic:** The gate logic in Section 5 uses `pass_threshold` instead of a hardcoded value. Phases scoring >= `pass_threshold` pass immediately.
+3. **No remediation cycles:** When `--lenient` is active, phases scoring 7-8 pass immediately without entering the remediation cycle (Section 5.1). The orchestrator does NOT re-spawn phase-runners for scores between 7 and 8.
+4. **Diagnostic files still generated:** Even in lenient mode, any phase completing below 9/10 still produces a diagnostic file at `.autopilot/diagnostics/phase-{N}-confidence.md` (CENF-02). The diagnostic file is generated regardless of `--lenient` status -- the flag only affects whether remediation cycles run.
+
+### Combining --lenient with Other Flags
+
+- `--lenient --complete`: All outstanding phases use 7/10 bar. No remediation cycles.
+- `--lenient --map`: Map runs first, then execution uses 7/10 threshold.
+- `--lenient --sequential`: Forces sequential execution with 7/10 threshold.
+- `--lenient --checkpoint-every N`: Pauses every N phases with 7/10 threshold.
 
 ---
 
@@ -470,13 +490,18 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 
 | Condition | Action |
 |-----------|--------|
-| `status=="completed"` AND `alignment_score>=7` (this is the JUDGE's score) AND `recommendation=="proceed"` | **PASS** -- checkpoint, next phase |
+| `status=="completed"` AND `alignment_score >= pass_threshold` (default 9, 7 with --lenient) AND `recommendation=="proceed"` | **PASS** -- generate diagnostic file if score < 9 (CENF-02), checkpoint, next phase |
+| `status=="completed"` AND `alignment_score >= 7` AND `alignment_score < pass_threshold` AND `recommendation=="proceed"` | **REMEDIATE** -- generate diagnostic file (CENF-02), enter remediation cycle (Section 5.1) |
 | `status=="needs_human_verification"` | **SKIP** -- log human_verify_justification, continue to next phase, revisit at end of run |
 | `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, move to next phase |
 | `status=="failed"` AND later phases depend on it | **HALT** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, notify user, suggest `/autopilot resume` |
 | `recommendation=="rollback"` | **ROLLBACK** -- `git revert` to last checkpoint, diagnostic, halt |
 
+**Pass threshold:** The `pass_threshold` is 9 by default. When `--lenient` is passed, it is set to 7. This variable is stored in `_meta.pass_threshold` in state.json and used throughout the gate logic. When `--lenient` is active, the REMEDIATE row never triggers (because `pass_threshold` equals 7, so any score >= 7 hits the PASS row).
+
 **CRITICAL: The orchestrator does NOT re-spawn failed phase-runners.** The phase-runner already exhausted its internal retry budget (max 3 debug attempts, max 1 replan). If it returns `failed`, the issue requires human intervention. But if the failed phase is independent, keep running remaining phases.
+
+**NOTE: The orchestrator DOES re-spawn for remediation cycles (Section 5.1).** This is distinct from failure re-spawning. Remediation applies to phases that PASSED (score >= 7) but did not meet the `pass_threshold` (default 9). The phase-runner is re-spawned with targeted feedback to address specific deficiencies, not to retry from scratch.
 
 On HALT/ROLLBACK: set state `status:"failed"`, note that the phase-runner has written a structured post-mortem to `.autopilot/diagnostics/phase-{N}-postmortem.json` (OBSV-04), tell user `/autopilot resume`.
 
