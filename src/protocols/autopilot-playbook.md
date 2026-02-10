@@ -350,6 +350,7 @@ Requirements for this phase (if provided):
 <should>
 1. Each plan should complete within ~50% context budget
 2. Split tasks that touch the same file into sequential waves
+3. If `.autopilot/learnings.md` exists, read it and incorporate relevant prevention rules into task design (LRNG-02). For example, if a previous phase failed due to unwired files, ensure the plan includes explicit integration criteria. If a previous phase failed due to cross-file inconsistencies, add cross-reference verification criteria to relevant tasks.
 </should>
 
 <may>
@@ -358,7 +359,7 @@ Requirements for this phase (if provided):
 </may>
 
 <should>
-3. Write a trace file to .planning/phases/{phase}/plan-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan", "action": "file_read|file_write|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+4. Write a trace file to .planning/phases/{phase}/plan-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan", "action": "file_read|file_write|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
 </should>
 
 **AUTOPILOT CONTEXT (you are in autopilot mode):**
