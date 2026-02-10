@@ -1,6 +1,6 @@
 {
   "name": "autopilot-cc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autonomous multi-phase execution for Claude Code",
   "bin": {
     "autopilot-cc": "./bin/install.js"
@@ -22,7 +22,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/parthkukr/autopilot-cc"
+    "url": "git+https://github.com/parthkukr/autopilot-cc.git"
   },
   "engines": {
     "node": ">=16.0.0"

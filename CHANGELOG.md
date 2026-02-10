@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 (2026-02-10)
+
+### Bug Fixes
+
+- Halt with actionable error when `autopilot-phase-runner` agent type is not found (instead of silent fallback to `general-purpose`)
+- Add restart warning to installer output — agent types are discovered at session startup
+- Add pre-flight agent availability check in `/autopilot` command
+
 ## 1.0.0 (2026-02-09)
 
 ### Initial Release
