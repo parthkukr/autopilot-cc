@@ -349,12 +349,12 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 > **Frozen spec at:** {spec_path}
 >
 > <must>
-> 1. Make atomic git commits per task with format: {type}({phase}): {concise task description}
-> 2. Run compile check (from `.planning/config.json` `project.commands.compile`) before each commit. Fix failures before committing.
+> 1. Make atomic git commits per task with format: `{type}({phase}): {task_id} - {concise task description}`. Example: `feat(02): 02-01 - add compile gates to executor prompt`. Each task gets exactly one commit.
+> 2. After writing or modifying any file, immediately run the compile check (from `.planning/config.json` `project.commands.compile`). If a file you wrote fails compilation, you MUST fix that file before writing any other file. Do not proceed to the next file or task until compilation passes. Run compile and lint before each commit.
 > 3. Run lint check (from `.planning/config.json` `project.commands.lint`) before each commit. Fix errors before committing.
 > 4. Self-test each task against its acceptance criteria before marking complete. Use grep, file reads, or commands -- not assumptions.
 > 5. Record evidence per task: commands run with output, file:line references proving each criterion is met.
-> 6. Write completion status to .planning/phases/{phase}/EXECUTION-LOG.md after each task.
+> 6. Write task completion status to .planning/phases/{phase}/EXECUTION-LOG.md IMMEDIATELY after completing each task -- before starting the next task. Each entry must include: task ID, status (COMPLETED/FAILED/NEEDS_REVIEW), commit SHA, files modified, and evidence summary. Do NOT batch these writes.
 > 7. Return structured JSON at the END of your response (see Return JSON below).
 > </must>
 >
