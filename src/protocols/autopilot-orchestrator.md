@@ -155,6 +155,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
   },
   "pipeline_steps": {
     "preflight": {"status": "pass|fail|skipped", "agent_spawned": false},
+    "triage": {"status": "full_pipeline|verify_only", "agent_spawned": false, "pass_ratio": 0.0},
     "research": {"status": "completed|skipped", "agent_spawned": true|false, "skip_reason": "string|null"},
     "plan": {"status": "completed|skipped", "agent_spawned": true|false, "skip_reason": "string|null"},
     "plan_check": {"status": "pass|fail|skipped", "agent_spawned": true, "confidence": 8},
@@ -167,7 +168,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
 
 **Field notes:**
 - `evidence` is NEW. Contains concrete proof of work. The judge uses this for independent verification. If `commit_shas` is empty (already-implemented claim), `evidence.files_checked` MUST list file:line evidence for each acceptance criterion.
-- `pipeline_steps` uses ONE canonical shape: `{status, agent_spawned}` plus optional `confidence` (plan_check only) and `skip_reason` (research/plan only). No `ran` field. No alternative schemas.
+- `pipeline_steps` uses ONE canonical shape: `{status, agent_spawned}` plus optional `confidence` (plan_check only), `skip_reason` (research/plan only), and `pass_ratio` (triage only). No `ran` field. No alternative schemas.
 - `automated_checks` includes `build` to distinguish compilation (`compile` = configured compile command) from production build (`build` = configured build command). Actual commands are read from `project.commands` in `.planning/config.json`.
 
 Parse from the **last lines** of the phase-runner's response. If missing, spawn a small agent to extract it.
