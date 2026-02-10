@@ -279,6 +279,10 @@ Files installed to: ${target}
   - 3 protocol files
   - SessionStart update hook
 
+⚠  IMPORTANT: You must restart Claude Code before using /autopilot.
+   Agent types are discovered at session startup. If you run /autopilot
+   in an existing session, the phase-runner agent will not be found.
+
 Usage: Start Claude Code and run /autopilot <phases>
 Update: /autopilot update
 Uninstall: npx ${PACKAGE_NAME}@latest --uninstall

@@ -60,8 +60,20 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 ## On Invocation
 
 1. **Parse argument** — determine target phases, or if `resume`/`status`/`update`
-2. **Read the orchestrator guide** — `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md`
-3. **Follow it exactly** — the guide has step-by-step instructions for every scenario
+2. **Agent availability check** — Before doing anything else, verify the `autopilot-phase-runner` agent type is available by checking the Task tool's available agent types. If `autopilot-phase-runner` is NOT in the list:
+   - **HALT immediately.** Do NOT fall back to `general-purpose`. Do NOT attempt to run phases.
+   - Output this exact message:
+   ```
+   ✗ autopilot-phase-runner agent type not found.
+
+   Claude Code discovers agent types at session startup. This means you
+   installed or updated autopilot-cc after this session started.
+
+   Fix: Exit Claude Code and start a new session, then re-run /autopilot.
+   ```
+   - Stop execution. Do not proceed to step 3.
+3. **Read the orchestrator guide** — `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md`
+4. **Follow it exactly** — the guide has step-by-step instructions for every scenario
 
 ### If `status`:
 - Read `.autopilot/state.json`

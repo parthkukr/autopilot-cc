@@ -71,6 +71,12 @@ If a PLAN.md exists for this phase, grep/count task types:
 ## 3. Phase-Runner Spawn Template
 
 Spawn via **Task tool**: `subagent_type: "autopilot-phase-runner"`, `run_in_background: false`.
+
+**CRITICAL: If the Task tool returns "Agent type 'autopilot-phase-runner' not found":**
+- Do NOT fall back to `general-purpose` or any other agent type.
+- HALT the run immediately and output: "autopilot-phase-runner agent not found. Restart Claude Code (agent types are discovered at session startup)."
+- Save state so the user can `/autopilot resume` after restarting.
+
 **Model**: Read `.planning/config.json` `model_profile` -- `"quality"` = opus, `"balanced"` = sonnet, `"speed"` = haiku. Default: sonnet. Note: Claude Code's Task tool accepts a `model` parameter (enum: sonnet, opus, haiku). Pass the resolved model name.
 
 **Prompt** (fill `{variables}` from roadmap + state):
