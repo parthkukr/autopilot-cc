@@ -219,7 +219,9 @@ Requirements for this phase (if provided):
 <must>
 1. Write plan(s) to .planning/phases/{phase}/PLAN.md
 2. Create 2-5 atomic tasks per plan with files, action, verify, and done fields
-3. Every acceptance criterion must be machine-verifiable (grep, file check, command output)
+3. Every acceptance criterion MUST include a verification command in the format: "{description} -- verified by: `{command}`". Acceptable command types: `grep` with pattern and file, `test -f`/`test -d` for existence, shell command with expected output, `wc -l` or `grep -c` for counting. Do NOT write prose-only criteria like "should work correctly" or "properly handles errors".
+   Good example: "The executor prompt contains compile gate language -- verified by: `grep 'MUST fix that file' src/protocols/autopilot-playbook.md`"
+   Bad example: "The executor properly enforces compilation" (no verification command -- will be rejected by plan-checker)
 4. Include a traceability table mapping requirements to tasks
 5. Return structured JSON at the END of your response (see Return JSON below)
 </must>
