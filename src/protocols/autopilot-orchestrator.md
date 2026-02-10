@@ -403,6 +403,8 @@ When all target phases are done:
 
 2. **Self-audit against requirements**: After the integration check passes and before the version bump, spawn a self-audit agent to verify that the actual implementation satisfies the frozen spec requirements -- not trusting phase-runner self-reported results. This catches requirement-level gaps that per-phase verification misses (plan-level verification confirms "did the executor follow the plan?" but NOT "does the implementation satisfy the original requirements?").
 
+   Append a `self_audit_started` event to the event_log before spawning the agent.
+
    **Self-audit agent spawn:** Spawn a general-purpose subagent with the following prompt:
 
    > You are a post-completion self-audit agent. Your job is to verify that implementation files satisfy the frozen spec requirements -- independently of what phase-runners reported.
@@ -468,11 +470,11 @@ When all target phases are done:
 
    **Gap-fix routing:** After the self-audit agent returns:
 
-   - If `gaps_found == 0`: Log "Self-audit: all {total} requirements passed. No gaps found." Proceed to step 3.
-   - If `gaps_found > 0`: Process each gap:
+   - If `gaps_found == 0`: Log "Self-audit: all {total} requirements passed. No gaps found." Append a `self_audit_completed` event to the event_log with the aggregate counts. Proceed to step 3.
+   - If `gaps_found > 0`: For each gap, append a `self_audit_gap_found` event to the event_log with the requirement_id and gap_description. Then process each gap:
      - **Small fix** (`fix_complexity == "small"`): Spawn a general-purpose agent with the gap description and suggested fix. The agent makes the edit and commits with message: `fix(audit): close {requirement_id} gap -- {1-line description}`. Log: "Self-audit: fixing small gap for {requirement_id}."
      - **Large fix** (`fix_complexity == "large"`): Spawn a targeted executor (gsd-executor) with the gap as a single-task plan. The executor follows standard compile/lint/commit protocol. Log: "Self-audit: routing large gap for {requirement_id} to executor."
-   - After ALL gap fixes are applied, append a `self_audit_gaps_fixed` event to the event_log.
+   - After ALL gap fixes are applied, append a `self_audit_gap_fixed` event per fixed gap to the event_log.
 
    **Re-verification loop:** After gap fixes are applied, re-run the self-audit agent on ONLY the requirements that had gaps (pass the `gap_details` array as the scope). The re-audit agent uses the same prompt but with an additional instruction:
 
@@ -482,6 +484,7 @@ When all target phases are done:
    - If re-audit finds remaining gaps AND this is re-audit cycle 1: Apply fixes and re-audit once more (cycle 2).
    - If re-audit finds remaining gaps AND this is re-audit cycle 2: Log "Self-audit: {N} gaps could not be auto-fixed after 2 cycles. Reporting as remaining." Proceed to step 3 with remaining gaps noted.
    - **Maximum 2 re-audit cycles.** Do not loop beyond 2.
+   - After the re-verification loop completes (whether all gaps are fixed or max cycles exhausted), append a `self_audit_completed` event to the event_log with aggregate counts (total_checked, passed, gaps_found, gaps_fixed, gaps_remaining).
 
    **Self-audit results for completion report:** Store the following for inclusion in the completion report (step 4):
    ```json

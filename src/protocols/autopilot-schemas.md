@@ -213,6 +213,10 @@ All events are appended to the `event_log` array in `state.json`. Events are the
 | `human_verdict_recorded` | Phase | User provides pass/fail/issues_found verdict on a needs_human_verification phase |
 | `unnecessary_deferral_warning` | Phase | Phase deferred to human with all auto tasks passing |
 | `high_defer_rate_warning` | Run | More than 50% of processed phases deferred to human |
+| `self_audit_started` | Run | Self-audit agent spawned during completion protocol |
+| `self_audit_completed` | Run | Self-audit finished (includes aggregate pass/gap counts) |
+| `self_audit_gap_found` | Run | Self-audit identified a requirement gap (one event per gap) |
+| `self_audit_gap_fixed` | Run | A gap identified by self-audit was fixed and re-verified |
 
 ---
 
