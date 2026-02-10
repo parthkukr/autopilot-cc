@@ -20,6 +20,7 @@ Starting phase {first}...
 ```
 
 6. **On start**: Create `.autopilot/` dir, write initial `state.json`, ensure `.autopilot/` is in `.gitignore`.
+7. **Reset learnings file (LRNG-03)**: If `.autopilot/learnings.md` exists, delete it. Learnings are scoped to the current run and must not accumulate across runs to prevent context pollution. Log: "Learnings file reset for new run."
 
 ---
 
