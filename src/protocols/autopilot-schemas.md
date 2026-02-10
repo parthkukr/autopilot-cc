@@ -20,6 +20,7 @@
 9. [Self-Audit Schemas](#section-9-self-audit-schemas)
 10. [Batch Completion Report Schema](#section-10-batch-completion-report-schema)
 11. [Context Mapping Schemas](#section-11-context-mapping-schemas)
+12. [Confidence Enforcement Schemas](#section-12-confidence-enforcement-schemas)
 
 ---
 
@@ -46,7 +47,8 @@ This is the single source of truth for a run. If the orchestrator crashes and re
     "current_step": "execute",
     "orchestrator_context_pct": 35,
     "human_deferred_count": 0,        // STAT-04: phases returning needs_human_verification
-    "total_phases_processed": 0       // STAT-04: total phases processed (for defer-rate calc)
+    "total_phases_processed": 0,      // STAT-04: total phases processed (for defer-rate calc)
+    "pass_threshold": 9               // CENF-01: alignment pass threshold (9 default, 7 with --lenient)
   },
 
   // ─── Spec Lock ────────────────────────────────────────────────────────
@@ -90,8 +92,11 @@ This is the single source of truth for a run. If the orchestrator crashes and re
       "tokens_used": 85000,
       "estimated_tokens": 110000,           // Pre-spawn cost estimate from MTRC-02
       "human_verify_justification": null,   // Populated when status is "needs_human_verification" (STAT-02)
-      "human_verdict": null                 // Populated after user provides verdict on needs_human_verification phase (STAT-05)
+      "human_verdict": null,                // Populated after user provides verdict on needs_human_verification phase (STAT-05)
       // human_verdict shape: { "verdict": "pass|fail|issues_found", "timestamp": "ISO-8601", "issues": ["string"] }
+      "force_incomplete": false,            // CENF-03: true when remediation cycles exhaust without reaching pass_threshold
+      "diagnostic_path": null,              // CENF-02: path to confidence diagnostic file (e.g., ".autopilot/diagnostics/phase-6.1-confidence.md")
+      "remediation_cycles": 0              // CENF-01: number of remediation cycles run (0 = none, 1-2 = remediated)
     }
   },
 
@@ -224,6 +229,10 @@ All events are appended to the `event_log` array in `state.json`. Events are the
 | `batch_completion_report` | Run | Aggregated completion report written at end of --complete run |
 | `context_mapping_started` | Run | Context mapping mode (`--map`) initiated; lists target phases |
 | `context_mapping_completed` | Run | Context mapping finished; includes per-phase scores and question counts |
+| `remediation_started` | Phase | Orchestrator enters remediation cycle for a phase scoring below pass_threshold (CENF-01) |
+| `remediation_completed` | Phase | Remediation cycle finishes; includes cycle number, old score, new score (CENF-01) |
+| `confidence_diagnostic_written` | Phase | Diagnostic file generated for a sub-9 phase completion (CENF-02) |
+| `force_incomplete_marked` | Phase | Phase passes with force_incomplete flag after remediation exhausts (CENF-03) |
 
 ---
 
@@ -240,7 +249,8 @@ project-root/
 │   ├── context-map.json                 # User-provided context answers (CMAP-03, persists across runs)
 │   └── diagnostics/                     # Failure reports
 │       ├── diagnostic-YYYY-MM-DDTHHMMSS.md
-│       └── phase-{N}-postmortem.json    # Structured post-mortem (OBSV-04)
+│       ├── phase-{N}-postmortem.json    # Structured post-mortem (OBSV-04)
+│       └── phase-{N}-confidence.md      # Confidence diagnostic for sub-9 phases (CENF-02)
 │
 ├── .planning/                           # Phase artifacts directory
 │   └── phases/                          # One subdirectory per phase
@@ -987,6 +997,144 @@ Events appended to the `event_log` in `state.json` during context mapping:
 
 ---
 
+## Section 12: Confidence Enforcement Schemas (CENF-01 through CENF-05)
+
+### Confidence Diagnostic File Schema (CENF-02, CENF-05)
+
+**File:** `.autopilot/diagnostics/phase-{N}-confidence.md`
+**Created by:** Orchestrator after any phase completes with alignment_score < 9
+**Read by:** User, remediation cycle (for targeted feedback), completion report
+
+The confidence diagnostic file is a markdown document generated for every sub-9/10 phase completion. It provides a structured analysis of why the phase scored below 9 and what specific changes would raise the score.
+
+```markdown
+# Phase {N} Confidence Diagnostic
+
+**Score:** {alignment_score}/10
+**Threshold:** {pass_threshold}/10 (default 9, lenient 7)
+**Status:** {passed | force_incomplete | remediated_to_{final_score}}
+
+## Judge Concerns
+- {concern_1 from judge return JSON concerns[]}
+- {concern_2}
+
+## Acceptance Criteria Status
+| Criterion | Status | Evidence | Gap |
+|-----------|--------|----------|-----|
+| {criterion_text} | verified | {file:line evidence} | - |
+| {criterion_text} | failed | {evidence if any} | {what is missing} |
+
+## Automated Check Results
+| Check | Result | Details |
+|-------|--------|---------|
+| compile | {pass/fail} | {detail from automated_checks.compile} |
+| lint | {pass/fail} | {detail from automated_checks.lint} |
+| build | {pass/fail/n/a} | {detail from automated_checks.build} |
+
+## Path to 9/10
+1. **{specific_file_path}**: {specific_deficiency} -- fixing this addresses "{judge_concern}" and would resolve {N} of {M} remaining issues
+2. **{specific_file_path}**: {specific_deficiency} -- {expected_score_impact}
+
+## Remediation History (if remediation cycles ran)
+| Cycle | Score | Changes Made | Remaining Issues |
+|-------|-------|-------------|-----------------|
+| 0 (initial) | {score} | - | {initial_issues} |
+| 1 | {score_after_cycle_1} | {changes_description} | {remaining_issues} |
+| 2 | {score_after_cycle_2} | {changes_description} | {remaining_issues} |
+```
+
+**CENF-05 rule:** Every item in the "Path to 9/10" section MUST contain three components:
+1. A specific file path (e.g., `src/protocols/autopilot-playbook.md`)
+2. The specific deficiency in that file (e.g., "Line 450: missing grep pattern for acceptance criterion 3")
+3. The expected impact on the score (e.g., "resolves the 'acceptance_criteria_unmet' failure, addressing 1 of 2 judge concerns")
+
+Items that use vague language ("improve code quality", "add better tests", "enhance documentation") violate CENF-05 and MUST be replaced with specific, actionable items.
+
+### Remediation Cycle Event Schemas
+
+Events appended to the `event_log` in `state.json` during confidence enforcement:
+
+```jsonc
+// remediation_started -- logged when orchestrator begins a remediation cycle
+{
+  "timestamp": "2026-02-10T16:00:00Z",
+  "event": "remediation_started",
+  "details": {
+    "phase_id": "7",
+    "cycle": 1,                              // 1 or 2
+    "current_score": 8,                      // Score before remediation
+    "pass_threshold": 9,                     // Target score
+    "feedback_items": 2                      // Number of targeted deficiencies
+  }
+}
+
+// remediation_completed -- logged when a remediation cycle finishes
+{
+  "timestamp": "2026-02-10T16:15:00Z",
+  "event": "remediation_completed",
+  "details": {
+    "phase_id": "7",
+    "cycle": 1,
+    "old_score": 8,
+    "new_score": 9,
+    "improved": true,                        // new_score > old_score
+    "reached_threshold": true                // new_score >= pass_threshold
+  }
+}
+
+// confidence_diagnostic_written -- logged when diagnostic file is generated
+{
+  "timestamp": "2026-02-10T16:20:00Z",
+  "event": "confidence_diagnostic_written",
+  "details": {
+    "phase_id": "7",
+    "alignment_score": 8,
+    "pass_threshold": 9,
+    "diagnostic_path": ".autopilot/diagnostics/phase-7-confidence.md",
+    "path_to_9_items": 3                    // Number of actionable items in "Path to 9/10"
+  }
+}
+
+// force_incomplete_marked -- logged when phase passes with force_incomplete
+{
+  "timestamp": "2026-02-10T16:30:00Z",
+  "event": "force_incomplete_marked",
+  "details": {
+    "phase_id": "7",
+    "final_score": 8,
+    "pass_threshold": 9,
+    "remediation_cycles": 2,
+    "diagnostic_path": ".autopilot/diagnostics/phase-7-confidence.md"
+  }
+}
+```
+
+### State Record Extension for Confidence Enforcement
+
+Additional fields in the phase record of `state.json` (Section 1):
+
+```jsonc
+{
+  // ... existing phase record fields ...
+  "force_incomplete": false,            // CENF-03: true when remediation exhausted without reaching pass_threshold
+  "diagnostic_path": null,              // CENF-02: ".autopilot/diagnostics/phase-{N}-confidence.md" or null
+  "remediation_cycles": 0              // CENF-01: number of remediation cycles (0, 1, or 2)
+}
+```
+
+### _meta Extension
+
+Additional field in `_meta` of `state.json`:
+
+```jsonc
+{
+  // ... existing _meta fields ...
+  "pass_threshold": 9                  // CENF-01: 9 (default) or 7 (with --lenient). Set at invocation.
+}
+```
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty-six event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), and (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), and (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
