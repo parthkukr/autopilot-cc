@@ -287,6 +287,10 @@ When user types `/autopilot resume`:
 When all target phases are done:
 
 1. **Integration check**: Spawn general-purpose agent to verify cross-phase wiring (imports, no orphaned code, E2E flows). Read pass/fail JSON.
-2. **Report**: Write `.autopilot/completion-{date}.md` (phase table, integration status, stats).
-3. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
-4. **Announce**: Show summary. Run task completion notification if available.
+2. **Version bump**: Read `CLAUDE.md` for versioning rules. Bump version in `package.json`, `VERSION`, and `CHANGELOG.md` based on the highest phase completed in this run:
+   - Integer phase (e.g., 4, 5) → minor bump (reset patch to 0)
+   - Decimal phase only (e.g., 3.1, 4.1) → patch bump
+   - Commit with message: `chore: bump to vX.Y.Z after phase N`
+3. **Report**: Write `.autopilot/completion-{date}.md` (phase table, integration status, stats).
+4. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
+5. **Announce**: Show summary. Run task completion notification if available.
