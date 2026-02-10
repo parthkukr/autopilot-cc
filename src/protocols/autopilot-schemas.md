@@ -85,6 +85,7 @@ This is the single source of truth for a run. If the orchestrator crashes and re
       "debug_attempts": 0,
       "replan_attempts": 0,
       "tokens_used": 85000,
+      "estimated_tokens": 110000,           // Pre-spawn cost estimate from MTRC-02
       "human_verify_justification": null,   // Populated when status is "needs_human_verification" (STAT-02)
       "human_verdict": null                 // Populated after user provides verdict on needs_human_verification phase (STAT-05)
       // human_verdict shape: { "verdict": "pass|fail|issues_found", "timestamp": "ISO-8601", "issues": ["string"] }
@@ -223,6 +224,7 @@ project-root/
 ├── .autopilot/                          # Autopilot runtime directory
 │   ├── state.json                       # Active run state (Section 1)
 │   ├── archive/                         # Completed run states
+│   │   ├── metrics.json                 # Cross-run metrics array (MTRC-01)
 │   │   └── run-YYYY-MM-DD-HHMMSS.json
 │   └── diagnostics/                     # Failure reports
 │       ├── diagnostic-YYYY-MM-DDTHHMMSS.md

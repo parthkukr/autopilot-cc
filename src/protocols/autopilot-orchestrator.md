@@ -163,6 +163,7 @@ Spawn via **Task tool**: `subagent_type: "autopilot-phase-runner"`, `run_in_back
 > **Skip research:** {true|false -- from config.json workflow.research if available}
 > **Task type summary:** {N} auto tasks, {M} checkpoint:human-verify tasks
 > **Phase type:** {ui|protocol|data|mixed} — derived from phase content (see below)
+> **Estimated cost:** {estimated_tokens} tokens (from MTRC-02 pre-spawn estimate)
 > **ENFORCEMENT: Verify and judge steps MUST spawn independent subagents. Self-assessment is rejected by the orchestrator.**
 >
 > **Phase directory resolution:** Use Glob to find your phase directory (e.g., `.planning/phases/*{phase_id}*` or `.planning/phases/{phase_number}-*/`) rather than assuming a fixed path format.
