@@ -282,14 +282,21 @@ Plans are in: .planning/phases/{phase}/
 1. Verify requirement coverage: every requirement has at least one task
 2. Verify task completeness: each task has files, action, verify, and done fields
 3. Verify dependency correctness: no cycles, valid references between plans/waves
-4. Verify acceptance criteria are machine-verifiable (not prose-only)
-5. Return structured JSON with pass/fail, issues, and confidence score
+4. Verify EVERY acceptance criterion contains a runnable verification command. Acceptable verification command patterns:
+   - `grep` or `grep -c` with a file path and pattern (e.g., `grep "pattern" file.md`)
+   - `test -f` or `test -d` for file/directory existence (e.g., `test -f path/to/file`)
+   - A shell command piped to `grep` or `wc` for output matching (e.g., `cmd | grep "expected"`)
+   - Any command with an explicit expected output (e.g., "returns 1", "returns at least 1")
+   If a criterion lacks a verification command, flag it as a **blocker** with severity "blocker".
+5. Reject any acceptance criterion that uses only subjective or vague language without a verification command. Prose-only blocklist patterns: "should work", "properly handles", "is correct", "works as expected", "functions correctly", "is implemented" (without an accompanying command). Any criterion matching these patterns without a runnable verification command is a **blocker**.
+6. Return structured JSON with pass/fail, issues, and confidence score
 </must>
 
 <should>
 1. Check scope sanity (2-3 tasks per plan, within context budget)
 2. Verify key links are wired (artifacts connected, not just created)
 3. Verify external dependencies exist (referenced packages, APIs, services)
+4. Each acceptance criterion should follow the pattern: "{description} -- verified by: `{command}`"
 </should>
 
 <may>
