@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 (2026-02-10)
+
+### Features
+
+- **Post-Completion Self-Audit (Phase 12):** Orchestrator automatically audits implementation against frozen spec requirements after phases complete, produces structured gap reports with file:line evidence, routes fixes by complexity (small via general-purpose, large via executor), re-verifies fixes in bounded loop (max 2 cycles), and includes audit results in completion report
+- **Auto-update without confirmation (Phase 13):** `/autopilot update` now installs updates immediately without confirmation prompt; version info displayed for transparency before install
+
 ## 1.3.1 (2026-02-10)
 
 ### Fixes
