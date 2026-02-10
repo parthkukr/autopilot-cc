@@ -449,8 +449,9 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > 2. Verify EACH acceptance criterion by reading the actual files -- do NOT trust executor claims
 > 3. Spot-check at least 2 executor evidence claims by re-running commands or re-reading files
 > 4. Run phase-type-specific checks (see methodology below)
-> 5. Write verification report to .planning/phases/{phase}/VERIFICATION.md
-> 6. Return structured JSON with pass/fail, criteria results, and alignment score
+> 5. **Independent wire check for new files:** For each file ADDED in the git diff (new files, not modifications), verify it has at least one import or reference elsewhere in the codebase (`grep -r "filename" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.md"` etc.). If a new file has zero imports AND is not a known standalone type (entry point, config, test, script, type declaration, documentation) AND does not have an explicit standalone justification documented in the EXECUTION-LOG.md task entry, flag it as a verification concern: "ORPHANED FILE: {path} -- zero imports, no standalone justification." Record all wire-check results in VERIFICATION.md.
+> 6. Write verification report to .planning/phases/{phase}/VERIFICATION.md
+> 7. Return structured JSON with pass/fail, criteria results, and alignment score
 > </must>
 >
 > <should>
@@ -505,6 +506,14 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 >
 > **Step 4: Cross-check executor evidence:**
 > Spot-check at least 2 evidence claims by re-running commands or re-reading files.
+>
+> **Step 5: New file wire check (ALL phase types):**
+> For each file ADDED in the git diff (use `git diff {last_checkpoint_sha}..HEAD --name-status | grep '^A'`):
+> 1. Search the codebase for imports/references to that file
+> 2. If zero references found, check if file is a known standalone type (entry point, config, test, script, type declaration, documentation)
+> 3. If not standalone, check EXECUTION-LOG.md for an explicit standalone justification
+> 4. If no references AND not standalone AND no justification: flag as "ORPHANED FILE" verification concern
+> Record results in VERIFICATION.md under a "Wire Check" section.
 >
 > **AUTOPILOT CONTEXT:** Do not default to 9/10. Scores of 7-8 with noted concerns are more credible.
 >
