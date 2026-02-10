@@ -549,7 +549,7 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > 3. Run phase-type-specific checks (see methodology below)
 > 4. **Independent wire check for new files:** For each file ADDED in the git diff (new files, not modifications), verify it has at least one import or reference elsewhere in the codebase (`grep -r "filename" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.md"` etc.). If a new file has zero imports AND is not a known standalone type (entry point, config, test, script, type declaration, documentation) AND does not have an explicit standalone justification documented in the EXECUTION-LOG.md task entry, flag it as a verification concern: "ORPHANED FILE: {path} -- zero imports, no standalone justification." Record all wire-check results in VERIFICATION.md.
 > 5. Write verification report to .planning/phases/{phase}/VERIFICATION.md
-> 6. Record every command you run in a `commands_run` list (command + result) -- an empty commands_run list will be rejected as rubber-stamping
+> 6. Record every command you run in a `commands_run` list (command + result) -- an empty commands_run list will be rejected as rubber-stamping. Classify every failure using the failure taxonomy (Section 2.5): executor_incomplete, executor_wrong_approach, compilation_failure, lint_failure, build_failure, acceptance_criteria_unmet, scope_creep, context_exhaustion, tool_failure, coordination_failure.
 > 7. Return structured JSON with pass/fail, criteria results, and alignment score
 > </must>
 >
@@ -845,7 +845,8 @@ Return JSON:
   "fixed": true|false,
   "changes": ["description of each fix"],
   "commits": ["sha1", "sha2"],
-  "remaining_issues": ["anything still broken"]
+  "remaining_issues": ["anything still broken"],
+  "failure_categories": [{"failure": "description", "category": "taxonomy_value from Section 2.5"}]
 }
 ```
 
@@ -904,6 +905,27 @@ max_response_lines: 20
 max_summary_lines: 5
 enforcement: Phase-runner performs this step directly -- no agent to budget
 </context_budget>
+
+---
+
+## Section 2.5: Failure Taxonomy
+
+Every failure identified by the verifier, judge, or debugger MUST be classified using one of the following categories. This taxonomy enables structured post-mortem analysis, cross-run trend detection, and targeted prevention rules.
+
+| Category | Description | Example |
+|----------|-------------|---------|
+| `executor_incomplete` | Task marked complete but acceptance criteria not met | Executor wrote file but missed a required section |
+| `executor_wrong_approach` | Executor took an approach that cannot satisfy requirements | Used wrong API, implemented wrong algorithm |
+| `compilation_failure` | Code does not compile | Syntax error, missing import, type mismatch |
+| `lint_failure` | Code fails lint checks | ESLint violations, formatting errors |
+| `build_failure` | Production build fails | Webpack/Vite build error, missing dependency |
+| `acceptance_criteria_unmet` | Specific acceptance criterion not satisfied (verifier-flagged) | Grep pattern not found in expected file |
+| `scope_creep` | Code implemented that was not in spec or plan | Extra feature, unrequested refactoring |
+| `context_exhaustion` | Agent ran out of context before completing | Task incomplete due to context window limit |
+| `tool_failure` | External tool (git, npm, compiler) returned unexpected error | Git merge conflict, npm install failure |
+| `coordination_failure` | Handoff between pipeline steps lost or corrupted data | Verifier received wrong file path, judge missing plan |
+
+**Usage:** The verifier MUST include a `failure_categories` array in its return JSON when reporting failures. Each entry is `{"failure": "description", "category": "taxonomy_value"}`. The debugger MUST include `failure_categories` in its return JSON classifying what was fixed. The orchestrator warns on unclassified failures (check 12 in Section 5 of the orchestrator guide).
 
 ---
 

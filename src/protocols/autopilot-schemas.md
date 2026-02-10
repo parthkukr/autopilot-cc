@@ -299,9 +299,9 @@ The following agents already used JSON returns before this handoff protocol was 
 
 - **Preflight**: `all_clear`, `spec_hash_match`, `working_tree_clean`, `dependencies_met`, `unresolved_debug`, `issues`
 - **Plan-checker**: `pass`, `issues`, `confidence`, `blocker_count`, `warning_count`
-- **Verifier**: `pass`, `automated_checks`, `criteria_results`, `executor_evidence_accurate`, `alignment_score`, `failures`, `scope_creep`
-- **Judge**: `alignment_score`, `recommendation`, `concerns`, `verifier_agreement`, `verifier_missed`, `scope_creep`, `missing_requirements`, `notes`
-- **Debugger**: `fixed`, `changes`, `commits`, `remaining_issues`
+- **Verifier**: `pass`, `automated_checks`, `criteria_results`, `alignment_score`, `verification_duration_seconds`, `commands_run`, `failures`, `failure_categories`, `scope_creep`
+- **Judge**: `alignment_score`, `recommendation`, `concerns`, `independent_evidence`, `verifier_agreement`, `verifier_missed`, `scope_creep`, `missing_requirements`, `notes`
+- **Debugger**: `fixed`, `changes`, `commits`, `remaining_issues`, `failure_categories`
 
 ---
 
