@@ -3,33 +3,17 @@
 ## Versioning Rules (MUST follow after every phase completion)
 
 After every completed phase, bump the version in ALL three files:
-
 - `package.json` ("version" field)
 - `VERSION` (single line)
 - `CHANGELOG.md` (new section at top)
 
 ### Version Scheme: `MAJOR.MINOR.PATCH`
 
-| Event                                | Bump                                              | Example       |
-| ------------------------------------ | ------------------------------------------------- | ------------- |
-| Integer phase completes (4, 5, 6, 7) | **Minor** — increment middle, reset patch to 0    | 1.1.1 → 1.2.0 |
-| Decimal phase completes (3.1, 4.1)   | **Patch** — increment last number                 | 1.1.0 → 1.1.1 |
-| ALL roadmap phases complete          | **Major** — bump to next major, reset minor+patch | 1.5.0 → 2.0.0 |
+- **Minor bump** (increment middle, reset patch to 0): An integer phase completes (e.g., Phase 4, Phase 5). These are the main roadmap phases — each one is a meaningful capability addition.
+- **Patch bump** (increment last number): A decimal/inserted phase completes (e.g., Phase 3.1, Phase 4.1). These are smaller insertions between main phases.
+- **Major bump to 2.0.0**: NEVER do this automatically. Only bump major when the user explicitly approves it. Even if every phase in the roadmap is done, stay on 1.x — the user needs to usertest before releasing 2.0.
 
-### Current Version Map
-
-Starting from v1.1.0 (phases 1-3 done):
-
-```
-Phase 3.1 done → 1.1.1
-Phase 4 done   → 1.2.0
-Phase 4.1 done → 1.2.1
-Phase 5 done   → 1.3.0
-Phase 6 done   → 1.4.0
-Phase 7 done   → 1.5.0
-```
-
-You are not allowed to change the number 2.0.0 until the user gives explicit permissions
+Read `package.json` for the current version, then apply the logic above based on which phase just completed.
 
 ### CHANGELOG Format
 
