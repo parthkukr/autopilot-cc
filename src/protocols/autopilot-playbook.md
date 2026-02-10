@@ -84,6 +84,23 @@ Every step agent has a declared line budget. The phase-runner reads ONLY the JSO
 
 **Budget enforcement rule:** The phase-runner ingests at most `max_summary_lines` from each agent. If the agent's full response exceeds `max_response_lines`, the phase-runner reads only the last `max_summary_lines` lines or the JSON block, whichever applies.
 
+### Trace Aggregation (OBSV-02)
+
+After each step agent completes, the phase-runner performs trace aggregation:
+
+1. **Check for step trace file:** Look for `{step}-trace.jsonl` in the phase directory (e.g., `research-trace.jsonl`, `execute-trace.jsonl`).
+2. **If found:** Append its contents to `TRACE.jsonl` in the phase directory.
+3. **If not found:** Write a minimal trace entry to `TRACE.jsonl` noting the step completed without a trace file:
+   ```json
+   {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "{step_name}", "action": "decision", "input_summary": "Step completed without trace file", "output_summary": "Step {step_name} returned JSON result", "duration_ms": 0, "status": "success"}
+   ```
+4. **Phase-runner spans:** Additionally, write a phase-runner-level span to `TRACE.jsonl` for each step agent spawn/completion:
+   ```json
+   {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "phase_runner", "action": "agent_spawn", "input_summary": "Spawning {agent_type} for step {step_name}", "output_summary": "Agent returned: {summary of JSON result}", "duration_ms": {wall_clock_ms}, "status": "success|failure"}
+   ```
+
+This is a SHOULD-level responsibility. If trace aggregation fails (e.g., file write error), log the failure and continue the pipeline -- tracing must not block execution.
+
 ---
 
 ### STEP 0: PRE-FLIGHT
@@ -911,7 +928,12 @@ enforcement: JSON return only -- phase-runner reads the JSON block
    CHECKPOINT_SHA=$(git rev-parse HEAD)
    ```
 
-2. **Gather result data:**
+2. **Finalize TRACE.jsonl:** Ensure `TRACE.jsonl` in the phase directory is complete. Perform a final aggregation pass: check for any step trace files (`{step}-trace.jsonl`) not yet appended and add them. Write a final phase-runner span indicating phase completion:
+   ```json
+   {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "phase_runner", "action": "decision", "input_summary": "Phase pipeline complete", "output_summary": "Status: {status}, alignment: {score}/10", "duration_ms": {total_phase_ms}, "status": "success|failure"}
+   ```
+
+3. **Gather result data:**
    - Collect commit SHAs from execution
    - Collect verification/judge scores
    - Count debug and replan attempts
@@ -921,9 +943,9 @@ enforcement: JSON return only -- phase-runner reads the JSON block
      - `evidence.commands_run`: Merge executor's compile/lint/build results with verifier's automated checks
      - `evidence.git_diff_summary`: Run `git diff --stat {last_checkpoint_sha}..HEAD | tail -1`
 
-3. **Compose return JSON** (see Section 4: Return Contract)
+4. **Compose return JSON** (see Section 4: Return Contract)
 
-4. **Log progress:**
+5. **Log progress:**
    ```
    Phase {N} complete. Alignment: {score}/10.
    ```
