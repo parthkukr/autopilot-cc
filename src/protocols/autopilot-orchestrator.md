@@ -93,7 +93,23 @@ At the end of the run, for each phase that returned `needs_human_verification`:
    }
    ```
 4. Append a `human_verdict_recorded` event to the `event_log` with the phase ID and verdict.
-5. Feed the verdict into the learnings loop (Phase 6, LRNG-04) for confidence calibration: if humans consistently pass phases the system deferred, subsequent runs should increase autonomous completion confidence. If humans consistently find issues, the system should tighten its own quality checks. The actual calibration logic is implemented in Phase 6 -- this step only records the verdict data.
+5. **Append calibration entry to learnings file (LRNG-04):** After recording the verdict, append a calibration entry to `.autopilot/learnings.md`. If the file does not exist, create it with the header `# Learnings (current run)`. The entry format depends on the verdict:
+
+   **If verdict is `pass`:**
+   ```markdown
+   ### Human Verdict: Phase {N} -- PASS (confidence calibration)
+   Phase {N} ({phase_name}) was deferred to human review but passed without issues.
+   **Calibration:** Future phases with similar characteristics ({phase_type} phase, {auto_tasks_passed}/{auto_tasks_total} auto tasks passed, alignment score {score}/10) should increase autonomous completion confidence. The system was overly cautious in deferring this phase.
+   ```
+
+   **If verdict is `fail` or `issues_found`:**
+   ```markdown
+   ### Human Verdict: Phase {N} -- {FAIL|ISSUES_FOUND} (confidence calibration)
+   Phase {N} ({phase_name}) was deferred to human review. Human found issues: {issues_list}.
+   **Calibration:** Tighten quality checks for similar phases ({phase_type} phase). Specific issues to watch for: {issues_list}. The system correctly deferred this phase -- future phases with similar patterns should maintain or increase scrutiny.
+   ```
+
+   This calibration data is consumed by subsequent executors (pre-execution priming, EXEC-06) and planners (LRNG-02) within the same run. If humans consistently pass deferred phases, the learnings file accumulates "increase confidence" signals. If humans consistently find issues, it accumulates "tighten scrutiny" signals. The executor and planner read these signals and adjust their own quality thresholds accordingly.
 
 ---
 

@@ -441,6 +441,56 @@ On phase failure, the phase-runner generates a structured post-mortem at `.autop
 
 ---
 
+## Section 7: Learnings File Schema (LRNG-01 through LRNG-04)
+
+**File:** `.autopilot/learnings.md`
+**Created by:** Phase-runner (on first failure) or orchestrator (on first human verdict)
+**Reset by:** Orchestrator at run start (LRNG-03)
+**Read by:** Executor (pre-execution priming, EXEC-06), Planner (task design, LRNG-02)
+
+The learnings file is a structured markdown file scoped to the current run. It accumulates prevention rules from failures and calibration data from human verdicts.
+
+**File header:** `# Learnings (current run)`
+
+**Entry types:**
+
+### Failure Prevention Entry (LRNG-01)
+
+Written by the phase-runner after post-mortem generation when a phase fails.
+
+```markdown
+### Phase {N} failure -- {failure_category}
+**Prevention rule:** {1-2 sentence rule for future agents}
+**Context:** Phase {N} ({phase_name}) failed with category `{failure_category}`. Recorded: {ISO-8601 timestamp}.
+```
+
+### Human Verdict Calibration Entry (LRNG-04)
+
+Written by the orchestrator after collecting a human verdict for a `needs_human_verification` phase.
+
+**Pass verdict:**
+```markdown
+### Human Verdict: Phase {N} -- PASS (confidence calibration)
+Phase {N} ({phase_name}) was deferred to human review but passed without issues.
+**Calibration:** Future phases with similar characteristics should increase autonomous completion confidence.
+```
+
+**Fail/issues_found verdict:**
+```markdown
+### Human Verdict: Phase {N} -- {FAIL|ISSUES_FOUND} (confidence calibration)
+Phase {N} ({phase_name}) was deferred to human review. Human found issues: {issues_list}.
+**Calibration:** Tighten quality checks for similar phases. Specific issues to watch for: {issues_list}.
+```
+
+**Lifecycle:**
+1. Orchestrator deletes `learnings.md` at run start (LRNG-03)
+2. Phase-runner appends failure prevention entries during the run (LRNG-01)
+3. Orchestrator appends human verdict calibration entries at end of run (LRNG-04)
+4. Executor reads the file during pre-execution priming (EXEC-06, LRNG-02)
+5. Planner reads the file during task design (LRNG-02)
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, and (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), and (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
