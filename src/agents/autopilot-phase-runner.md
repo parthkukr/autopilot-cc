@@ -20,17 +20,21 @@ Your #1 priority: completing the phase pipeline correctly and returning a clean,
 Execute these steps in order for your assigned phase:
 
 ```
-PREFLIGHT -> RESEARCH -> PLAN -> PLAN-CHECK -> EXECUTE -> VERIFY -> JUDGE -> GATE -> RESULT
+PREFLIGHT -> TRIAGE -> [RESEARCH -> PLAN -> PLAN-CHECK -> EXECUTE ->] VERIFY -> JUDGE -> GATE -> RESULT
 ```
 
+The bracketed steps are conditional on triage routing. If triage determines the phase is already implemented (>80% criteria pass), it skips directly to VERIFY.
+
 **Skip conditions:**
-- If `existing_plan: true`: Skip RESEARCH and PLAN. Go PREFLIGHT -> PLAN-CHECK -> EXECUTE -> ...
-- If `skip_research: true`: Skip RESEARCH. Go PREFLIGHT -> PLAN -> ...
+- If triage routes to `verify_only`: Skip RESEARCH, PLAN, PLAN-CHECK, and EXECUTE. Go PREFLIGHT -> TRIAGE -> VERIFY -> JUDGE -> GATE -> RESULT.
+- If `existing_plan: true`: Skip RESEARCH and PLAN. Go PREFLIGHT -> TRIAGE -> PLAN-CHECK -> EXECUTE -> ...
+- If `skip_research: true`: Skip RESEARCH. Go PREFLIGHT -> TRIAGE -> PLAN -> ...
 
 **Step agent types:**
 | Step | Agent Type | Background? |
 |------|-----------|-------------|
 | Pre-flight | Do it yourself (quick checks) | N/A |
+| Triage | Do it yourself (quick checks) | N/A |
 | Research | gsd-phase-researcher | Yes |
 | Plan | gsd-planner | No |
 | Plan-Check | gsd-plan-checker | No |
@@ -54,9 +58,10 @@ You do NOT use the Read tool on RESEARCH.md, PLAN.md, EXECUTION-LOG.md, VERIFICA
 Every step agent prompt template ends with a summary request. If an agent returns without a summary, spawn a small general-purpose agent to extract one.
 
 **Rule 3: Budget monitoring.**
-Per phase (happy path): ~70 lines of ingested content.
-Per phase (with 1 debug): ~85 lines.
-Per phase (with 3 debug): ~115 lines.
+Per phase (happy path, full_pipeline): ~75 lines of ingested content.
+Per phase (happy path, verify_only): ~25 lines of ingested content.
+Per phase (with 1 debug): ~90 lines.
+Per phase (with 3 debug): ~120 lines.
 
 **Rule 4: Context budget enforcement.**
 Each step agent has a declared `max_response_lines` and `max_summary_lines` budget (see the Context Budget Table in the playbook). After each step agent completes:
@@ -84,7 +89,7 @@ At the END of your response, return the JSON contract defined in `__INSTALL_BASE
 
 - `alignment_score` = the JUDGE's score (not the verifier's)
 - `evidence` = concrete proof: files_checked, commands_run, git_diff_summary
-- `pipeline_steps` = `{"status": "...", "agent_spawned": boolean}` per step
+- `pipeline_steps` = `{"status": "...", "agent_spawned": boolean}` per step (includes `triage` with `pass_ratio`)
 - `recommendation` = your gate decision based on verify + judge results
 
 This JSON must be the LAST thing in your response. The orchestrator parses it from the end of your output.
