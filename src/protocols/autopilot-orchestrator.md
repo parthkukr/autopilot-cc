@@ -227,13 +227,14 @@ Before applying gate logic, validate the phase-runner's return:
 
 ### Evidence Validation
 
-7. **Evidence completeness:** If `status` is `"completed"`:
+7. **Evidence completeness (STAT-01):** If `status` is `"completed"` OR (`status` is `"needs_human_verification"` AND `tasks_completed` shows completed auto tasks, i.e. N > 0 in "N/total"):
    - `evidence.commands_run` MUST contain at least one command per phase type:
      - **ui phases:** Must include the configured compile AND build commands with result (from `project.commands` in config.json)
      - **protocol phases:** Must include a cross-reference validation command with result
      - **data phases:** Must include a JSON validity check command with result
    - `evidence.git_diff_summary` MUST be non-empty (unless already-implemented)
    - If evidence is missing or empty: REJECT. Log: "Phase completed without evidence. Re-spawning."
+   - **Note:** Evidence validation applies uniformly to any phase that completed auto tasks, regardless of whether the final status is `completed` or `needs_human_verification`. The auto-task portion of a mixed plan must meet the same evidence bar as a fully autonomous phase.
 
 8. **Already-implemented evidence bar:**
    - If `commit_shas` is empty AND `tasks_completed` shows completed tasks:
