@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 (2026-02-10)
+
+### Changes
+
+- Add MIT LICENSE file
+
 ## 1.0.1 (2026-02-10)
 
 ### Bug Fixes
