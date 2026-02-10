@@ -1,6 +1,6 @@
 # autopilot-cc
 
-Autonomous multi-phase execution for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Runs 1-N development phases without human intervention using a 3-tier orchestrator pattern.
+Autonomous multi-phase execution for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Point it at a roadmap and walk away -- it runs 1-N development phases without human intervention, verifies its own work, and learns from failures along the way.
 
 **Requires:** [get-shit-done-cc](https://www.npmjs.com/package/get-shit-done-cc) >= 1.15.0
 
@@ -12,11 +12,9 @@ npx autopilot-cc@latest
 
 This installs the `/autopilot` command, phase-runner agent, protocol files, and a background update hook into `~/.claude/` (global) by default.
 
-### Options
-
 ```bash
-npx autopilot-cc@latest --local     # Install to ./.claude/ (project-local)
-npx autopilot-cc@latest --uninstall # Remove all autopilot files
+npx autopilot-cc@latest --local      # Install to ./.claude/ (project-local)
+npx autopilot-cc@latest --uninstall  # Remove all autopilot files
 npx autopilot-cc@latest --check-deps # Check GSD dependency without installing
 ```
 
@@ -25,9 +23,9 @@ npx autopilot-cc@latest --check-deps # Check GSD dependency without installing
 In any project with a `.planning/ROADMAP.md`:
 
 ```bash
-/autopilot 1-14        # Run phases 1-14
-/autopilot 3-7         # Run phases 3-7
-/autopilot 5           # Run single phase
+/autopilot 1-14        # Run phases 1 through 14
+/autopilot 3-7         # Run a subset
+/autopilot 5           # Run a single phase
 /autopilot --complete  # Run all outstanding phases automatically
 /autopilot resume      # Resume from last checkpoint
 /autopilot status      # Show current state
@@ -38,73 +36,73 @@ In any project with a `.planning/ROADMAP.md`:
 
 | Flag | Description |
 |------|-------------|
-| `--complete` | Run all outstanding phases in dependency order, skip completed ones, continue past independent failures |
+| `--complete` | Run all outstanding phases in dependency order; skips completed ones; continues past independent failures |
 | `--map [phases]` | Audit context sufficiency before execution; asks clarifying questions for underspecified phases |
-| `--lenient` | Use relaxed 7/10 alignment threshold instead of the default 9/10 |
+| `--lenient` | Relaxed 7/10 alignment threshold instead of the default 9/10 |
 | `--sequential` | Force all phases to run sequentially |
 | `--checkpoint-every N` | Pause for human review every N phases |
 
-Flags are combinable: `--complete --map --lenient` maps context, then runs all remaining phases with relaxed thresholds.
+Flags are combinable: `--complete --map --lenient` maps context first, then runs all remaining phases with relaxed thresholds.
 
-## Features
+## What It Does
 
-### Pipeline Quality (Phases 1-4)
+### Executes
 
-- **Structured prompts** -- MUST/SHOULD/MAY delimiter system across all agent types with enforced context budgets and JSON handoff protocol
-- **Executor compile gates** -- per-file compilation checks block further writes on failure; per-task self-testing against acceptance criteria; structured commits with task ID references
-- **Plan quality gates** -- plan-checker rejects acceptance criteria lacking concrete verification commands; prose-only criteria are blocked; complexity estimation required per task
-- **Integration checks** -- executor auto-verifies new files are imported/wired into the codebase; verifier independently checks for orphaned files
-- **Pre-execution triage** -- fast codebase scan detects already-implemented phases and routes to verify-only path, saving full pipeline cost
-- **Blind verification** -- verifier never sees executor claims; judge produces independent divergence analysis; rubber-stamp detection on both verifier and judge
-- **Status decision governance** -- evidence validation on all status decisions; structured human-defer justification with unnecessary deferral warnings; human-defer rate tracking
+Each phase runs through a full pipeline automatically:
 
-### Observability (Phases 5-7)
+```
+Pre-flight → Research → Plan → Plan-Check → Execute → Verify → Judge → Gate
+```
 
-- **Execution tracing** -- structured JSONL tracing with per-tool-invocation spans, phase-level trace aggregation into `TRACE.jsonl`
-- **Auto post-mortems** -- generated on failure with root cause, timeline, evidence chain, and prevention rules
-- **Cross-phase learning** -- prevention rules from failures prime planner and executor in subsequent phases; learnings scoped to current run
-- **Metrics and cost tracking** -- run-level `metrics.json` with success rate, failure taxonomy histogram, alignment scores; pre-execution cost estimation with budget warnings; cross-run trend comparison
+- **Pre-execution triage** skips phases that are already implemented, routing straight to verification
+- **Plan quality gates** reject vague acceptance criteria -- every task needs concrete verification commands and complexity estimates
+- **Compile gates** block further writes the moment a file fails to compile
+- **Structured commits** are created per-task with ID references, not one big blob at the end
+- **New file integration checks** verify that created files are actually imported and wired in
 
-### Automation (Phases 8-13)
+### Verifies
 
-- **Batch completion** (`--complete`) -- runs all outstanding phases in dependency order, skips completed phases, continues past independent failures, writes aggregated completion report
-- **Context mapping** (`--map`) -- scores phase context sufficiency (1-10), spawns questioning agent for underspecified phases, batches questions in a single interactive session, persists answers across runs
-- **Confidence enforcement** -- default 9/10 alignment threshold with remediation loops (up to 2 extra verify+judge cycles) for sub-threshold phases; `--lenient` reverts to 7/10; diagnostic files for every sub-9 completion
-- **Post-completion self-audit** -- orchestrator audits implementation against frozen spec after phases complete, produces gap reports with file:line evidence, routes fixes by complexity, re-verifies in bounded loop
-- **Silent auto-update** -- `/autopilot update` installs updates immediately without confirmation prompt
+Verification is adversarial by design:
+
+- The **verifier** never sees what the executor claims it did -- it checks the codebase blind
+- The **judge** gathers its own evidence independently before seeing the verifier's report, then scores alignment
+- Both verifier and judge have **rubber-stamp detection** -- if either just agrees without doing real work, they get flagged
+- Default alignment threshold is **9/10**. Sub-threshold phases enter up to 2 remediation cycles (re-verify + re-judge) before failing. Use `--lenient` to accept 7/10.
+- Every sub-9 completion produces a **diagnostic file** with a concrete "path to 9/10" section
+
+### Learns
+
+Failures feed forward into subsequent phases:
+
+- **Auto post-mortems** on failure include root cause, timeline, evidence chain, and prevention rules
+- Prevention rules are injected into the planner and executor for later phases in the same run
+- **Structured JSONL traces** capture every tool invocation for debugging
+- **Run-level metrics** track success rate, failure taxonomy, alignment scores, and cost estimates
+
+### Scales
+
+Run the whole project hands-free:
+
+- `--complete` figures out what's left, resolves dependency order, and runs everything -- writing an aggregated completion report at the end
+- `--map` audits whether each phase has enough context to succeed before burning tokens on execution; asks you targeted questions and saves answers for next time
+- **Post-completion self-audit** checks the finished implementation against the original spec, finds gaps with file:line evidence, and fixes them automatically
+- **Circuit breaker** with 10 tunable thresholds prevents infinite loops and runaway costs
+- **Crash recovery** via idempotent state file -- `resume` picks up exactly where it left off
 
 ## Architecture
 
 ```
-Tier 1: Primary Orchestrator (you / the /autopilot command)
-  reads: protocols/autopilot-orchestrator.md
-  spawns: phase-runner subagents
+Tier 1: Orchestrator (/autopilot command)
+  Reads roadmap, spawns phase-runners, applies gate logic
+  Stays under 40% context -- only reads structured JSON returns
 
 Tier 2: Phase Runner (autopilot-phase-runner agent)
-  reads: protocols/autopilot-playbook.md
-  spawns: step agents (researcher, planner, executor, verifier, judge)
+  Runs the full pipeline for one phase
+  Spawns step agents: researcher, planner, executor, verifier, judge
 
 Tier 3: Step Agents (vanilla GSD agents)
-  researcher, planner, executor, verifier, debugger
   No modifications needed -- autopilot context injected via spawn prompts
 ```
-
-### Pipeline per Phase
-
-```
-[0] Pre-flight → [1] Research → [2] Plan → [2.5] Plan-Check →
-[3] Execute → [4] Verify → [4.5] Judge → [5] Gate Decision →
-[5a] Debug (if needed) → [6] Checkpoint → Return JSON
-```
-
-### Key Design Decisions
-
-- **No modified GSD agents** -- autopilot context is inlined into spawn prompts
-- **Adversarial verification** -- judge gathers evidence before seeing verifier report
-- **Circuit breaker** -- 10 tunable thresholds prevent infinite loops and runaway costs
-- **Crash recovery** -- idempotent state file enables `resume` from any point
-- **10-category failure taxonomy** -- structured classification for every failure
-- **Context budget** -- orchestrator stays under 40% context; only reads structured JSON returns
 
 ## Update
 

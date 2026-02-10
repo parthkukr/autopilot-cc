@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2 (2026-02-10)
+
+### Docs
+
+- **README Rewrite:** Product-focused README organized by Executes/Verifies/Learns/Scales; removed internal phase references
+
 ## 1.5.0 (2026-02-10)
 
 ### Features
