@@ -594,3 +594,61 @@ When all target phases are done:
    - If success rate decreased from previous run, log warning: "Warning: Success rate decreased from {prev}% to {curr}%. Check failure histogram for recurring issues."
 8. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
 9. **Announce**: Show summary. Run task completion notification if available.
+
+### Aggregated Completion Report for --complete Mode (CMPL-04)
+
+When the run was invoked with `--complete`, write an aggregated completion report to `.autopilot/completion-report.md` BEFORE the standard `completion-{date}.md` report (step 4 above). This report provides a project-level view of what `--complete` accomplished.
+
+**Completion report generation:**
+
+1. **Collect phase results** from `state.json`:
+   - `phases_attempted`: All phases that were executed in this run
+   - `phases_succeeded`: Phases with `status == "completed"` and `alignment_score >= 7`
+   - `phases_failed`: Phases with `status == "failed"` -- include failure reason from postmortem
+   - `phases_skipped`: Phases skipped for any reason -- include reason per phase:
+     - `"already_completed"`: Phase was completed in a prior run
+     - `"blocked_by_phase_{N}"`: Phase was blocked by a failed dependency
+   - `phases_deferred`: Phases with `status == "needs_human_verification"`
+
+2. **Identify dependency gaps**: For each failed phase, list all phases that were blocked as a result. Format as a dependency gap chain: "Phase {N} failed -> blocked: Phase {A}, Phase {B}, Phase {C}".
+
+3. **Compute overall project completion percentage**:
+   ```
+   total_phases = count of all phases in roadmap
+   completed_phases = count of phases with status "completed" in state.json (across all runs)
+   completion_percentage = (completed_phases / total_phases) * 100
+   ```
+
+4. **Write `.autopilot/completion-report.md`** with this structure:
+   ```markdown
+   # Batch Completion Report
+
+   **Run ID:** {run_id}
+   **Date:** {ISO-8601}
+   **Mode:** --complete
+   **Project completion:** {completion_percentage}% ({completed_phases}/{total_phases} phases)
+
+   ## Phases Attempted
+   | Phase | Status | Alignment | Duration | Notes |
+   |-------|--------|-----------|----------|-------|
+   | {id} | {status} | {score}/10 | {min}m | {notes} |
+
+   ## Phases Skipped
+   | Phase | Reason |
+   |-------|--------|
+   | {id} | {reason} |
+
+   ## Dependency Gaps
+   {For each failed phase with blocked dependents:}
+   - **Phase {N} failed** -> Blocked: {list of blocked phase IDs and names}
+
+   ## Summary
+   - Attempted: {N}
+   - Succeeded: {N}
+   - Failed: {N}
+   - Skipped (already done): {N}
+   - Skipped (blocked): {N}
+   - Deferred to human: {N}
+   ```
+
+5. This report is written in ADDITION to the standard `completion-{date}.md` report, not as a replacement.

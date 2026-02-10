@@ -218,6 +218,8 @@ All events are appended to the `event_log` array in `state.json`. Events are the
 | `self_audit_completed` | Run | Self-audit finished (includes aggregate pass/gap counts) |
 | `self_audit_gap_found` | Run | Self-audit identified a requirement gap (one event per gap) |
 | `self_audit_gap_fixed` | Run | A gap identified by self-audit was fixed and re-verified |
+| `phase_skipped` | Phase | Phase skipped during --complete mode (already completed or blocked by failed dependency) |
+| `batch_completion_report` | Run | Aggregated completion report written at end of --complete run |
 
 ---
 
@@ -745,6 +747,105 @@ Events appended to the `event_log` in `state.json` during self-audit:
 
 ---
 
+## Section 10: Batch Completion Report Schema (CMPL-04)
+
+### Completion Report Schema
+
+**File:** `.autopilot/completion-report.md`
+**Created by:** Orchestrator at end of `--complete` run
+**Read by:** User, trend analysis tools
+
+The completion report is a markdown file written when `--complete` mode finishes. It provides a project-level overview of what was accomplished, what failed, and what's left.
+
+### Completion Report Data Schema
+
+The structured data underlying the completion report markdown:
+
+```jsonc
+{
+  "run_id": "run-2026-02-10-143052",          // Matches _meta.run_id from state.json
+  "timestamp": "2026-02-10T18:30:00Z",         // When the report was generated
+  "mode": "--complete",                         // Always "--complete" for batch completion runs
+  "total_phases_in_roadmap": 15,                // Total phases defined in ROADMAP.md
+  "completed_phases_total": 12,                 // Phases with "completed" status across all runs
+  "completion_percentage": 80.0,                // (completed_phases_total / total_phases_in_roadmap) * 100
+
+  "phases_attempted": 5,                        // Phases executed in this run
+  "phases_succeeded": 3,                        // Phases that passed (completed + alignment >= 7)
+  "phases_failed": 1,                           // Phases that failed
+  "phases_skipped": [                           // Phases not executed (with reason)
+    {
+      "phase_id": "9",
+      "phase_name": "Pre-Execution Context Mapping",
+      "reason": "already_completed",
+      "original_run_timestamp": "2026-02-09T15:00:00Z"
+    },
+    {
+      "phase_id": "11",
+      "phase_name": "Competitive Analysis",
+      "reason": "blocked_by_phase_10",
+      "blocking_phase": "10"
+    }
+  ],
+  "phases_deferred": 1,                        // Phases returned needs_human_verification
+
+  "dependency_gaps": [                          // Failed phases and their blocked dependents
+    {
+      "failed_phase_id": "10",
+      "failed_phase_name": "Confidence Enforcement",
+      "failure_reason": "executor_incomplete: 2 acceptance criteria unmet",
+      "blocked_phases": [
+        {"phase_id": "11", "phase_name": "Competitive Analysis"}
+      ]
+    }
+  ]
+}
+```
+
+### Event Types for Batch Completion
+
+Events appended to the `event_log` in `state.json` during `--complete` runs:
+
+```jsonc
+// phase_skipped -- logged when --complete skips a phase
+{
+  "timestamp": "2026-02-10T14:35:00Z",
+  "event": "phase_skipped",
+  "details": {
+    "phase_id": "9",
+    "reason": "already_completed",
+    "original_run_timestamp": "2026-02-09T15:00:00Z"
+  }
+}
+
+// phase_skipped (blocked) -- logged when a phase is blocked by a failed dependency
+{
+  "timestamp": "2026-02-10T16:00:00Z",
+  "event": "phase_skipped",
+  "details": {
+    "phase_id": "11",
+    "reason": "blocked_by_phase_10",
+    "blocking_phase": "10"
+  }
+}
+
+// batch_completion_report -- logged when the completion report is written
+{
+  "timestamp": "2026-02-10T18:30:00Z",
+  "event": "batch_completion_report",
+  "details": {
+    "phases_attempted": 5,
+    "phases_succeeded": 3,
+    "phases_failed": 1,
+    "phases_skipped": 2,
+    "completion_percentage": 80.0,
+    "report_path": ".autopilot/completion-report.md"
+  }
+}
+```
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty-four event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), and (9) self-audit schemas for post-completion requirement verification and gap-fix tracking. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty-four event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, and (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
