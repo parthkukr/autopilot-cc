@@ -382,5 +382,19 @@ When all target phases are done:
    - Decimal phase only (e.g., 3.1, 4.1) → patch bump
    - Commit with message: `chore: bump to vX.Y.Z after phase N`
 3. **Report**: Write `.autopilot/completion-{date}.md` (phase table, integration status, stats).
-4. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
-5. **Announce**: Show summary. Run task completion notification if available.
+4. **Metrics collection (MTRC-01)**: Aggregate run-level metrics from `state.json`:
+   - `phases_attempted`: Count all phases in `phases` object that have a `started_at` timestamp
+   - `phases_succeeded`: Count phases with `status == "completed"` and `alignment_score >= 7`
+   - `phases_failed`: Count phases with `status == "failed"`
+   - `phases_human_deferred`: Count phases with `status == "needs_human_verification"`
+   - `failure_taxonomy_histogram`: Iterate the `event_log` for events with `failure_categories` data (from verifier and debugger returns). Build an object mapping each failure category to its count across all phases. Example: `{"executor_incomplete": 2, "lint_failure": 1}`
+   - `avg_alignment_score`: Compute the arithmetic mean of all phase `alignment_score` values (from judge returns). Exclude null scores (skipped phases).
+   - `total_duration_minutes`: Compute `(current_timestamp - _meta.started_at)` in minutes
+   - `total_estimated_tokens`: Sum `estimated_tokens` from all phase records (from MTRC-02 pre-spawn estimates)
+   - `total_debug_loops`: Sum `debug_attempts` from all phase records
+   - `total_replan_attempts`: Sum `replan_attempts` from all phase records
+   - `success_rate`: `phases_succeeded / phases_attempted`
+   - `per_phase_summary`: Array of `{phase_id, status, alignment_score, estimated_tokens, duration_minutes}` for each phase
+5. **Metrics persistence (MTRC-01)**: Read `.autopilot/archive/metrics.json`. If the file does not exist, start with an empty array `[]`. Append the current run's metrics object (using the schema from autopilot-schemas.md Section 8) to the array. Write the updated array back to `.autopilot/archive/metrics.json`. Use `run_id` from `_meta.run_id` and set `timestamp` to the current ISO-8601 time.
+6. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
+7. **Announce**: Show summary. Run task completion notification if available.
