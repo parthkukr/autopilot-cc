@@ -540,15 +540,16 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > Frozen spec at: {spec_path}
 > Plans at: .planning/phases/{phase}/PLAN.md
 > Changes since last checkpoint: Run `git diff {last_checkpoint_sha}..HEAD`
-> Executor evidence: {paste the evidence section from executor's summary}
+>
+> **BLIND VERIFICATION: You do NOT receive the executor's evidence summary or self-reported results. You verify from scratch using only the acceptance criteria and the git diff. This is intentional -- independent verification requires independence from executor claims.**
 >
 > <must>
 > 1. Run automated checks: compile and lint (read commands from `.planning/config.json` `project.commands`)
 > 2. Verify EACH acceptance criterion by reading the actual files -- do NOT trust executor claims
-> 3. Spot-check at least 2 executor evidence claims by re-running commands or re-reading files
-> 4. Run phase-type-specific checks (see methodology below)
-> 5. **Independent wire check for new files:** For each file ADDED in the git diff (new files, not modifications), verify it has at least one import or reference elsewhere in the codebase (`grep -r "filename" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.md"` etc.). If a new file has zero imports AND is not a known standalone type (entry point, config, test, script, type declaration, documentation) AND does not have an explicit standalone justification documented in the EXECUTION-LOG.md task entry, flag it as a verification concern: "ORPHANED FILE: {path} -- zero imports, no standalone justification." Record all wire-check results in VERIFICATION.md.
-> 6. Write verification report to .planning/phases/{phase}/VERIFICATION.md
+> 3. Run phase-type-specific checks (see methodology below)
+> 4. **Independent wire check for new files:** For each file ADDED in the git diff (new files, not modifications), verify it has at least one import or reference elsewhere in the codebase (`grep -r "filename" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.md"` etc.). If a new file has zero imports AND is not a known standalone type (entry point, config, test, script, type declaration, documentation) AND does not have an explicit standalone justification documented in the EXECUTION-LOG.md task entry, flag it as a verification concern: "ORPHANED FILE: {path} -- zero imports, no standalone justification." Record all wire-check results in VERIFICATION.md.
+> 5. Write verification report to .planning/phases/{phase}/VERIFICATION.md
+> 6. Record every command you run in a `commands_run` list (command + result) -- an empty commands_run list will be rejected as rubber-stamping
 > 7. Return structured JSON with pass/fail, criteria results, and alignment score
 > </must>
 >
@@ -602,10 +603,7 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > **Step 3: Acceptance criteria verification:**
 > For EACH criterion in PLAN.md: read the file, find evidence, record VERIFIED or FAILED.
 >
-> **Step 4: Cross-check executor evidence:**
-> Spot-check at least 2 evidence claims by re-running commands or re-reading files.
->
-> **Step 5: New file wire check (ALL phase types):**
+> **Step 4: New file wire check (ALL phase types):**
 > For each file ADDED in the git diff (use `git diff {last_checkpoint_sha}..HEAD --name-status | grep '^A'`):
 > 1. Search the codebase for imports/references to that file
 > 2. If zero references found, check if file is a known standalone type (entry point, config, test, script, type declaration, documentation)
@@ -627,9 +625,11 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 >   "criteria_results": [
 >     {"criterion": "text", "status": "verified|failed", "evidence": "file:line -- what"}
 >   ],
->   "executor_evidence_accurate": true|false,
 >   "alignment_score": 1-10,
+>   "verification_duration_seconds": N,
+>   "commands_run": ["command -> result"],
 >   "failures": ["description"],
+>   "failure_categories": [{"failure": "description", "category": "taxonomy_value"}],
 >   "scope_creep": ["anything built that was not in spec"]
 > }
 > ```
