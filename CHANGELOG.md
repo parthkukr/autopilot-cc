@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.2 (2026-02-10)
+
+### Features
+
+- **Pre-Execution Triage (Phase 3.1):** Fast codebase scan before pipeline launch detects already-implemented phases and routes to verify-only path, saving full pipeline cost
+
 ## 1.1.1 (2026-02-10)
 
 ### Features
