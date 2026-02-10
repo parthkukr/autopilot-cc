@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1 (2026-02-10)
+
+### Features
+
+- **Post-Creation Integration Check (Phase 2.1):** Executor auto-verifies new files are imported/wired into the codebase; verifier independently checks for orphaned files
+
 ## 1.1.0 (2026-02-10)
 
 ### Features
