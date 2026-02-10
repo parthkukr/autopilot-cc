@@ -1008,6 +1008,32 @@ The orchestrator rejects any `needs_human_verification` return that lacks this f
 
 After exhausting retries, return with: `status: "failed"`, `recommendation: "halt"`, populated `debug_attempts` count, all issues listed chronologically in `issues` array (original failure + each debug attempt result). Include `diagnostic_branch` name if one was created.
 
+### Post-Mortem Generation (OBSV-03, OBSV-04)
+
+When the phase-runner is about to return `status: "failed"` (for any reason -- preflight failure, exhausted retries, rollback, or halt), it MUST generate a structured post-mortem file before returning.
+
+**Post-mortem generation steps:**
+
+1. **Determine root cause:** Identify the primary failure category from the failure taxonomy (Section 2.5). Use the verifier's `failure_categories` if available, otherwise classify based on the failure context:
+   - Preflight failure → `tool_failure` or `coordination_failure`
+   - Exhausted debug retries → use the debugger's `failure_categories` from the last attempt
+   - Rollback by judge → use the judge's `concerns` to identify the category
+   - If multiple categories apply, pick the one that appeared first chronologically
+
+2. **Build timeline:** Extract events from `TRACE.jsonl` (if it exists) or reconstruct from step agent returns. Include: step start/complete events, failure detection, debug attempts, and their outcomes. Limit to 20 most relevant events.
+
+3. **Collect evidence:** Merge `commands_run` from the verifier, `evidence` from the executor, and `changes` from the debugger into a single evidence block.
+
+4. **Record attempted fixes:** For each debug attempt, record: attempt number, description, commit SHA (if any), what was resolved, and what remained.
+
+5. **Write prevention rule:** A 1-2 sentence rule that, if followed by future executors or planners, would prevent this specific failure from recurring. Be specific -- not "write better code" but "when modifying protocol files, verify grep patterns match across all step agent prompts, not just the first one."
+
+6. **Write the post-mortem file** to `.autopilot/diagnostics/phase-{N}-postmortem.json` using the schema defined in the schemas reference (Section 6). Ensure the `.autopilot/diagnostics/` directory exists before writing.
+
+**Example post-mortem path:** `.autopilot/diagnostics/phase-5-postmortem.json`
+
+**This is a MUST-level instruction.** Every failed phase produces a post-mortem. If the post-mortem write itself fails (e.g., permission error), log the error in the return JSON `issues` array and continue with the failure return.
+
 ### Rollback Reporting
 
 If rollback was performed, add to return: `rollback_performed: true`, `rollback_from: "{sha}"`, `rollback_to: "{sha}"`. Set `recommendation: "rollback"`.

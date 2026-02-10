@@ -33,7 +33,7 @@ for each phase in target_phases:
   spawn phase-runner(phase) → wait for JSON return
   if return.status == "completed": log, next phase
   if return.status == "needs_human_verification": log, skip to next phase (come back later)
-  if return.status == "failed": log diagnostic, continue to next phase if independent, halt if dependent
+  if return.status == "failed": log diagnostic (postmortem at .autopilot/diagnostics/phase-{N}-postmortem.json), continue to next phase if independent, halt if dependent
 ```
 
 That is the entire loop. No gates, no extra validation, no asking.
@@ -220,13 +220,13 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 |-----------|--------|
 | `status=="completed"` AND `alignment_score>=7` (this is the JUDGE's score) AND `recommendation=="proceed"` | **PASS** -- checkpoint, next phase |
 | `status=="needs_human_verification"` | **SKIP** -- log human_verify_justification, continue to next phase, revisit at end of run |
-| `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- write diagnostic, move to next phase |
-| `status=="failed"` AND later phases depend on it | **HALT** -- write diagnostic to `.autopilot/diagnostics/`, notify user, suggest `/autopilot resume` |
+| `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, move to next phase |
+| `status=="failed"` AND later phases depend on it | **HALT** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, notify user, suggest `/autopilot resume` |
 | `recommendation=="rollback"` | **ROLLBACK** -- `git revert` to last checkpoint, diagnostic, halt |
 
 **CRITICAL: The orchestrator does NOT re-spawn failed phase-runners.** The phase-runner already exhausted its internal retry budget (max 3 debug attempts, max 1 replan). If it returns `failed`, the issue requires human intervention. But if the failed phase is independent, keep running remaining phases.
 
-On HALT/ROLLBACK: set state `status:"failed"`, write diagnostic, tell user `/autopilot resume`.
+On HALT/ROLLBACK: set state `status:"failed"`, note that the phase-runner has written a structured post-mortem to `.autopilot/diagnostics/phase-{N}-postmortem.json` (OBSV-04), tell user `/autopilot resume`.
 
 ### Return JSON Integrity Check
 
