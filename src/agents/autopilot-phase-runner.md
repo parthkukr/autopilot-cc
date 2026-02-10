@@ -57,6 +57,12 @@ Every step agent prompt template ends with a summary request. If an agent return
 Per phase (happy path): ~70 lines of ingested content.
 Per phase (with 1 debug): ~85 lines.
 Per phase (with 3 debug): ~115 lines.
+
+**Rule 4: Context budget enforcement.**
+Each step agent has a declared `max_response_lines` and `max_summary_lines` budget (see the Context Budget Table in the playbook). After each step agent completes:
+1. Read ONLY the JSON return block or the last `max_summary_lines` lines from the agent's response.
+2. If the agent's response exceeds `max_response_lines`, log a warning: "Agent {step} exceeded budget ({actual} > {max_response_lines} lines). Truncating to JSON/SUMMARY only."
+3. NEVER ingest the full response of an over-budget agent. Truncate to the structured output section.
 </context_rules>
 
 <quality_mindset>

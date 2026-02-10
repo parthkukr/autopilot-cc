@@ -62,6 +62,23 @@ Return a structured JSON result (see Section 4: Return Contract) as the LAST thi
 
 For this phase, execute these steps in order. Each step has an exact prompt template and context budget.
 
+### Context Budget Table
+
+Every step agent has a declared line budget. The phase-runner reads ONLY the JSON/SUMMARY from each agent's response. If an agent's response exceeds its budget, the phase-runner truncates to the JSON/SUMMARY section only.
+
+| Step | Agent Type | max_response_lines | max_summary_lines | Enforcement |
+|------|-----------|-------------------|-------------------|-------------|
+| 0 - Pre-flight | general-purpose | 15 | 5 | JSON return only |
+| 1 - Research | gsd-phase-researcher | 200 | 10 | Read SUMMARY only |
+| 2 - Plan | gsd-planner | 300 | 10 | Read SUMMARY only |
+| 2.5 - Plan Check | gsd-plan-checker | 50 | 5 | JSON return only |
+| 3 - Execute | gsd-executor | 500 | 15 | Read JSON return only |
+| 4 - Verify | gsd-verifier | 200 | 10 | JSON return only |
+| 4.5 - Judge | general-purpose | 100 | 5 | JSON return only |
+| 5a - Debug | gsd-debugger | 200 | 10 | JSON return only |
+
+**Budget enforcement rule:** The phase-runner ingests at most `max_summary_lines` from each agent. If the agent's full response exceeds `max_response_lines`, the phase-runner reads only the last `max_summary_lines` lines or the JSON block, whichever applies.
+
 ---
 
 ### STEP 0: PRE-FLIGHT
@@ -103,7 +120,11 @@ Return JSON:
 **Special case -- spec hash mismatch:**
 - Return a failed result with `"issues": ["spec_hash_mismatch"]` and include both the expected and actual hash values. The orchestrator will handle user interaction for this case.
 
-**Context cost:** ~5 lines (just the JSON result).
+<context_budget>
+max_response_lines: 15
+max_summary_lines: 5
+enforcement: JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -162,7 +183,11 @@ Return JSON:
 
 **Read back:** ONLY the SUMMARY section from the agent's final response. Do NOT read RESEARCH.md.
 
-**Context cost:** ~10 lines.
+<context_budget>
+max_response_lines: 200
+max_summary_lines: 10
+enforcement: Read JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -226,7 +251,11 @@ Return JSON:
 
 **Read back:** ONLY the SUMMARY section.
 
-**Context cost:** ~10 lines.
+<context_budget>
+max_response_lines: 300
+max_summary_lines: 10
+enforcement: Read JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -290,7 +319,11 @@ REVISION REQUIRED. The plan checker found these issues:
 Revise the plans to address all blockers. Warnings should be fixed if possible.
 ```
 
-**Context cost:** ~5 lines (just the JSON result).
+<context_budget>
+max_response_lines: 50
+max_summary_lines: 5
+enforcement: JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -357,7 +390,11 @@ Revise the plans to address all blockers. Warnings should be fixed if possible.
 
 **Read back:** ONLY the SUMMARY section.
 
-**Context cost:** ~15 lines.
+<context_budget>
+max_response_lines: 500
+max_summary_lines: 15
+enforcement: Read JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -467,7 +504,11 @@ Revise the plans to address all blockers. Warnings should be fixed if possible.
 
 **Read back:** ONLY the JSON result.
 
-**Context cost:** ~10 lines.
+<context_budget>
+max_response_lines: 200
+max_summary_lines: 10
+enforcement: JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -541,7 +582,11 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > }
 > ```
 
-**Context cost:** ~5 lines (just the JSON).
+<context_budget>
+max_response_lines: 100
+max_summary_lines: 5
+enforcement: JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -604,7 +649,11 @@ git revert --no-commit ${LAST_GOOD_COMMIT}..HEAD && git commit -m "rollback: rev
 
 **CRITICAL: Never use `git reset --hard`. Use `git revert` to preserve history.**
 
-**Context cost:** ~5 lines (just the decision + reason).
+<context_budget>
+max_response_lines: 20
+max_summary_lines: 5
+enforcement: Phase-runner performs this step directly -- no agent to budget
+</context_budget>
 
 ---
 
@@ -675,7 +724,11 @@ If attempt 3 returns fixed=false OR remaining_issues is non-empty:
 
 **After fix:** Return to STEP 4 (VERIFY) to confirm the fix worked.
 
-**Context cost:** ~10 lines per attempt.
+<context_budget>
+max_response_lines: 200
+max_summary_lines: 10
+enforcement: JSON return only -- phase-runner reads the JSON block
+</context_budget>
 
 ---
 
@@ -707,7 +760,11 @@ If attempt 3 returns fixed=false OR remaining_issues is non-empty:
    Phase {N} complete. Alignment: {score}/10.
    ```
 
-**Context cost:** ~5 lines.
+<context_budget>
+max_response_lines: 20
+max_summary_lines: 5
+enforcement: Phase-runner performs this step directly -- no agent to budget
+</context_budget>
 
 ---
 
