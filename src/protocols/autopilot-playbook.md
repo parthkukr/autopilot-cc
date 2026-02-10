@@ -348,6 +348,15 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 > **Plans are at:** .planning/phases/{phase}/PLAN.md
 > **Frozen spec at:** {spec_path}
 >
+> <pre_execution>
+> Before executing any tasks, perform context priming:
+> 1. Read the PLAN.md to understand all tasks and their dependencies.
+> 2. Read 3-5 key project files listed in the plan's "files" fields to understand the codebase state.
+> 3. Run the configured compile command once to establish a baseline. Record: PASS (0 errors) or FAIL (N errors). If baseline fails, note which errors are pre-existing vs. your responsibility.
+> 4. If `.autopilot/learnings.md` exists, read it and acknowledge known pitfalls. Note any learnings relevant to this phase in your first EXECUTION-LOG.md entry.
+> 5. Report priming results in your first EXECUTION-LOG.md entry before any task work: files read, baseline compile result, and pitfalls acknowledged (or "no learnings file found").
+> </pre_execution>
+>
 > <must>
 > 1. Make atomic git commits per task with format: `{type}({phase}): {task_id} - {concise task description}`. Example: `feat(02): 02-01 - add compile gates to executor prompt`. Each task gets exactly one commit.
 > 2. After writing or modifying any file, immediately run the compile check (from `.planning/config.json` `project.commands.compile`). If a file you wrote fails compilation, you MUST fix that file before writing any other file. Do not proceed to the next file or task until compilation passes. Run compile and lint before each commit.

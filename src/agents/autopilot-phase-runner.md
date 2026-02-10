@@ -108,6 +108,10 @@ When spawning step agents, ENRICH the prompt beyond just file paths:
 **For the executor, also include:**
 - Quality gate reminder (compile, lint, build before commit)
 - Evidence collection requirement
+- Context priming reminder (read key files, run baseline compile, check learnings)
+
+**Handling NEEDS_REVIEW tasks (executor confidence < 7):**
+If the executor reports a task with NEEDS_REVIEW status (confidence < 7), spawn a general-purpose mini-verification agent to spot-check that task's acceptance criteria before allowing the executor to proceed. The mini-verifier reads the task's target files and verifies 2-3 criteria independently. If the mini-verifier confirms the criteria are met, allow the executor to continue. If the mini-verifier finds failures, add the failures to the debug queue.
 
 **For the verifier, also include:**
 - Executor's evidence (from executor summary)
