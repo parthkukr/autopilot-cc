@@ -18,6 +18,8 @@
 7. [Learnings File Schema](#section-7-learnings-file-schema)
 8. [Metrics and Cost Schemas](#section-8-metrics-and-cost-schemas)
 9. [Self-Audit Schemas](#section-9-self-audit-schemas)
+10. [Batch Completion Report Schema](#section-10-batch-completion-report-schema)
+11. [Context Mapping Schemas](#section-11-context-mapping-schemas)
 
 ---
 
@@ -220,6 +222,8 @@ All events are appended to the `event_log` array in `state.json`. Events are the
 | `self_audit_gap_fixed` | Run | A gap identified by self-audit was fixed and re-verified |
 | `phase_skipped` | Phase | Phase skipped during --complete mode (already completed or blocked by failed dependency) |
 | `batch_completion_report` | Run | Aggregated completion report written at end of --complete run |
+| `context_mapping_started` | Run | Context mapping mode (`--map`) initiated; lists target phases |
+| `context_mapping_completed` | Run | Context mapping finished; includes per-phase scores and question counts |
 
 ---
 
@@ -233,6 +237,7 @@ project-root/
 │   ├── archive/                         # Completed run states
 │   │   ├── metrics.json                 # Cross-run metrics array (MTRC-01)
 │   │   └── run-YYYY-MM-DD-HHMMSS.json
+│   ├── context-map.json                 # User-provided context answers (CMAP-03, persists across runs)
 │   └── diagnostics/                     # Failure reports
 │       ├── diagnostic-YYYY-MM-DDTHHMMSS.md
 │       └── phase-{N}-postmortem.json    # Structured post-mortem (OBSV-04)
@@ -846,6 +851,142 @@ Events appended to the `event_log` in `state.json` during `--complete` runs:
 
 ---
 
+## Section 11: Context Mapping Schemas (CMAP-01 through CMAP-05)
+
+### context-map.json Schema (CMAP-03)
+
+**File:** `.autopilot/context-map.json`
+**Created by:** Orchestrator during `--map` mode
+**Updated by:** Orchestrator when user provides answers to context mapping questions
+**Read by:** Phase-runner research step (CMAP-04), orchestrator on subsequent `--map` runs
+**Persistence:** Persists across runs (NOT deleted at run start, unlike learnings.md)
+
+The context map file stores user-provided answers to questions generated during context mapping. It is keyed by phase ID so answers for different phases do not interfere.
+
+```jsonc
+{
+  "version": "1.0",
+  "last_updated": "2026-02-10T14:30:00Z",       // ISO-8601 timestamp of last update
+  "phases": {
+    "9": {                                         // Phase ID as key
+      "phase_name": "Pre-Execution Context Mapping",
+      "context_score": 6,                          // Score at time of mapping (before answers)
+      "score_after": 8,                            // Updated score after answers incorporated
+      "questions": [
+        {
+          "question": "What build command does this project use?",
+          "category": "build_config",              // One of: build_config, architecture, requirements, criteria, dependencies, domain
+          "why_needed": "No build command configured in .planning/config.json",
+          "answer": "npm run build",               // User's answer (null if unanswered)
+          "answered_at": "2026-02-10T14:35:00Z"   // ISO-8601 when answered (null if unanswered)
+        }
+      ],
+      "mapped_at": "2026-02-10T14:30:00Z"        // ISO-8601 when this phase was mapped
+    }
+  }
+}
+```
+
+**Merge semantics:** When the orchestrator writes to context-map.json:
+- If the file does not exist, create it with the new entries.
+- If the file exists, read it first. For each phase being mapped:
+  - If the phase already has entries, merge: keep existing answered questions, add new questions, update scores.
+  - If the phase has no entries, add the new phase block.
+- Never delete entries for phases not currently being mapped.
+
+### Questioning Agent Return Schema (CMAP-02)
+
+The questioning agent is spawned by the orchestrator during `--map` mode for each phase scoring below 8 on context sufficiency. It returns structured questions targeting specific information gaps.
+
+```jsonc
+{
+  "phase_id": "5",                                  // Phase being analyzed
+  "current_score": 4,                               // Current context sufficiency score
+  "questions": [
+    {
+      "question": "Which authentication method should Phase 5 implement (OAuth, JWT, session)?",
+      "category": "requirements",                   // build_config|architecture|requirements|criteria|dependencies|domain
+      "why_needed": "Phase 5 goal says 'add authentication' but doesn't specify the method"
+    },
+    {
+      "question": "What is the expected session duration for authenticated users?",
+      "category": "requirements",
+      "why_needed": "Session management approach depends on expected session duration"
+    }
+  ],
+  "estimated_score_after": 8                        // Expected score if all questions are answered
+}
+```
+
+**Question categories:**
+
+| Category | Description | Example question |
+|----------|-------------|-----------------|
+| `build_config` | Missing build/compile/lint commands or project setup | "What build command does this project use?" |
+| `architecture` | Unclear system architecture or component relationships | "Is the API server and frontend in the same repo or separate?" |
+| `requirements` | Ambiguous or incomplete requirements | "Which auth method should Phase 5 use?" |
+| `criteria` | Missing or vague success criteria | "What specific metric defines 'improved performance'?" |
+| `dependencies` | Unclear external dependencies or integrations | "Which database is used -- PostgreSQL, MySQL, or SQLite?" |
+| `domain` | Missing domain knowledge needed for the phase | "What units should the fitness calculations use (metric or imperial)?" |
+
+### Context Sufficiency Scoring Constants (CMAP-01)
+
+The orchestrator uses these weights and heuristics to compute context sufficiency scores during `--map` mode.
+
+```jsonc
+{
+  "context_sufficiency": {
+    // Factor weights (must sum to 1.0)
+    "weights": {
+      "criteria_specificity": 0.35,     // Do success criteria have verification commands?
+      "requirement_detail": 0.35,       // Are requirements specific and actionable?
+      "documentation_coverage": 0.15,   // Does project docs cover the relevant domain?
+      "dependency_status": 0.15         // Are phase dependencies met?
+    },
+
+    // Quick-check threshold for non-blocking warning (CMAP-05)
+    "warning_threshold": 5,            // Score below this triggers pre-spawn warning
+
+    // Questioning agent threshold (CMAP-02)
+    "questioning_threshold": 8,        // Score below this triggers questioning agent
+
+    // Stub detection patterns (auto-score 1)
+    "stub_patterns": ["[To be planned]", "TBD", "[To be defined]"]
+  }
+}
+```
+
+### Context Mapping Event Schemas
+
+Events appended to the `event_log` in `state.json` during context mapping:
+
+```jsonc
+// context_mapping_started -- logged when --map mode begins
+{
+  "timestamp": "2026-02-10T14:30:00Z",
+  "event": "context_mapping_started",
+  "details": {
+    "target_phases": ["5", "9", "10"],         // Phase IDs being mapped
+    "mode": "--map 5-10"                        // Original user command
+  }
+}
+
+// context_mapping_completed -- logged when --map mode finishes
+{
+  "timestamp": "2026-02-10T14:45:00Z",
+  "event": "context_mapping_completed",
+  "details": {
+    "phases_scored": 6,                         // Total phases evaluated
+    "phases_below_threshold": 2,                // Phases scoring below 8
+    "questions_generated": 7,                   // Total questions across all phases
+    "questions_answered": 7,                    // Questions user answered
+    "context_map_path": ".autopilot/context-map.json"
+  }
+}
+```
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty-four event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, and (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty-six event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), and (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
