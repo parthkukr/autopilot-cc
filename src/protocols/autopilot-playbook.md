@@ -636,6 +636,10 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 
 **Read back:** ONLY the JSON result.
 
+**Phase-runner timing:** Record the wall-clock time when the verifier agent is spawned and when it returns. Compute `verification_duration_seconds` = end - start. The orchestrator rejects any verification completing in under 120 seconds (2 minutes) as a rubber-stamp indicator. Pass this value through to the return contract.
+
+**Phase-runner validation:** Check `commands_run` from the verifier return JSON. If it is empty, the verification is invalid -- the orchestrator will reject it. Log a warning and enter debug loop to re-run verification.
+
 <context_budget>
 max_response_lines: 200
 max_summary_lines: 10
