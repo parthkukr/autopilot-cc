@@ -79,7 +79,10 @@ This is the single source of truth for a run. If the orchestrator crashes and re
       },
       "debug_attempts": 0,
       "replan_attempts": 0,
-      "tokens_used": 85000
+      "tokens_used": 85000,
+      "human_verify_justification": null,   // Populated when status is "needs_human_verification" (STAT-02)
+      "human_verdict": null                 // Populated after user provides verdict on needs_human_verification phase (STAT-05)
+      // human_verdict shape: { "verdict": "pass|fail|issues_found", "timestamp": "ISO-8601", "issues": ["string"] }
     }
   },
 
@@ -201,6 +204,9 @@ All events are appended to the `event_log` array in `state.json`. Events are the
 | `replan_attempt` | Recovery | Plan revision triggered |
 | `rollback_initiated` | Recovery | Judge orders rollback |
 | `rollback_completed` | Recovery | Rollback finishes |
+| `human_verdict_recorded` | Phase | User provides pass/fail/issues_found verdict on a needs_human_verification phase |
+| `unnecessary_deferral_warning` | Phase | Phase deferred to human with all auto tasks passing |
+| `high_defer_rate_warning` | Run | More than 50% of processed phases deferred to human |
 
 ---
 

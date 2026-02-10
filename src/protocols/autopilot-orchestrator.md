@@ -78,6 +78,22 @@ If a PLAN.md exists for this phase, grep/count task types:
 6. **Update state** (Section 7).
 7. Log: `Phase {N} complete. Alignment: {score}/10. Progress: {done}/{total}.`
 
+### End-of-Run Human Verification (STAT-05)
+
+At the end of the run, for each phase that returned `needs_human_verification`:
+1. Present the `verification_request` and `human_verify_justification` to the user.
+2. Collect the user's verdict: `pass`, `fail`, or `issues_found`.
+3. Record the verdict in `state.json` under `phases.{N}.human_verdict`:
+   ```json
+   {
+     "verdict": "pass|fail|issues_found",
+     "timestamp": "ISO-8601",
+     "issues": ["description of issues found, if any"]
+   }
+   ```
+4. Append a `human_verdict_recorded` event to the `event_log` with the phase ID and verdict.
+5. Feed the verdict into the learnings loop (Phase 6, LRNG-04) for confidence calibration: if humans consistently pass phases the system deferred, subsequent runs should increase autonomous completion confidence. If humans consistently find issues, the system should tighten its own quality checks. The actual calibration logic is implemented in Phase 6 -- this step only records the verdict data.
+
 ---
 
 ## 3. Phase-Runner Spawn Template
