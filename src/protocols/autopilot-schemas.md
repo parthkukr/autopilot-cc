@@ -15,6 +15,8 @@
 4. [Directory Structure](#section-4-directory-structure)
 5. [Step Agent Handoff Protocol](#section-5-step-agent-handoff-protocol)
 6. [Trace and Post-Mortem Schemas](#section-6-trace-and-post-mortem-schemas)
+7. [Learnings File Schema](#section-7-learnings-file-schema)
+8. [Metrics and Cost Schemas](#section-8-metrics-and-cost-schemas)
 
 ---
 
@@ -491,6 +493,123 @@ Phase {N} ({phase_name}) was deferred to human review. Human found issues: {issu
 
 ---
 
+## Section 8: Metrics and Cost Schemas
+
+### metrics.json Schema (MTRC-01)
+
+**File:** `.autopilot/archive/metrics.json`
+**Created by:** Orchestrator at end of first run
+**Updated by:** Orchestrator at end of each subsequent run (append to array)
+**Read by:** Orchestrator at end of run for trend comparison (MTRC-03)
+
+The metrics file is a JSON array. Each element represents one completed run. The orchestrator appends a new entry at the end of each run during the completion protocol (Section 9 of the orchestrator guide).
+
+```jsonc
+[
+  {
+    "run_id": "run-2026-02-10-143052",         // Matches _meta.run_id from state.json
+    "timestamp": "2026-02-10T16:45:00Z",        // When metrics were recorded (run completion time)
+    "phases_attempted": 5,                       // Total phases that entered the pipeline
+    "phases_succeeded": 4,                       // Phases with status "completed" and alignment >= 7
+    "phases_failed": 1,                          // Phases with status "failed"
+    "phases_human_deferred": 0,                  // Phases with status "needs_human_verification"
+    "failure_taxonomy_histogram": {              // Aggregated from all verifier/debugger failure_categories
+      "executor_incomplete": 1,
+      "acceptance_criteria_unmet": 1
+    },
+    "avg_alignment_score": 7.8,                  // Mean of all phase alignment_score values (judge scores)
+    "total_duration_minutes": 135,               // Wall-clock minutes from _meta.started_at to completion
+    "total_estimated_tokens": 425000,            // Sum of per-phase estimated_tokens (from MTRC-02)
+    "total_debug_loops": 2,                      // Sum of debug_attempts across all phases
+    "total_replan_attempts": 0,                  // Sum of replan_attempts across all phases
+    "success_rate": 0.80,                        // phases_succeeded / phases_attempted
+    "per_phase_summary": [                       // Lightweight per-phase breakdown
+      {
+        "phase_id": "7",
+        "status": "completed",
+        "alignment_score": 8,
+        "estimated_tokens": 110000,
+        "duration_minutes": 25
+      }
+    ]
+  }
+]
+```
+
+### Cost Estimation Constants (MTRC-02)
+
+The orchestrator uses these constants to estimate token cost before spawning each phase-runner. Estimates are heuristic approximations -- Claude Code does not expose actual token counts.
+
+```jsonc
+{
+  "cost_estimation": {
+    // Per-task token estimates by complexity (from PLAN-03 complexity attribute)
+    "task_tokens": {
+      "simple": 15000,     // Single file, straightforward edit
+      "medium": 30000,     // 2-3 files, moderate logic
+      "complex": 60000     // 4+ files, significant logic or cross-cutting changes
+    },
+
+    // Fixed pipeline overhead per phase (research + plan + plan-check + verify + judge)
+    "pipeline_overhead": 50000,
+
+    // Buffer multiplier to account for debug loops, re-verification, etc.
+    "buffer_multiplier": 1.20,    // 20% buffer
+
+    // Warning threshold: warn when estimate exceeds this percentage of cost_cap_tokens_per_phase
+    "warning_threshold_pct": 80,
+
+    // Default estimates when no plan exists yet (full pipeline from scratch)
+    "default_estimates": {
+      "protocol": 150000,    // Protocol phases (markdown edits, moderate complexity)
+      "ui": 250000,          // UI phases (code + build + visual verification)
+      "data": 100000,        // Data phases (JSON/config changes)
+      "mixed": 200000        // Mixed phases
+    }
+  }
+}
+```
+
+**Estimation formula:**
+```
+if plan exists:
+  task_cost = sum(task_tokens[task.complexity] for each task in plan)
+  estimated_tokens = (pipeline_overhead + task_cost) * buffer_multiplier
+else:
+  estimated_tokens = default_estimates[phase_type] * buffer_multiplier
+
+if estimated_tokens > cost_cap_tokens_per_phase * (warning_threshold_pct / 100):
+  log warning: "Phase {N} estimated at {est} tokens ({pct}% of budget cap)."
+```
+
+### Trend Comparison Schema (MTRC-03)
+
+The orchestrator computes a trend summary when metrics.json contains >= 2 run entries. This summary is appended to the completion report.
+
+```jsonc
+{
+  "trend_summary": {
+    // Current vs previous run deltas
+    "success_rate_delta": 0.10,          // current - previous (positive = improvement)
+    "avg_alignment_delta": 0.5,          // current - previous
+    "estimated_cost_delta": -25000,      // current - previous (negative = cheaper)
+
+    // Recurring failure categories (present in both current and previous run)
+    "recurring_failures": ["executor_incomplete"],
+
+    // Historical context across all runs
+    "historical": {
+      "total_runs": 5,
+      "success_rate": { "min": 0.60, "max": 0.90, "avg": 0.78 },
+      "avg_alignment": { "min": 6.5, "max": 8.2, "avg": 7.4 },
+      "total_cost": { "min": 200000, "max": 600000, "avg": 380000 }
+    }
+  }
+}
+```
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), and (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), and (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
