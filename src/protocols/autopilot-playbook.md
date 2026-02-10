@@ -218,18 +218,18 @@ Requirements for this phase (if provided):
 
 <must>
 1. Write plan(s) to .planning/phases/{phase}/PLAN.md
-2. Create 2-5 atomic tasks per plan with files, action, verify, and done fields
+2. Create 2-5 atomic tasks per plan with files, action, verify, and done fields. Use task XML format: `<task id="XX-YY" type="auto" complexity="simple|medium|complex">`. Complexity levels: `simple` (single file, straightforward edit, <30 min), `medium` (2-3 files, moderate logic, 30-60 min), `complex` (4+ files, significant logic or cross-cutting changes, 60+ min).
 3. Every acceptance criterion MUST include a verification command in the format: "{description} -- verified by: `{command}`". Acceptable command types: `grep` with pattern and file, `test -f`/`test -d` for existence, shell command with expected output, `wc -l` or `grep -c` for counting. Do NOT write prose-only criteria like "should work correctly" or "properly handles errors".
    Good example: "The executor prompt contains compile gate language -- verified by: `grep 'MUST fix that file' src/protocols/autopilot-playbook.md`"
    Bad example: "The executor properly enforces compilation" (no verification command -- will be rejected by plan-checker)
 4. Include a traceability table mapping requirements to tasks
-5. Return structured JSON at the END of your response (see Return JSON below)
+5. Every task MUST have a `complexity` attribute (simple, medium, or complex) for cost prediction
+6. Return structured JSON at the END of your response (see Return JSON below)
 </must>
 
 <should>
 1. Each plan should complete within ~50% context budget
 2. Split tasks that touch the same file into sequential waves
-3. Include estimated complexity per task
 </should>
 
 <may>
@@ -299,6 +299,7 @@ Plans are in: .planning/phases/{phase}/
 2. Verify key links are wired (artifacts connected, not just created)
 3. Verify external dependencies exist (referenced packages, APIs, services)
 4. Each acceptance criterion should follow the pattern: "{description} -- verified by: `{command}`"
+5. Verify every `<task>` element has a `complexity` attribute with a valid value (simple, medium, or complex). Flag missing complexity as a warning.
 </should>
 
 <may>
