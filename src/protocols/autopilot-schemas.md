@@ -17,6 +17,7 @@
 6. [Trace and Post-Mortem Schemas](#section-6-trace-and-post-mortem-schemas)
 7. [Learnings File Schema](#section-7-learnings-file-schema)
 8. [Metrics and Cost Schemas](#section-8-metrics-and-cost-schemas)
+9. [Self-Audit Schemas](#section-9-self-audit-schemas)
 
 ---
 
@@ -616,6 +617,134 @@ The orchestrator computes a trend summary when metrics.json contains >= 2 run en
 
 ---
 
+## Section 9: Self-Audit Schemas
+
+### Self-Audit Agent Return Schema
+
+The self-audit agent (spawned during the completion protocol, Section 9 step 2 of the orchestrator guide) returns a structured JSON report after checking implementation files against frozen spec requirements.
+
+```jsonc
+{
+  "audit_results": [
+    {
+      "phase_id": "5",                          // Phase that implemented this requirement
+      "requirements_checked": [
+        {
+          "requirement_id": "OBSV-01",          // Requirement ID from frozen spec
+          "expected": "Each step agent writes structured JSONL trace",  // What the spec requires
+          "actual_found": "Trace instruction present in executor, verifier, judge prompts",  // What was found
+          "file_line_evidence": "src/protocols/autopilot-playbook.md:517 -- 'Write a trace file to'",  // file:line proof
+          "status": "pass",                     // "pass" or "gap"
+          "gap_description": null,              // null if pass; specific description if gap
+          "fix_complexity": null                // null if pass; "small" or "large" if gap
+        },
+        {
+          "requirement_id": "OBSV-02",
+          "expected": "Phase-runner aggregates step traces into TRACE.jsonl",
+          "actual_found": "Aggregation instruction missing from phase-runner agent definition",
+          "file_line_evidence": "src/agents/autopilot-phase-runner.md -- no TRACE.jsonl reference found",
+          "status": "gap",
+          "gap_description": "Phase-runner agent definition does not mention TRACE.jsonl aggregation. Instruction exists in playbook but not in agent spawn prompt.",
+          "fix_complexity": "small"
+        }
+      ]
+    }
+  ],
+
+  // Aggregate statistics across all phases
+  "aggregate": {
+    "total_requirements_checked": 15,           // Total requirement checks performed
+    "passed_on_first_check": 13,                // Requirements that passed without fixes
+    "gaps_found": 2,                            // Requirements with status "gap"
+    "gap_details": [                            // Details for each gap (for fix routing)
+      {
+        "requirement_id": "OBSV-02",
+        "phase_id": "5",
+        "gap_description": "Phase-runner agent definition does not mention TRACE.jsonl aggregation",
+        "fix_complexity": "small",
+        "suggested_fix": "Add TRACE.jsonl aggregation instruction to src/agents/autopilot-phase-runner.md after each step agent returns"
+      }
+    ]
+  }
+}
+```
+
+### Self-Audit Completion Report Schema
+
+After the self-audit loop completes (including any gap-fix cycles), the orchestrator stores this summary for inclusion in the completion report.
+
+```jsonc
+{
+  "self_audit": {
+    "total_requirements_checked": 15,           // Total requirements audited
+    "passed_on_first_check": 13,                // Passed before any fixes
+    "gaps_found": 2,                            // Gaps identified on first audit
+    "gaps_fixed": 2,                            // Gaps successfully fixed and re-verified
+    "gaps_remaining": 0,                        // Gaps that could not be auto-fixed
+    "remaining_gap_details": [],                // Details for unfixable gaps (empty if all fixed)
+    // Shape: [{"requirement_id": "REQ-XX", "description": "what could not be fixed"}]
+    "audit_cycles": 1,                          // Number of re-audit cycles (0 = no gaps, 1-2 = re-verification)
+    "fix_commits": ["abc1234", "def5678"]       // Git SHAs for gap-fix commits
+  }
+}
+```
+
+### Self-Audit Event Schemas
+
+Events appended to the `event_log` in `state.json` during self-audit:
+
+```jsonc
+// self_audit_started -- logged before spawning the audit agent
+{
+  "timestamp": "2026-02-10T18:00:00Z",
+  "event": "self_audit_started",
+  "details": {
+    "phases_to_audit": ["5", "6", "7"],         // Phase IDs being audited
+    "spec_path": ".planning/REQUIREMENTS.md"
+  }
+}
+
+// self_audit_gap_found -- logged per gap identified
+{
+  "timestamp": "2026-02-10T18:05:00Z",
+  "event": "self_audit_gap_found",
+  "details": {
+    "requirement_id": "OBSV-02",
+    "phase_id": "5",
+    "gap_description": "TRACE.jsonl aggregation not in agent definition",
+    "fix_complexity": "small"
+  }
+}
+
+// self_audit_gap_fixed -- logged per gap fixed and re-verified
+{
+  "timestamp": "2026-02-10T18:10:00Z",
+  "event": "self_audit_gap_fixed",
+  "details": {
+    "requirement_id": "OBSV-02",
+    "phase_id": "5",
+    "fix_commit": "abc1234",
+    "re_verified": true
+  }
+}
+
+// self_audit_completed -- logged when entire audit process finishes
+{
+  "timestamp": "2026-02-10T18:15:00Z",
+  "event": "self_audit_completed",
+  "details": {
+    "total_requirements_checked": 15,
+    "passed_on_first_check": 13,
+    "gaps_found": 2,
+    "gaps_fixed": 2,
+    "gaps_remaining": 0,
+    "audit_cycles": 1
+  }
+}
+```
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), and (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty-four event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), and (9) self-audit schemas for post-completion requirement verification and gap-fix tracking. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
