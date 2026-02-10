@@ -264,6 +264,14 @@ Before spawning the phase-runner for phase N:
    3. If same run AND shows all checks passing: skip. Log: "Phase {N} already verified in this run -- skipping."
    4. If different run: do NOT skip. Log: "Phase {N} has stale verification from prior run -- re-running."
 2. Glob for `EXECUTION-LOG.md` in this phase's directory. If it exists, pass `prior_execution_exists: true` to the phase-runner.
+3. **Context sufficiency quick check (CMAP-05):** When `--map` is NOT active, perform a lightweight context sufficiency assessment for the phase. This is NOT the full scoring algorithm from Section 1.2 -- it is a quick heuristic check:
+   - Read the phase's roadmap entry. If the goal is a stub (contains "[To be planned]", "TBD", or is empty), the score is 1-2.
+   - Check if the phase has requirements mapped in the frozen spec. If no requirements are mapped, the score is 3-4.
+   - Check if the phase has success criteria with verification commands. If no verification commands, the score is 4-5.
+   - If the quick-check score is below 5: Emit a non-blocking warning: `"Phase {N} has low context confidence ({score}/10): {reason}. Consider running /autopilot --map {N} first."`
+   - This is a WARNING only. Execution continues regardless. The warning helps users catch severely underspecified phases before burning tokens.
+   - If the quick-check score is 5 or above: No warning. Continue silently.
+   - Do NOT spawn any agents for this check. It should be a 5-second heuristic, not a full scoring run.
 
 ### Task Type Count
 
