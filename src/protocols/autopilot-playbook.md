@@ -43,12 +43,16 @@ Do NOT hardcode a specific directory path format.
 Run the full pipeline for THIS phase:
 
 ```
-PREFLIGHT -> RESEARCH -> PLAN -> PLAN CHECK -> EXECUTE -> VERIFY -> JUDGE -> GATE DECISION -> RESULT
+PREFLIGHT -> TRIAGE -> [RESEARCH -> PLAN -> PLAN CHECK -> EXECUTE ->] VERIFY -> JUDGE -> GATE DECISION -> RESULT
 ```
 
-**If `existing_plan` is true:** Skip RESEARCH and PLAN. Go directly from PREFLIGHT to PLAN CHECK (to validate the existing plan), then continue to EXECUTE.
+The bracketed steps are conditional on triage routing. If triage determines the phase is already implemented (>80% criteria pass), it skips directly to VERIFY.
 
-**If `skip_research` is true:** Skip RESEARCH. Go from PREFLIGHT to PLAN, then continue normally.
+**If triage routes to `verify_only`:** Skip RESEARCH, PLAN, PLAN-CHECK, and EXECUTE. Go PREFLIGHT -> TRIAGE -> VERIFY -> JUDGE -> GATE -> RESULT.
+
+**If `existing_plan` is true:** Skip RESEARCH and PLAN. Go directly from PREFLIGHT to TRIAGE to PLAN CHECK (to validate the existing plan), then continue to EXECUTE.
+
+**If `skip_research` is true:** Skip RESEARCH. Go from PREFLIGHT to TRIAGE to PLAN, then continue normally.
 
 Each step has an exact prompt template and context budget defined below.
 
@@ -69,6 +73,7 @@ Every step agent has a declared line budget. The phase-runner reads ONLY the JSO
 | Step | Agent Type | max_response_lines | max_summary_lines | Enforcement |
 |------|-----------|-------------------|-------------------|-------------|
 | 0 - Pre-flight | general-purpose | 15 | 5 | JSON return only |
+| 0.5 - Triage | self (phase-runner) | 30 | 5 | JSON return only |
 | 1 - Research | gsd-phase-researcher | 200 | 10 | Read SUMMARY only |
 | 2 - Plan | gsd-planner | 300 | 10 | Read SUMMARY only |
 | 2.5 - Plan Check | gsd-plan-checker | 50 | 5 | JSON return only |
@@ -126,6 +131,100 @@ Return JSON:
 
 <context_budget>
 max_response_lines: 15
+max_summary_lines: 5
+enforcement: JSON return only -- phase-runner reads the JSON block
+</context_budget>
+
+---
+
+### STEP 0.5: TRIAGE
+
+**Purpose:** Fast codebase scan to detect already-implemented phases before spending tokens on research, planning, and execution. Prevents the system from running the full pipeline on phases where the code already exists.
+
+**Action:** The phase-runner performs this step directly (no subagent needed). This is a fast, automated scan.
+
+**Skip condition:** None. Triage always runs after preflight. Even if triage routes to `full_pipeline`, the TRIAGE.json log is still written.
+
+**Criteria source:**
+1. If `existing_plan` is true: Extract acceptance criteria (with verification commands) from PLAN.md.
+2. If no plan exists: Extract success criteria from the roadmap phase entry. Look for criteria that have verification commands (grep patterns, file existence checks, command output matches).
+3. If neither source has machine-verifiable commands: Route to `full_pipeline` immediately. Log: "No verifiable criteria for triage -- routing to full pipeline."
+
+**Scan logic:**
+```
+verifiable_criteria = extract criteria with verification commands from source
+if verifiable_criteria is empty:
+    routing = "full_pipeline"
+    note = "no verifiable criteria for triage"
+else:
+    for each criterion in verifiable_criteria:
+        run the verification command against the current codebase
+        record: {criterion, command, result: "pass" or "fail"}
+    pass_ratio = passed_count / total_count
+    if pass_ratio > 0.80:
+        routing = "verify_only"
+        flag phase as "likely_implemented"
+    else:
+        routing = "full_pipeline"
+```
+
+**Routing logic:**
+- **`verify_only`**: Phase is likely already implemented. Skip RESEARCH, PLAN, PLAN-CHECK, and EXECUTE. Jump directly to VERIFY with the already-implemented evidence bar applied (higher scrutiny -- orchestrator Section 5 checks 6 and 8). Pass the triage scan results as executor evidence to the verifier so it knows what was pre-verified.
+- **`full_pipeline`**: Phase is not implemented or only partially implemented. Continue with RESEARCH as normal. The triage results are still logged for audit purposes.
+
+**TRIAGE.json schema:**
+Write to `.planning/phases/{phase}/TRIAGE.json`:
+```json
+{
+  "phase_id": "{phase_id}",
+  "timestamp": "{ISO-8601}",
+  "criteria_source": "plan|roadmap|none",
+  "criteria_checked": [
+    {
+      "criterion": "description text",
+      "command": "the verification command",
+      "result": "pass|fail",
+      "output": "first 200 chars of command output"
+    }
+  ],
+  "total_criteria": N,
+  "passed_criteria": N,
+  "pass_ratio": 0.0-1.0,
+  "routing_decision": "full_pipeline|verify_only",
+  "skipped_steps": ["research", "plan", "plan_check", "execute"],
+  "note": "optional explanation"
+}
+```
+
+**Reduced budget enforcement (verify_only path):**
+When triage routes to `verify_only`, the phase-runner operates under a reduced token budget:
+- Research budget: 0 (skipped)
+- Plan budget: 0 (skipped)
+- Plan-check budget: 0 (skipped)
+- Execute budget: 0 (skipped)
+- Verify budget: standard (unchanged)
+- Judge budget: standard (unchanged)
+- **Total budget for verify_only path: ~25 lines** (triage ~5 + verify ~10 + judge ~5 + gate ~5)
+
+Include in the verifier prompt when on verify_only path:
+> **TRIAGE CONTEXT: This phase was flagged as likely_implemented by pre-execution triage (pass ratio: {ratio}). You are operating under verify-only budget. Focus verification on confirming the triage scan results. Apply the already-implemented evidence bar (orchestrator Section 5 checks 6 and 8).**
+
+**Return JSON:**
+```json
+{
+  "routing": "full_pipeline|verify_only",
+  "pass_ratio": 0.0-1.0,
+  "likely_implemented": true|false,
+  "criteria_checked": N,
+  "criteria_passed": N,
+  "note": "string"
+}
+```
+
+**Gate:** No gate on this step -- triage always produces a routing decision and proceeds. The routing decision itself determines which steps follow.
+
+<context_budget>
+max_response_lines: 30
 max_summary_lines: 5
 enforcement: JSON return only -- phase-runner reads the JSON block
 </context_budget>
@@ -831,6 +930,7 @@ If rollback was performed, add to return: `rollback_performed: true`, `rollback_
 The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. Return that exact JSON structure as the LAST thing in your response. Key points:
 
 - `pipeline_steps` uses shape: `{"status": "pass|fail|completed|skipped", "agent_spawned": boolean}`
+- `pipeline_steps.triage` should include `{"status": "full_pipeline|verify_only", "agent_spawned": false, "pass_ratio": 0.0-1.0}`
 - `evidence` field is REQUIRED for completed phases (see orchestrator Section 4)
 - `alignment_score` is the JUDGE's score (not the verifier's)
 
@@ -841,6 +941,7 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 | Step | Agent Type | Background? | Context Cost | Key Output |
 |------|-----------|-------------|--------------|------------|
 | 0 - Pre-flight | general-purpose | No | ~5 lines | JSON: all_clear |
+| 0.5 - Triage | self (phase-runner) | No | ~5 lines | JSON: routing decision |
 | 1 - Research | gsd-phase-researcher | Yes | ~10 lines | SUMMARY section |
 | 2 - Plan | gsd-planner | No | ~10 lines | SUMMARY section |
 | 2.5 - Plan Check | gsd-plan-checker | No | ~5 lines | JSON: pass/issues |
@@ -849,8 +950,9 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 | 4.5 - Judge | general-purpose | No | ~5 lines | JSON: alignment/recommendation |
 | 5a - Debug | gsd-debugger | No | ~10 lines | JSON: fixed/remaining |
 
-**Total per phase (happy path):** ~70 lines of context consumed.
-**Total per phase (with 1 debug):** ~85 lines.
+**Total per phase (happy path, full_pipeline):** ~75 lines of context consumed.
+**Total per phase (happy path, verify_only):** ~25 lines of context consumed.
+**Total per phase (with 1 debug):** ~90 lines.
 
 ---
 
@@ -859,6 +961,7 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 | Gate | Pass Condition | Fail Action |
 |------|---------------|-------------|
 | Pre-flight | all_clear = true | Return failed result immediately |
+| Triage | Routing decision made (no failure possible) | Always produces a decision; routes to verify_only (>80% pass) or full_pipeline |
 | Plan Check | pass = true, confidence >= 7 | Re-plan (max 3x), then return failed |
 | Verify + Judge | checks pass, alignment >= 7, recommendation = proceed | Debug (max 3x) or re-plan (max 1x), then return failed |
 | Circuit Breaker | debug attempts < 3 | Return failed, recommend halt |
