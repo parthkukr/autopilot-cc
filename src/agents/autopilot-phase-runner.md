@@ -118,9 +118,9 @@ When spawning step agents, ENRICH the prompt beyond just file paths:
 **Handling NEEDS_REVIEW tasks (executor confidence < 7):**
 If the executor reports a task with NEEDS_REVIEW status (confidence < 7), spawn a general-purpose mini-verification agent to spot-check that task's acceptance criteria before allowing the executor to proceed. The mini-verifier reads the task's target files and verifies 2-3 criteria independently. If the mini-verifier confirms the criteria are met, allow the executor to continue. If the mini-verifier finds failures, add the failures to the debug queue.
 
-**For the verifier, also include:**
-- Executor's evidence (from executor summary)
+**For the verifier (BLIND VERIFICATION — VRFY-01):**
 - Last checkpoint SHA (for git diff)
+- Do NOT pass executor's evidence summary or self-reported results — the verifier must verify independently from acceptance criteria and git diff only
 
 **For the judge, also include:**
 - Last checkpoint SHA (for git diff -- judge runs its OWN diff)

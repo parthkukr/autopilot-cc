@@ -176,6 +176,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
   "recommendation": "proceed|debug|rollback|halt",
   "summary": "1-2 sentences",
   "checkpoint_sha": "sha|null",
+  "verification_duration_seconds": <number or null>,
   "evidence": {
     "files_checked": ["path:line evidence"],
     "commands_run": ["command -> result"],
@@ -201,6 +202,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
 ```
 
 **Field notes:**
+- `verification_duration_seconds` is the wall-clock time the verifier agent ran, recorded by the phase-runner. Used by Check 10 (VRFY-03) for rubber-stamp detection. Set to `null` if verification was skipped.
 - `evidence` is NEW. Contains concrete proof of work. The judge uses this for independent verification. If `commit_shas` is empty (already-implemented claim), `evidence.files_checked` MUST list file:line evidence for each acceptance criterion.
 - `human_verify_justification` is REQUIRED when `status` is `"needs_human_verification"`. Omit or set to `null` for other statuses. The orchestrator rejects any `needs_human_verification` return that lacks this field (see Section 5, Check 13).
 - `pipeline_steps` uses ONE canonical shape: `{status, agent_spawned}` plus optional `confidence` (plan_check only), `skip_reason` (research/plan only), and `pass_ratio` (triage only). No `ran` field. No alternative schemas.
@@ -306,10 +308,11 @@ Before applying gate logic, validate the phase-runner's return:
     - If `human_verify_justification` is missing, null, or has an empty `checkpoint_task_id`: REJECT. Log: "needs_human_verification returned without structured justification. Re-spawning."
     - The justification must identify the specific checkpoint task that triggered the human-verify status, not a generic reason like "it's a UI phase."
 
-14. **Unnecessary deferral warning (STAT-03):** If `status` is `"needs_human_verification"` AND `human_verify_justification.auto_tasks_passed` equals `human_verify_justification.auto_tasks_total` (all auto tasks passed):
+14. **Unnecessary deferral warning (STAT-03):** If `status` is `"needs_human_verification"` AND `human_verify_justification.auto_tasks_passed` equals `human_verify_justification.auto_tasks_total` (all auto tasks passed) AND the `human_verify_justification.task_description` matches a generic visual confirmation pattern (contains "visual", "screenshot", "look", "appearance", "UI review", or "manual check" without specifying a concrete user workflow):
     - Log warning: "Phase deferred to human with no auto-task failures -- consider if human verification is necessary."
     - Append an `unnecessary_deferral_warning` event to the event_log with the phase ID and checkpoint task description.
     - This is a WARNING, not a rejection -- the phase still proceeds as `needs_human_verification`. The warning is surfaced in the completion report to help users identify phases that could be made fully autonomous.
+    - If the task description references a specific user workflow (e.g., "verify payment flow processes a real transaction"), do NOT warn -- substantive human checkpoints are valid.
 
 ---
 

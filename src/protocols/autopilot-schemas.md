@@ -38,7 +38,9 @@ This is the single source of truth for a run. If the orchestrator crashes and re
     "total_phases": 14,
     "current_phase": "6.3",
     "current_step": "execute",
-    "orchestrator_context_pct": 35
+    "orchestrator_context_pct": 35,
+    "human_deferred_count": 0,        // STAT-04: phases returning needs_human_verification
+    "total_phases_processed": 0       // STAT-04: total phases processed (for defer-rate calc)
   },
 
   // ─── Spec Lock ────────────────────────────────────────────────────────
