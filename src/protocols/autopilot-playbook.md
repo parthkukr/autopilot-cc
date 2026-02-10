@@ -283,6 +283,7 @@ Requirements for this phase (if provided):
 1. Catalog existing patterns that the phase should follow or extend
 2. Identify risks, blockers, or open questions
 3. Review prior phase outputs for context (if any exist)
+4. If `.autopilot/context-map.json` exists, read it and check for entries relevant to this phase (CMAP-04). If user-provided answers exist for this phase, incorporate them into your research findings and note them in RESEARCH.md under a "User-Provided Context" section. This file contains answers to questions gathered by the context mapping step (`/autopilot --map`) and persists across runs.
 </should>
 
 <may>
@@ -291,7 +292,7 @@ Requirements for this phase (if provided):
 </may>
 
 <should>
-4. Write a trace file to .planning/phases/{phase}/research-trace.jsonl with one JSONL line per significant action (file read, command run, decision made). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "research", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+5. Write a trace file to .planning/phases/{phase}/research-trace.jsonl with one JSONL line per significant action (file read, command run, decision made). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "research", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
 </should>
 
 Return JSON:
