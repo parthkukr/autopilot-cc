@@ -1,0 +1,250 @@
+# Autopilot Schemas Reference (Developer Documentation)
+
+> **This file is NOT read by any agent.** It is reference documentation for developers
+> maintaining the autopilot system. Agents read `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` (return contract)
+> and `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md` (step prompts). Changes to contracts MUST be made in those
+> files first, then mirrored here for reference.
+
+---
+
+## Table of Contents
+
+1. [State File Schema](#section-1-state-file-schema)
+2. [Circuit Breaker Configuration](#section-2-circuit-breaker-configuration)
+3. [Event Types](#section-3-event-types)
+4. [Directory Structure](#section-4-directory-structure)
+
+---
+
+## Section 1: State File Schema
+
+**File:** `.autopilot/state.json`
+**Created by:** Orchestrator at run start
+**Updated by:** Orchestrator after every step transition and checkpoint
+**Read by:** Orchestrator on resume, diagnostic tools, monitoring
+
+This is the single source of truth for a run. If the orchestrator crashes and restarts, it reads this file to determine exactly where to resume.
+
+```jsonc
+{
+  // ─── Metadata ─────────────────────────────────────────────────────────
+  "_meta": {
+    "version": "1.0",
+    "run_id": "run-2026-02-09-143052",
+    "started_at": "2026-02-09T14:30:52Z",
+    "last_checkpoint": "2026-02-09T16:45:12Z",
+    "status": "running",
+    "total_phases": 14,
+    "current_phase": "6.3",
+    "current_step": "execute",
+    "orchestrator_context_pct": 35
+  },
+
+  // ─── Spec Lock ────────────────────────────────────────────────────────
+  "spec": {
+    "path": ".planning/ROADMAP.md",
+    "hash": "sha256:a1b2c3d4e5f6...",
+    "locked_at": "2026-02-09T14:30:52Z"
+  },
+
+  "roadmap_path": ".planning/ROADMAP.md",
+
+  // ─── Phase Records ────────────────────────────────────────────────────
+  "phases": {
+    "phase_6.1": {
+      "phase_type": "ui|protocol|data|mixed",
+      "status": "completed",
+      "started_at": "2026-02-09T14:31:00Z",
+      "completed_at": "2026-02-09T15:12:45Z",
+      "steps": {
+        "preflight": { "status": "pass", "timestamp": "2026-02-09T14:31:05Z" },
+        "research": { "status": "completed", "output": ".planning/phases/6.1/RESEARCH.md", "hash": "sha256:b2c3d4e5f6a1..." },
+        "plan": { "status": "completed", "output": ".planning/phases/6.1/PLAN.md", "hash": "sha256:c3d4e5f6a1b2...", "validation_rounds": 1 },
+        "plan_check": { "status": "pass", "confidence": 9 },
+        "execute": {
+          "status": "completed",
+          "tasks": {
+            "task_01": { "status": "completed", "commit": "abc1234", "retries": 0 },
+            "task_02": { "status": "completed", "commit": "def5678", "retries": 1 }
+          }
+        },
+        "verify": {
+          "status": "pass",
+          "automated": { "compile": true, "tests": true, "lint": true },
+          "alignment_score": 8,
+          "scope_creep": []
+        },
+        "judge": { "alignment": 8, "recommendation": "proceed" }
+      },
+      "debug_attempts": 0,
+      "replan_attempts": 0,
+      "tokens_used": 85000
+    }
+  },
+
+  // ─── Circuit Breaker State ────────────────────────────────────────────
+  "circuit_breaker": {
+    "state": "closed",
+    "consecutive_no_progress": 0,
+    "consecutive_same_error": 0,
+    "last_error": null,
+    "cooldown_until": null
+  },
+
+  // ─── Event Log ────────────────────────────────────────────────────────
+  "event_log": [
+    {
+      "timestamp": "2026-02-09T14:31:00Z",
+      "phase": "6.1",
+      "step": "execute",
+      "event": "task_completed",
+      "details": { "task": "task_01", "commit": "abc1234" }
+    }
+  ],
+
+  // ─── Aggregate Metrics ────────────────────────────────────────────────
+  "metrics": {
+    "total_tokens_used": 450000,
+    "total_duration_minutes": 180,
+    "phases_completed": 5,
+    "phases_failed": 0,
+    "debug_loops_total": 2,
+    "replan_count": 0
+  }
+}
+```
+
+### State File Lifecycle
+
+1. **Creation:** Orchestrator creates `.autopilot/state.json` at run start with all phases set to `not_started`, empty event log, zeroed metrics.
+2. **Backup before write:** Before each write, copy current `state.json` to `state.json.backup`.
+3. **Updates:** Written after every step transition. Each write is atomic (write to temp file, then rename).
+4. **Checkpoints:** The `last_checkpoint` timestamp updates on every write. If `last_checkpoint` is more than 10 minutes stale during a running state, the run is presumed crashed.
+5. **Completion:** When the final phase passes its gate, `_meta.status` is set to `"completed"`. The file is then moved to `.autopilot/archive/run-YYYY-MM-DD-HHMMSS.json`.
+6. **Failure:** When the run halts, `_meta.status` is set to `"failed"` or `"paused"`. The file stays at `.autopilot/state.json` for human inspection and potential resume.
+
+### Resume Protocol
+
+1. Attempt to parse `state.json`. If it fails to parse, attempt `state.json.backup`.
+2. Read `_meta.status` -- if `"completed"`, archive it and start fresh.
+3. If `"running"` -- the previous orchestrator crashed. Resume from `current_phase` and `current_step`.
+4. If `"paused"` -- human must have resolved the issue. Transition circuit breaker to `"half_open"` and retry.
+5. If `"failed"` -- do not auto-resume. Require explicit human command.
+
+---
+
+## Section 2: Circuit Breaker Configuration
+
+Default configuration values. The circuit breaker prevents infinite loops, runaway costs, and repeated failures.
+
+```jsonc
+{
+  "circuit_breaker_config": {
+    "no_progress_threshold": 3,
+    "same_error_threshold": 5,
+    "output_degradation_pct": 70,
+    "max_debug_attempts_per_phase": 3,
+    "max_replan_attempts_per_phase": 1,
+    "max_total_retries_per_run": 10,
+    "cooldown_minutes": 5,
+    "cost_cap_tokens_per_phase": 500000,
+    "cost_cap_tokens_total": 5000000,
+    "wall_clock_timeout_minutes_per_phase": 120,
+    "wall_clock_timeout_minutes_total": 1440
+  }
+}
+```
+
+### Threshold Quick Reference
+
+| Threshold | Default | Trips When | Effect |
+|-----------|---------|------------|--------|
+| no_progress_threshold | 3 | 3 consecutive no-progress steps | Opens circuit breaker |
+| same_error_threshold | 5 | 5 consecutive identical errors | Opens circuit breaker |
+| output_degradation_pct | 70% | Alignment score < 7/10 | Triggers debug loop |
+| max_debug_attempts_per_phase | 3 | Phase has debugged 3 times | Phase fails |
+| max_replan_attempts_per_phase | 1 | Plan revised twice, still fails | Phase fails |
+| max_total_retries_per_run | 10 | 10 total retries across all phases | Run halts |
+| cost_cap_tokens_per_phase | 500K | Phase exceeds token budget | Phase halts, circuit opens |
+| cost_cap_tokens_total | 5M | Run exceeds total token budget | Run fails immediately |
+| wall_clock_timeout_minutes_per_phase | 120 | Phase runs > 2 hours | Phase halts, circuit opens |
+| wall_clock_timeout_minutes_total | 1440 | Run runs > 24 hours | Run fails immediately |
+
+---
+
+## Section 3: Event Types
+
+All events are appended to the `event_log` array in `state.json`. Events are the audit trail for the entire run.
+
+### Event Type Summary
+
+| Event | Level | Fires When |
+|-------|-------|------------|
+| `run_started` | Run | Orchestrator begins new run |
+| `run_completed` | Run | All phases pass, run finishes |
+| `run_halted` | Run | Unrecoverable error or cap exceeded |
+| `run_resumed` | Run | Paused run continues |
+| `phase_started` | Phase | Phase transitions to in_progress |
+| `phase_completed` | Phase | Phase passes gate |
+| `phase_failed` | Phase | Phase exhausts retries |
+| `step_started` | Step | Step begins execution |
+| `step_completed` | Step | Step finishes successfully |
+| `step_failed` | Step | Step produces failure |
+| `task_completed` | Task | Executor finishes a task |
+| `task_failed` | Task | Executor fails a task |
+| `task_retried` | Task | Failed task is retried |
+| `circuit_breaker_opened` | System | Threshold exceeded, halt |
+| `circuit_breaker_closed` | System | Issue resolved, resume |
+| `checkpoint_written` | System | State file written to disk |
+| `debug_attempt` | Recovery | Debug loop entered |
+| `replan_attempt` | Recovery | Plan revision triggered |
+| `rollback_initiated` | Recovery | Judge orders rollback |
+| `rollback_completed` | Recovery | Rollback finishes |
+
+---
+
+## Section 4: Directory Structure
+
+```
+project-root/
+│
+├── .autopilot/                          # Autopilot runtime directory
+│   ├── state.json                       # Active run state (Section 1)
+│   ├── archive/                         # Completed run states
+│   │   └── run-YYYY-MM-DD-HHMMSS.json
+│   └── diagnostics/                     # Failure reports
+│       └── diagnostic-YYYY-MM-DDTHHMMSS.md
+│
+├── .planning/                           # Phase artifacts directory
+│   └── phases/                          # One subdirectory per phase
+│       ├── 6.1/
+│       │   ├── RESEARCH.md
+│       │   ├── PLAN.md
+│       │   ├── EXECUTION-LOG.md
+│       │   └── VERIFICATION.md
+│       └── ...
+│
+└── (project source files)
+```
+
+### Git Considerations
+
+- `.autopilot/state.json` should be in `.gitignore` (runtime state)
+- `.autopilot/archive/` should be in `.gitignore`
+- `.autopilot/diagnostics/` should be in `.gitignore`
+- `.planning/phases/` should be committed (documentation of what was built)
+
+### .gitignore Additions
+
+```
+# Autopilot runtime state
+.autopilot/state.json
+.autopilot/archive/
+.autopilot/diagnostics/
+```
+
+---
+
+## Summary
+
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, and (4) the directory structure for runtime and phase artifacts. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.

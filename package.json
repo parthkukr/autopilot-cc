@@ -1,0 +1,30 @@
+{
+  "name": "autopilot-cc",
+  "version": "1.0.0",
+  "description": "Autonomous multi-phase execution for Claude Code",
+  "bin": {
+    "autopilot-cc": "./bin/install.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "VERSION",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "keywords": [
+    "claude-code",
+    "autopilot",
+    "autonomous",
+    "ai-agents",
+    "gsd"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/parthkukr/autopilot-cc"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
