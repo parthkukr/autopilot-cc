@@ -9,7 +9,7 @@ You are a loop. For each phase: spawn a phase-runner, wait for its JSON return, 
 When the user types `/autopilot <phases>`:
 
 1. **Resume check**: Read `.autopilot/state.json`. If it exists and `_meta.status` != `"completed"`, resume automatically (Section 8).
-2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one.
+2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1).
 3. **Read roadmap**: Find at `.planning/ROADMAP.md` (or project root). Extract phase names/goals for the requested range.
 4. **Locate frozen spec**: Read `project.spec_paths` from `.planning/config.json` and check each path in order until one exists. Default fallback order: `.planning/REQUIREMENTS.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`. Compute hash: `sha256sum <spec> | cut -d' ' -f1`.
 5. **Immediate start**: Show a 2-line status and begin the loop. No confirmation. No preview. The user invoked the command -- that is the instruction to proceed.
@@ -21,6 +21,58 @@ Starting phase {first}...
 
 6. **On start**: Create `.autopilot/` dir, write initial `state.json`, ensure `.autopilot/` is in `.gitignore`.
 7. **Reset learnings file (LRNG-03)**: If `.autopilot/learnings.md` exists, delete it. Learnings are scoped to the current run and must not accumulate across runs to prevent context pollution. Log: "Learnings file reset for new run."
+
+---
+
+## 1.1 Batch Completion Mode (CMPL-01, CMPL-02, CMPL-03)
+
+When the user passes `--complete` (e.g., `/autopilot --complete`), the orchestrator enters batch completion mode. The intent is "finish the project" -- the orchestrator determines what's left and runs to completion without requiring phase selection.
+
+### Phase Selection (CMPL-01)
+
+1. **Read roadmap**: Parse `.planning/ROADMAP.md`. Extract all phases with their IDs, names, and "Depends on" fields.
+2. **Read state**: Read `.autopilot/state.json` (if it exists). Identify phases with `status == "completed"` from the current or any prior run.
+3. **Identify outstanding phases**: All phases in the roadmap that are NOT marked as completed in `state.json` are candidates.
+4. **Build dependency graph**: For each phase, parse its "Depends on" field from the roadmap. The format is: `Depends on: Phase N` or `Depends on: Phase N, Phase M` or `Depends on: Phase N (description)`. Extract the phase number(s). Build a directed acyclic graph (DAG) where edges point from dependency to dependent.
+5. **Topological sort**: Sort the outstanding phases in dependency order using topological sort. Phases with no dependencies come first. Phases at the same dependency level can be in roadmap order.
+6. **Log the execution plan**: Log: "Batch completion: {N} outstanding phases identified. Execution order: {phase_list}."
+
+### Skip Logging (CMPL-02)
+
+When `--complete` encounters an already-completed phase during execution:
+- Log: "Phase {N}: completed in run {run_id} at {timestamp}, skipping."
+- Append a `phase_skipped` event to the event_log with reason: `"already_completed"` and the original run timestamp.
+- Do NOT re-run completed phases. The phase was verified in its original run with passing status.
+
+### Dependency-Aware Failure Handling (CMPL-03)
+
+When `--complete` encounters a failed phase:
+
+```
+phase_failed(N):
+  1. Log: "Phase {N} failed. Checking dependency impact."
+  2. blocked_phases = all phases that depend on N (directly or transitively)
+  3. For each blocked phase:
+     - Remove from execution queue
+     - Log: "Phase {B}: blocked by Phase {N} failure, skipping."
+     - Append phase_skipped event with reason: "blocked_by_phase_{N}"
+  4. independent_phases = remaining phases in execution queue
+  5. If independent_phases is empty:
+     - Log: "No executable independent phases remain. Halting."
+     - Proceed to completion report.
+  6. Else:
+     - Log: "{M} independent phases remain. Continuing execution."
+     - Continue with next independent phase.
+```
+
+The orchestrator does not halt the entire run for a single failure in `--complete` mode. It maximizes progress by continuing with all phases that are not blocked by the failure. Only when zero executable phases remain does execution stop.
+
+### Combining --complete with Other Flags
+
+- `--complete --sequential`: Runs all outstanding phases sequentially (already the default behavior)
+- `--complete --checkpoint-every N`: Pauses for human review every N phases
+- `--complete --force`: Runs all outstanding phases with the 9/10 quality threshold (Phase 10)
+- `--complete --map`: Runs context mapping first on all outstanding phases, then executes (Phase 9)
 
 ---
 
