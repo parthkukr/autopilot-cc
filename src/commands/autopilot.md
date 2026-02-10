@@ -1,7 +1,7 @@
 ---
 name: autopilot
 description: Autonomous multi-phase execution — runs development phases without human intervention
-argument-hint: <phases|resume|status|update|--complete>
+argument-hint: <phases|resume|status|update|--complete|--map>
 allowed-tools:
   - Read
   - Write
@@ -24,6 +24,7 @@ Run 1-N development phases autonomously using the 3-tier orchestrator pattern. Y
 
 **Options (append after phases or standalone):**
 - `--complete` — run all outstanding (incomplete) phases in dependency order without specifying a phase range; the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
+- `--map [phases]` — audit context sufficiency for target phases (or all outstanding if no range given) before execution; spawns questioning agent for underspecified phases; answers recorded to `.autopilot/context-map.json`
 - `--sequential` — force all phases sequential
 - `--checkpoint-every N` — pause for human review every N phases
 </objective>
@@ -95,7 +96,16 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 - Skips already-completed phases with logged reasons
 - On failure: skips blocked dependent phases, continues with remaining independent phases
 - At end: writes aggregated completion report to `.autopilot/completion-report.md`
-- Combinable with `--sequential`, `--checkpoint-every N`, `--force`
+- Combinable with `--sequential`, `--checkpoint-every N`, `--force`, `--map`
+
+### If `--map`:
+- Follow orchestrator guide Section 1.2 (Context Mapping Mode)
+- Reads roadmap and requirements for each target phase (or all outstanding if no range given)
+- Computes context sufficiency score (1-10) per phase based on: success criteria specificity, requirement detail, project documentation coverage, dependency status
+- For phases scoring below 8: spawns a questioning agent that generates 2-5 specific questions targeting missing information
+- Batches all questions across all underspecified phases and presents them to the user in one interactive session
+- Records answers to `.autopilot/context-map.json` (persists across runs)
+- Combinable with `--complete` (map runs first, then execution), `--force`
 
 ### If `resume`:
 - Follow orchestrator guide Section 8 (Resume Protocol)

@@ -76,6 +76,158 @@ The orchestrator does not halt the entire run for a single failure in `--complet
 
 ---
 
+## 1.2 Context Mapping Mode (CMAP-01, CMAP-02, CMAP-03, CMAP-05)
+
+When the user passes `--map` (e.g., `/autopilot --map`, `/autopilot --map 3-7`), the orchestrator enters context mapping mode. The intent is "audit whether my phases are ready for autonomous execution" -- the orchestrator evaluates each target phase's input quality and gathers missing information from the user.
+
+### Phase Selection
+
+1. **Parse phase range**: If a range is provided (`--map 3-7`), use those phases. If no range, use all outstanding phases (same selection logic as `--complete`).
+2. **Read roadmap**: Extract phase goals, requirements, success criteria, and "Depends on" fields for each target phase.
+3. **Read existing artifacts**: For each target phase, check for existing PLAN.md, RESEARCH.md, and any prior context-map entries in `.autopilot/context-map.json`.
+
+### Context Sufficiency Scoring (CMAP-01)
+
+For each target phase, compute a context sufficiency score (1-10) based on:
+
+| Factor | Weight | Scoring |
+|--------|--------|---------|
+| Success criteria specificity | High | 9-10: All criteria have verification commands. 5-6: Some vague. 1-2: No criteria or all prose-only |
+| Requirement detail level | High | 9-10: Requirements are specific and actionable. 5-6: Requirements exist but underspecified. 1-2: No requirements or stub/TBD |
+| Project documentation coverage | Medium | 9-10: PROJECT.md covers relevant domain. 5-6: Partial coverage. 1-2: No project docs for this domain |
+| Dependency status | Low | 10: All dependencies completed. 5: Some dependencies pending. 1: Critical dependency missing |
+
+**Scoring algorithm:**
+```
+score = 0
+criteria_score = assess_criteria_specificity(phase)   // 0-10
+requirements_score = assess_requirement_detail(phase)  // 0-10
+docs_score = assess_documentation_coverage(phase)      // 0-10
+dependency_score = assess_dependency_status(phase)     // 0-10
+
+score = (criteria_score * 0.35) + (requirements_score * 0.35) + (docs_score * 0.15) + (dependency_score * 0.15)
+round to nearest integer
+```
+
+**Quick heuristics for scoring (without spawning an agent):**
+- **Criteria specificity**: Count verification commands (`grep`, `test -f`, command output checks) in success criteria. All have commands = 9-10, some = 5-7, none = 1-3.
+- **Requirement detail**: Check if requirement IDs are mapped to the phase in the frozen spec. Mapped + specific = 9-10, mapped + vague = 5-7, unmapped or TBD = 1-3.
+- **Documentation**: Check if `.planning/PROJECT.md` exists and covers the domain. Exists + relevant = 8-10, exists + partial = 5-7, missing = 1-4.
+- **Dependencies**: Check `state.json` or EXECUTION-LOG.md for dependency status. All met = 10, some pending = 5, critical missing = 1.
+
+If a phase's goal is a stub (contains "[To be planned]", "TBD", or is empty), assign score 1 immediately.
+
+Log per phase: "Phase {N}: context sufficiency {score}/10 ({criteria_score} criteria, {requirements_score} requirements, {docs_score} docs, {dependency_score} deps)"
+
+### Questioning Agent (CMAP-02)
+
+For any phase scoring below 8 on context sufficiency, spawn a general-purpose subagent to generate targeted questions.
+
+**Questioning agent prompt:**
+
+> You are a context-gathering agent for autopilot phase {N}: {phase_name}.
+>
+> Phase goal: {goal}
+> Requirements: {requirements_list}
+> Success criteria: {success_criteria}
+> Current context sufficiency score: {score}/10
+> Score breakdown: criteria={criteria_score}, requirements={requirements_score}, docs={docs_score}, deps={dependency_score}
+>
+> <must>
+> 1. Read the phase's roadmap entry, requirements from the frozen spec at {spec_path}, and any existing research/plans in the phase directory
+> 2. Read PROJECT.md (if it exists) for project context
+> 3. Identify the specific gaps causing the low score -- what information is missing or vague?
+> 4. Generate 2-5 concrete, specific questions that, when answered, would move the phase's context sufficiency score above 8
+> 5. Each question must target a specific gap (not vague "tell me more" questions)
+> 6. Return structured JSON (see Return JSON below)
+> </must>
+>
+> **Question categories:**
+> - `build_config`: Missing build/compile/lint commands or project setup
+> - `architecture`: Unclear system architecture or component relationships
+> - `requirements`: Ambiguous or incomplete requirements
+> - `criteria`: Missing or vague success criteria
+> - `dependencies`: Unclear external dependencies or integrations
+> - `domain`: Missing domain knowledge needed for the phase
+>
+> **Good questions:** "What build command does this project use?", "Which authentication method should Phase 5 implement (OAuth, JWT, session)?", "What is the expected response format for the /api/users endpoint?"
+> **Bad questions:** "Tell me more about the project", "What should this phase do?", "Is everything clear?"
+>
+> Return JSON:
+> ```json
+> {
+>   "phase_id": "{N}",
+>   "current_score": N,
+>   "questions": [
+>     {
+>       "question": "specific question text",
+>       "category": "build_config|architecture|requirements|criteria|dependencies|domain",
+>       "why_needed": "1-sentence explanation of what gap this fills"
+>     }
+>   ],
+>   "estimated_score_after": N
+> }
+> ```
+
+### Batching Questions and Recording Answers (CMAP-03)
+
+After all questioning agents return:
+
+1. **Batch all questions**: Collect questions from all phases into a single structured presentation:
+   ```
+   Context Mapping: {N} phases need additional information
+
+   ## Phase {id}: {name} (score: {score}/10)
+   1. {question_1} [{category}]
+   2. {question_2} [{category}]
+
+   ## Phase {id}: {name} (score: {score}/10)
+   1. {question_1} [{category}]
+   ...
+
+   Please answer all questions above. Type your answers inline (e.g., "Phase 3, Q1: ...").
+   ```
+
+2. **Collect answers**: Present to the user and wait for responses. Parse user answers by phase and question number.
+
+3. **Record to `.autopilot/context-map.json`**: Write (or update) the context map file. If the file already exists, merge new entries with existing ones (do not overwrite prior answers for other phases).
+
+   Schema:
+   ```json
+   {
+     "version": "1.0",
+     "last_updated": "ISO-8601",
+     "phases": {
+       "{phase_id}": {
+         "phase_name": "string",
+         "context_score": N,
+         "questions": [
+           {
+             "question": "string",
+             "category": "string",
+             "answer": "user's answer text",
+             "answered_at": "ISO-8601"
+           }
+         ],
+         "mapped_at": "ISO-8601"
+       }
+     }
+   }
+   ```
+
+4. **Re-score**: After recording answers, re-compute context sufficiency scores. Phases with answered questions typically gain 2-4 points. Log updated scores.
+
+5. **Summary**: Output a summary showing before/after scores for each phase.
+
+### Combining --map with Other Flags
+
+- `--map` alone: Audit and question only. Does NOT execute phases.
+- `--map 3-7`: Audit only phases 3-7.
+- `--complete --map`: Run context mapping on all outstanding phases first, then proceed with batch completion. The `--map` step runs before any phase-runner is spawned.
+- `--map --force`: Map first, then if combined with execution, use the 9/10 threshold.
+
+---
+
 ## 2. The Loop
 
 For each phase in the target range:
