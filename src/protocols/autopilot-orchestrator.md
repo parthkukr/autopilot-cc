@@ -278,6 +278,11 @@ Before applying gate logic, validate the phase-runner's return:
     - If `human_verify_justification` is missing, null, or has an empty `checkpoint_task_id`: REJECT. Log: "needs_human_verification returned without structured justification. Re-spawning."
     - The justification must identify the specific checkpoint task that triggered the human-verify status, not a generic reason like "it's a UI phase."
 
+14. **Unnecessary deferral warning (STAT-03):** If `status` is `"needs_human_verification"` AND `human_verify_justification.auto_tasks_passed` equals `human_verify_justification.auto_tasks_total` (all auto tasks passed):
+    - Log warning: "Phase deferred to human with no auto-task failures -- consider if human verification is necessary."
+    - Append an `unnecessary_deferral_warning` event to the event_log with the phase ID and checkpoint task description.
+    - This is a WARNING, not a rejection -- the phase still proceeds as `needs_human_verification`. The warning is surfaced in the completion report to help users identify phases that could be made fully autonomous.
+
 ---
 
 ## 6. Context Management
