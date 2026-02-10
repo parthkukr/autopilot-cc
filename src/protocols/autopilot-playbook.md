@@ -75,13 +75,17 @@ For this phase, execute these steps in order. Each step has an exact prompt temp
 ```
 You are a pre-flight checker for autopilot phase {N}: {phase_name}.
 
-Check the following:
-1. Does the phase directory exist? (ls .planning/phases/{phase}/)
-2. Are all prior phase dependencies complete? (check for EXECUTION-LOG.md files in dependent phases)
-3. Is the git working tree clean? (git status --short)
-4. Does the frozen spec still match? (sha256sum {spec_path} | cut -d' ' -f1)
-   Expected hash: {stored_spec_hash}
-5. Are there any .planning/debug/*.md files indicating unresolved issues?
+<must>
+1. Verify the frozen spec hash matches: sha256sum {spec_path} | cut -d' ' -f1. Expected: {stored_spec_hash}
+2. Check git working tree status: git status --short
+3. Verify all prior phase dependencies are complete (EXECUTION-LOG.md exists in dependent phases)
+4. Return structured JSON with all check results (see Return JSON below)
+</must>
+
+<should>
+1. Check if the phase directory exists (ls .planning/phases/{phase}/)
+2. Check for unresolved .planning/debug/*.md files
+</should>
 
 Return JSON:
 {
@@ -127,11 +131,31 @@ Your research output goes to: .planning/phases/{phase}/RESEARCH.md
 Requirements for this phase (if provided):
 {requirements_list || "Derive from phase goal and roadmap"}
 
-At the END of your response, include a SUMMARY section (max 10 lines) with:
-- Key findings (3-5 bullets)
-- Recommended stack/approach (1-2 lines)
-- Risks or blockers (if any)
-- Open questions (if any)
+<must>
+1. Read the frozen spec and identify requirements mapped to this phase
+2. Investigate the current codebase state relevant to the phase goal
+3. Write findings to .planning/phases/{phase}/RESEARCH.md
+4. Return structured JSON at the END of your response (see Return JSON below)
+</must>
+
+<should>
+1. Catalog existing patterns that the phase should follow or extend
+2. Identify risks, blockers, or open questions
+3. Review prior phase outputs for context (if any exist)
+</should>
+
+<may>
+1. Suggest alternative approaches with trade-off analysis
+2. Note related improvements outside the current phase scope
+</may>
+
+Return JSON:
+{
+  "key_findings": ["finding 1", "finding 2"],
+  "recommended_approach": "1-2 sentence approach",
+  "risks": ["risk 1"],
+  "open_questions": ["question 1"]
+}
 ```
 
 **Wait:** Poll with TaskOutput until the agent completes.
@@ -163,23 +187,39 @@ Prior phase summaries: {prior_phase_summaries}
 Requirements for this phase (if provided):
 {requirements_list || "Derive from phase goal and roadmap"}
 
-Write plan(s) to: .planning/phases/{phase}/PLAN.md
+<must>
+1. Write plan(s) to .planning/phases/{phase}/PLAN.md
+2. Create 2-5 atomic tasks per plan with files, action, verify, and done fields
+3. Every acceptance criterion must be machine-verifiable (grep, file check, command output)
+4. Include a traceability table mapping requirements to tasks
+5. Return structured JSON at the END of your response (see Return JSON below)
+</must>
 
-Create 2-5 atomic tasks per plan. Each plan should complete within ~50% context.
+<should>
+1. Each plan should complete within ~50% context budget
+2. Split tasks that touch the same file into sequential waves
+3. Include estimated complexity per task
+</should>
 
-At the END of your response, include a SUMMARY section (max 10 lines) with:
-- Number of plans created
-- Number of waves
-- Total task count
-- Estimated complexity (simple/medium/complex)
-- Dependencies between plans
-- Any concerns or decisions deferred
+<may>
+1. Suggest task ordering optimizations
+2. Note deferred decisions for later phases
+</may>
 
 **AUTOPILOT CONTEXT (you are in autopilot mode):**
 - Your orchestrator is the phase-runner, NOT `/gsd:plan-phase`. Do not wait for user confirmation.
 - Auto-approve mode: Proceed without confirmation prompts.
 - STATE.md may not exist. Use context from this prompt instead.
-- Acceptance criteria must be machine-verifiable — every criterion checkable via file reads, grep, or command output.
+
+Return JSON:
+{
+  "plans_created": N,
+  "waves": N,
+  "total_tasks": N,
+  "complexity": "simple|medium|complex",
+  "dependencies": ["plan 02 depends on plan 01"],
+  "concerns": ["any concerns or deferred decisions"]
+}
 ```
 
 **Wait:** Poll until complete.
@@ -205,14 +245,24 @@ Phase goal: {goal_from_roadmap}
 Frozen spec at: {spec_path}
 Plans are in: .planning/phases/{phase}/
 
-Check all dimensions:
-1. Requirement coverage (every requirement has task(s))
-2. Task completeness (files, action, verify, done)
-3. Dependency correctness (no cycles, valid references)
-4. Key links planned (artifacts wired, not just created)
-5. Scope sanity (2-3 tasks/plan, within context budget)
-6. Must-haves derivation (user-observable truths)
-7. External dependency verification (are all referenced packages, APIs, and services verified to exist?)
+<must>
+1. Verify requirement coverage: every requirement has at least one task
+2. Verify task completeness: each task has files, action, verify, and done fields
+3. Verify dependency correctness: no cycles, valid references between plans/waves
+4. Verify acceptance criteria are machine-verifiable (not prose-only)
+5. Return structured JSON with pass/fail, issues, and confidence score
+</must>
+
+<should>
+1. Check scope sanity (2-3 tasks per plan, within context budget)
+2. Verify key links are wired (artifacts connected, not just created)
+3. Verify external dependencies exist (referenced packages, APIs, services)
+</should>
+
+<may>
+1. Suggest task reordering or consolidation for efficiency
+2. Flag potential risks not covered by the plan
+</may>
 
 Return JSON:
 {
@@ -261,42 +311,47 @@ Revise the plans to address all blockers. Warnings should be fixed if possible.
 > **Plans are at:** .planning/phases/{phase}/PLAN.md
 > **Frozen spec at:** {spec_path}
 >
-> Make atomic git commits per task. Follow the commit format:
->   {type}({phase}): {concise task description}
+> <must>
+> 1. Make atomic git commits per task with format: {type}({phase}): {concise task description}
+> 2. Run compile check (from `.planning/config.json` `project.commands.compile`) before each commit. Fix failures before committing.
+> 3. Run lint check (from `.planning/config.json` `project.commands.lint`) before each commit. Fix errors before committing.
+> 4. Self-test each task against its acceptance criteria before marking complete. Use grep, file reads, or commands -- not assumptions.
+> 5. Record evidence per task: commands run with output, file:line references proving each criterion is met.
+> 6. Write completion status to .planning/phases/{phase}/EXECUTION-LOG.md after each task.
+> 7. Return structured JSON at the END of your response (see Return JSON below).
+> </must>
 >
-> **QUALITY GATES -- MANDATORY BEFORE EACH COMMIT:**
+> <should>
+> 1. Run build check (from `project.commands.build`) for UI phases before committing.
+> 2. Follow commit message conventions from the repository's recent git log.
+> 3. If planned code already exists, verify EACH acceptance criterion with file:line evidence and report commit_sha as null.
+> </should>
 >
-> Read `project.commands` from `.planning/config.json` for the actual commands. Defaults shown below.
->
-> 1. **Compile check:** Run the configured compile command (e.g., `npx tsc --noEmit` for TypeScript). If compilation fails, fix before committing. NEVER commit code that does not compile.
-> 2. **Lint check:** Run the configured lint command (e.g., `npx eslint . --ext .ts,.tsx --quiet`). Fix lint errors before committing. Warnings are acceptable; errors are not.
-> 3. **Build check (UI phases only):** Run the configured build command (e.g., `npm run build`). If the production build fails, fix before committing.
-> 4. **Self-test:** For each acceptance criterion in the task, verify it is met BEFORE marking the task complete. Use grep, file reads, or test commands -- not just "I wrote the code so it should work."
->
-> **Record evidence for each task:**
-> For each completed task, include in your summary:
-> - Commands run and their output (compile result, lint result, build result)
-> - File:line references proving each acceptance criterion is met
->
-> **Already-implemented handling:** If planned code already exists:
-> 1. Verify EACH acceptance criterion with specific file:line evidence
-> 2. Report task completed with commit_sha: null
-> 3. Include note: "Already implemented. Evidence: [file:line for each criterion]"
->
-> Write completion status to: .planning/phases/{phase}/EXECUTION-LOG.md
->
-> At the END of your response, include a SUMMARY section (max 15 lines) with:
-> - Tasks completed: {N}/{total}
-> - Tasks failed: {N} (with brief reason for each)
-> - Commit SHAs (one per line)
-> - Commands run with results (compile, lint, build)
-> - Evidence: file:line references for acceptance criteria
-> - Any deviations from plan
+> <may>
+> 1. Create SUMMARY.md in the phase directory if it helps document the work.
+> 2. Add inline comments in modified files explaining non-obvious changes.
+> </may>
 >
 > **AUTOPILOT CONTEXT (you are in autopilot mode):**
 > - Your orchestrator is the phase-runner, NOT `/gsd:execute-phase`. Do not look for execute-phase workflow artifacts.
 > - STATE.md may not exist. Use context from this prompt instead.
-> - SUMMARY.md creation is optional. Include your summary in your response text. Create EXECUTION-LOG.md as instructed.
+>
+> Return JSON:
+> ```json
+> {
+>   "tasks_completed": "N/M",
+>   "tasks_failed": "N/M",
+>   "commit_shas": ["sha1", "sha2"],
+>   "evidence": [
+>     {
+>       "task_id": "XX-YY",
+>       "criteria_met": ["criterion text -- file:line -- what was found"],
+>       "commands_run": ["command -> result"]
+>     }
+>   ],
+>   "deviations": ["any departures from plan"]
+> }
+> ```
 
 **Wait:** Poll until complete. This is the LONGEST step -- may take 10-30 minutes.
 
@@ -327,21 +382,36 @@ Revise the plans to address all blockers. Warnings should be fixed if possible.
 > Changes since last checkpoint: Run `git diff {last_checkpoint_sha}..HEAD`
 > Executor evidence: {paste the evidence section from executor's summary}
 >
-> **VERIFICATION METHODOLOGY (follow exactly):**
+> <must>
+> 1. Run automated checks: compile and lint (read commands from `.planning/config.json` `project.commands`)
+> 2. Verify EACH acceptance criterion by reading the actual files -- do NOT trust executor claims
+> 3. Spot-check at least 2 executor evidence claims by re-running commands or re-reading files
+> 4. Run phase-type-specific checks (see methodology below)
+> 5. Write verification report to .planning/phases/{phase}/VERIFICATION.md
+> 6. Return structured JSON with pass/fail, criteria results, and alignment score
+> </must>
+>
+> <should>
+> 1. Record specific file:line evidence for each verified criterion
+> 2. Identify scope creep (anything built that was not in spec)
+> 3. Score conservatively: 7-8 with noted concerns is more credible than 9-10 with none
+> </should>
+>
+> <may>
+> 1. Suggest improvements to code quality or test coverage
+> 2. Note potential edge cases not covered by acceptance criteria
+> </may>
+>
+> **VERIFICATION METHODOLOGY:**
 >
 > **Step 1: Automated checks (ALL phase types):**
->
-> Read `project.commands` from `.planning/config.json` for the actual commands to run.
->
 > ```bash
 > # 1. Compile check (run configured compile command)
 > {project.commands.compile} 2>&1
-> # Example for TypeScript: cd desktop-app && npx tsc --noEmit 2>&1
 > # Record: PASS (0 errors) or FAIL (N errors, first 3 error messages)
 >
 > # 2. Lint check (run configured lint command)
 > {project.commands.lint} 2>&1 | tail -5
-> # Example for ESLint: cd desktop-app && npx eslint . --ext .ts,.tsx --quiet 2>&1 | tail -5
 > # Record: PASS (0 errors) or FAIL (N errors)
 > ```
 >
@@ -349,68 +419,39 @@ Revise the plans to address all blockers. Warnings should be fixed if possible.
 >
 > **If UI phase:**
 > ```bash
-> # 3. Production build (run configured build command)
 > {project.commands.build} 2>&1
-> # Record: PASS or FAIL with error
->
-> # 4. Check that modified components are imported and rendered
-> # For each component file in git diff, check it is imported somewhere:
 > grep -r "import.*ComponentName" {project.ui.source_dir} --include="{project.ui.file_extensions}"
-> # Record: IMPORTED or ORPHANED
 > ```
 >
 > **If PROTOCOL phase:**
 > ```bash
-> # 3. Cross-reference validation: For each .md file modified:
-> # Extract all file path references (backtick-wrapped paths to any file type)
+> # Cross-reference validation: extract file path references and verify they exist
 > grep -oE '`[a-zA-Z0-9_./-]+\.[a-z]+`' {modified_file}
-> # Verify each referenced file exists:
 > ls -la {each_referenced_path} 2>&1
-> # Record: all references valid OR list broken references
->
-> # 4. Schema consistency: If file defines JSON contracts:
-> # Extract JSON blocks and verify they parse
-> # Verify field names match what consuming code expects
+> # Schema consistency: extract JSON blocks and verify they parse
 > ```
 >
 > **If DATA phase:**
 > ```bash
-> # 3. JSON validity
 > python3 -c "import json; json.load(open('{data_file}'))" 2>&1
-> # or: node -e "JSON.parse(require('fs').readFileSync('{data_file}','utf8'))"
-> # Record: VALID or INVALID with error
->
-> # 4. Schema compliance: Check required fields exist
-> # Verify data files conform to their expected schema (project-specific)
 > ```
 >
-> **If MIXED phase:**
-> Run ALL checks from the applicable phase types above. A mixed phase combines UI + protocol
-> or UI + data or all three. For each component of the mix, run that phase type's full checklist.
-> Record results grouped by phase type.
+> **If MIXED phase:** Run ALL checks from applicable phase types above.
 >
 > **Step 3: Acceptance criteria verification:**
-> For EACH acceptance criterion in the PLAN.md:
-> 1. Read the actual file at the path specified
-> 2. Find the specific code/content that satisfies the criterion
-> 3. Record: "Criterion: [text] -- VERIFIED at [file]:[line] -- [what you found]"
->    OR: "Criterion: [text] -- FAILED -- [what's missing or wrong]"
->
-> Do NOT accept criteria based on executor claims. Read the files yourself.
+> For EACH criterion in PLAN.md: read the file, find evidence, record VERIFIED or FAILED.
 >
 > **Step 4: Cross-check executor evidence:**
-> The executor provided evidence (commands run, file:line references).
-> Spot-check at least 2 evidence claims by re-running the command or re-reading the file.
-> Record whether executor evidence was accurate.
+> Spot-check at least 2 evidence claims by re-running commands or re-reading files.
 >
-> Write report to: .planning/phases/{phase}/VERIFICATION.md
+> **AUTOPILOT CONTEXT:** Do not default to 9/10. Scores of 7-8 with noted concerns are more credible.
 >
-> At the END of your response, return JSON:
+> Return JSON:
 > ```json
 > {
 >   "pass": true|false,
 >   "automated_checks": {
->     "compile": {"status": true|false, "detail": "0 errors" or "3 errors: ..."},
+>     "compile": {"status": true|false, "detail": "..."},
 >     "lint": {"status": true|false, "detail": "..."},
 >     "build": {"status": true|false|"n/a", "detail": "..."}
 >   },
@@ -423,17 +464,6 @@ Revise the plans to address all blockers. Warnings should be fixed if possible.
 >   "scope_creep": ["anything built that was not in spec"]
 > }
 > ```
->
-> **Scoring guide:**
-> - 9-10: All criteria verified, all checks pass, no scope creep
-> - 7-8: All criteria verified, minor issues (warnings, small scope creep)
-> - 5-6: Most criteria verified, some failures or significant scope creep
-> - 3-4: Multiple criteria failed, automated checks failing
-> - 1-2: Fundamental misalignment, most criteria unmet
->
-> **AUTOPILOT CONTEXT (you are in autopilot mode):**
-> - Cross-check at least 2 of the executor's claims by re-reading the actual files.
-> - Scoring guide: Do not default to 9/10. Scores of 7-8 with noted concerns are more credible than 9-10 with no concerns.
 
 **Read back:** ONLY the JSON result.
 
@@ -460,28 +490,42 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > Phase type: {ui|protocol|data|mixed}
 > Spec requirements for this phase: {requirements_list}
 >
+> <must>
+> 1. Gather evidence INDEPENDENTLY before reading VERIFICATION.md (run git diff, git log, read files)
+> 2. Spot-check at least one acceptance criterion by reading the actual file
+> 3. Check the frozen spec at {spec_path} for any missed requirements
+> 4. Identify at least one concern (even if minor) to prove independent examination
+> 5. Return structured JSON with alignment score and recommendation
+> </must>
+>
+> <should>
+> 1. Compare your findings against the verifier's report after independent review
+> 2. Flag scope creep (code nobody asked for)
+> 3. Score independently using the scoring guide -- do not anchor to the verifier's score
+> </should>
+>
+> <may>
+> 1. Suggest process improvements for future phases
+> 2. Note technical debt introduced by the changes
+> </may>
+>
 > **YOUR EVIDENCE (gather independently before reading any reports):**
 >
 > 1. Read the plan at: .planning/phases/{phase}/PLAN.md
-> 2. Run: `git diff {last_checkpoint_sha}..HEAD --stat` (see what files changed and how much)
-> 3. Run: `git log --oneline {last_checkpoint_sha}..HEAD` (see commit messages)
+> 2. Run: `git diff {last_checkpoint_sha}..HEAD --stat`
+> 3. Run: `git log --oneline {last_checkpoint_sha}..HEAD`
 > 4. For each acceptance criterion in the plan, spot-check ONE by reading the actual file
-> 5. Read the frozen spec at {spec_path} -- check if any spec requirement was missed
+> 5. Read the frozen spec at {spec_path}
 >
 > **AFTER gathering your own evidence, read:**
 > 6. .planning/phases/{phase}/VERIFICATION.md (the verifier's report)
 >
-> **Assess:**
-> - Do YOUR findings agree with the verifier's conclusions?
-> - Did the verifier miss anything you found?
-> - Is the verifier's alignment score justified based on YOUR evidence?
-> - Are there spec requirements with no implementation?
-> - Is there code that nobody asked for (scope creep)?
->
-> **MANDATORY: Identify at least one concern.** Even on perfect work, note something:
-> a potential edge case, a missing test, a style inconsistency, a minor optimization.
-> If you cannot find ANY concern, state: "No concerns found. Verified independently."
-> with a description of what you checked to reach that conclusion.
+> **Scoring guide (scores should be INDEPENDENT):**
+> - 9-10: All criteria verified, all checks pass, no scope creep
+> - 7-8: All criteria verified, minor issues
+> - 5-6: Most criteria verified, some failures
+> - 3-4: Multiple criteria failed
+> - 1-2: Fundamental misalignment
 >
 > Return JSON:
 > ```json
@@ -496,13 +540,6 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 >   "notes": "1-2 sentence assessment"
 > }
 > ```
->
-> **Scoring guide (same as verifier -- scores should be INDEPENDENT):**
-> - 9-10: All criteria verified, all checks pass, no scope creep
-> - 7-8: All criteria verified, minor issues
-> - 5-6: Most criteria verified, some failures
-> - 3-4: Multiple criteria failed
-> - 1-2: Fundamental misalignment
 
 **Context cost:** ~5 lines (just the JSON).
 
@@ -590,24 +627,38 @@ Issues to fix:
 Failing checks:
 {automated_checks_that_failed}
 
+<must>
+1. Diagnose root cause of each failing issue
+2. Fix the specific failures -- do NOT refactor unrelated code
+3. Run compile and lint checks before committing any fix
+4. Make atomic commits per fix
+5. Return structured JSON with fix results (see Return JSON below)
+</must>
+
+<should>
+1. Verify each fix resolves its target issue before moving to the next
+2. Include root cause analysis in the response
+3. Record file:line evidence for each fix
+</should>
+
+<may>
+1. Note related issues discovered during debugging that are out of scope
+</may>
+
 Mode: find_and_fix
 symptoms_prefilled: true
 
-Fix the failing issues. Make atomic commits. Focus on the specific failures -- do NOT refactor unrelated code.
+**AUTOPILOT CONTEXT (you are in autopilot mode):**
+- Your orchestrator is the phase-runner, NOT `/gsd:debug`. Do not wait for user input or checkpoints.
+- STATE.md may not exist. Use context from this prompt instead.
 
-At the END, return JSON:
+Return JSON:
 {
   "fixed": true|false,
   "changes": ["description of each fix"],
   "commits": ["sha1", "sha2"],
   "remaining_issues": ["anything still broken"]
 }
-
-**AUTOPILOT CONTEXT (you are in autopilot mode):**
-- Your orchestrator is the phase-runner, NOT `/gsd:debug`. Do not wait for user input or checkpoints.
-- STATE.md may not exist. Use context from this prompt instead.
-- If you write code fixes, run compile and lint checks before committing.
-- Return structured results: root cause, fix applied, commands run, file:line evidence.
 ```
 
 **Circuit breaker:** Track debug loop count internally. Rules:
