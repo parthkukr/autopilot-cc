@@ -69,6 +69,28 @@ If a PLAN.md exists for this phase, grep/count task types:
 - Pass the counts in the spawn prompt as the "Task type summary" line
 - If no plan exists yet, pass `0 auto, 0 checkpoint:human-verify` -- the phase-runner will create the plan during its pipeline
 
+### Cost Estimation (MTRC-02)
+
+Before spawning the phase-runner, estimate the token cost for this phase:
+
+1. If a PLAN.md exists for this phase, read it and count tasks by complexity attribute:
+   - For each `<task ... complexity="simple">`: add 15000 tokens
+   - For each `<task ... complexity="medium">`: add 30000 tokens
+   - For each `<task ... complexity="complex">`: add 60000 tokens
+   - Add pipeline overhead: 50000 tokens (covers research + plan + plan-check + verify + judge)
+   - Apply buffer: multiply total by 1.20 (20% buffer for debug loops, re-verification)
+   - Formula: `estimated_tokens = (pipeline_overhead + sum(task_tokens)) * 1.20`
+2. If no PLAN.md exists (full pipeline from scratch), use default estimates by phase type:
+   - protocol: 150000 tokens
+   - ui: 250000 tokens
+   - data: 100000 tokens
+   - mixed: 200000 tokens
+   - Apply buffer: multiply by 1.20
+3. Compare `estimated_tokens` against `cost_cap_tokens_per_phase` (500000 from circuit breaker config). If estimated exceeds 80% of the budget cap, log warning: "Phase {N} estimated at {est} tokens ({pct}% of budget cap). Consider splitting complex tasks."
+4. Log the estimate: "Phase {N} cost estimate: {est} tokens ({task_count} tasks: {simple_count} simple, {medium_count} medium, {complex_count} complex)"
+5. Store `estimated_tokens` in the phase record in `state.json` so it can be aggregated into `total_estimated_tokens` during metrics collection (Section 9, step 4).
+6. Pass `estimated_tokens` to the phase-runner spawn prompt as an informational field.
+
 ### Phase Execution
 
 1. **Check for existing plan**: Glob `.planning/phases/*{phase_id}*/PLAN.md`. Pass `existing_plan: true` or `existing_plan: false`. Phases without plans run the full pipeline from step 1 (research). No need to ask -- that is what the pipeline is for.
