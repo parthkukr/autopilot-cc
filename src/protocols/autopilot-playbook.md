@@ -1030,9 +1030,19 @@ When the phase-runner is about to return `status: "failed"` (for any reason -- p
 
 6. **Write the post-mortem file** to `.autopilot/diagnostics/phase-{N}-postmortem.json` using the schema defined in the schemas reference (Section 6). Ensure the `.autopilot/diagnostics/` directory exists before writing.
 
+7. **Append prevention rule to learnings file (LRNG-01):** After writing the post-mortem, append the prevention rule to `.autopilot/learnings.md` so subsequent executors and planners benefit from this failure's lesson. If the file does not exist, create it with the header `# Learnings (current run)`. Append a structured entry:
+
+   ```markdown
+   ### Phase {N} failure -- {failure_category}
+   **Prevention rule:** {prevention_rule_text}
+   **Context:** Phase {N} ({phase_name}) failed with category `{failure_category}`. Recorded: {ISO-8601 timestamp}.
+   ```
+
+   This entry is consumed by the executor (pre-execution priming) and planner (task design) in subsequent phases within the same run. The file is pruned at run start (LRNG-03) so entries do not accumulate across runs.
+
 **Example post-mortem path:** `.autopilot/diagnostics/phase-5-postmortem.json`
 
-**This is a MUST-level instruction.** Every failed phase produces a post-mortem. If the post-mortem write itself fails (e.g., permission error), log the error in the return JSON `issues` array and continue with the failure return.
+**This is a MUST-level instruction.** Every failed phase produces a post-mortem and a learnings entry. If the post-mortem or learnings write itself fails (e.g., permission error), log the error in the return JSON `issues` array and continue with the failure return.
 
 ### Rollback Reporting
 
