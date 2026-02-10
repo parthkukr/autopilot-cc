@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 (2026-02-10)
+
+### Features
+
+- **Batch Completion Mode (Phase 8):** `--complete` flag runs all outstanding phases without manual selection, with dependency-aware ordering, skip logging for completed phases, failure-resilient continuation for independent phases, and aggregated completion reporting with project completion percentage
+- **Pre-Execution Context Mapping (Phase 9):** `--map` flag audits phase context sufficiency (1-10 scoring), spawns questioning agent for underspecified phases (<8), batches questions in single interactive session, persists answers to context-map.json across runs, emits low-confidence warnings during normal execution
+- **Confidence Enforcement (Phase 10):** Default 9/10 alignment threshold with `--lenient` flag to revert to 7/10, remediation loops (up to 2 extra verify+judge cycles) for sub-threshold phases, diagnostic debug files for every sub-9 completion with actionable "path to 9/10" section, force_incomplete marking preserving progress when remediation exhausts
+
 ## 1.4.0 (2026-02-10)
 
 ### Features
