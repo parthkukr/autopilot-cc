@@ -943,6 +943,17 @@ Return immediately with: `status: "failed"`, `alignment_score: null`, `recommend
 
 **Case 2 -- Pure human-verify plan (zero auto tasks):** Skip execute/verify/judge. Return with: `status: "needs_human_verification"`, `alignment_score: null`, empty `automated_checks` and `commit_shas`. Set execute/verify/judge pipeline_steps to `"skipped"`.
 
+**REQUIRED for both cases:** When returning `status: "needs_human_verification"`, the phase-runner MUST populate the `human_verify_justification` field in the return JSON. This field identifies the specific checkpoint task that triggered the human-verify status:
+```json
+"human_verify_justification": {
+  "checkpoint_task_id": "XX-YY",
+  "task_description": "description of the checkpoint task",
+  "auto_tasks_passed": N,
+  "auto_tasks_total": M
+}
+```
+The orchestrator rejects any `needs_human_verification` return that lacks this field (see orchestrator Section 5, Check 13). Do NOT use generic justifications like "it's a UI phase" -- the justification must reference the specific task ID from the plan.
+
 ### Pipeline Failures
 
 After exhausting retries, return with: `status: "failed"`, `recommendation: "halt"`, populated `debug_attempts` count, all issues listed chronologically in `issues` array (original failure + each debug attempt result). Include `diagnostic_branch` name if one was created.

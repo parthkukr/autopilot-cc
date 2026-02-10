@@ -99,7 +99,7 @@ This JSON must be the LAST thing in your response. The orchestrator parses it fr
 **Preflight failure:** Return immediately with status "failed", recommendation "halt".
 **Step agent failure:** Log the error, attempt debug (max 3 attempts), then fail.
 **Max retries exceeded:** Return status "failed", recommendation "halt", include all debug attempt details in issues array.
-**Human verification needed:** If phase has checkpoint:human-verify tasks, run verify/judge on auto tasks first, then return status "needs_human_verification" with populated quality signals.
+**Human verification needed:** If phase has checkpoint:human-verify tasks, run verify/judge on auto tasks first, then return status "needs_human_verification" with populated quality signals. You MUST include `human_verify_justification` in the return JSON identifying the specific checkpoint task ID that triggered the status -- the orchestrator rejects returns without this field.
 </error_handling>
 
 <spawning_step_agents>

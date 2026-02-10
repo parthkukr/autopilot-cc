@@ -153,6 +153,12 @@ The canonical return contract is defined here. The phase-runner returns this JSO
     "commands_run": ["command -> result"],
     "git_diff_summary": "N files changed, M insertions, K deletions"
   },
+  "human_verify_justification": {
+    "checkpoint_task_id": "XX-YY",
+    "task_description": "description of the checkpoint task requiring human verification",
+    "auto_tasks_passed": N,
+    "auto_tasks_total": M
+  },
   "pipeline_steps": {
     "preflight": {"status": "pass|fail|skipped", "agent_spawned": false},
     "triage": {"status": "full_pipeline|verify_only", "agent_spawned": false, "pass_ratio": 0.0},
@@ -168,6 +174,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
 
 **Field notes:**
 - `evidence` is NEW. Contains concrete proof of work. The judge uses this for independent verification. If `commit_shas` is empty (already-implemented claim), `evidence.files_checked` MUST list file:line evidence for each acceptance criterion.
+- `human_verify_justification` is REQUIRED when `status` is `"needs_human_verification"`. Omit or set to `null` for other statuses. The orchestrator rejects any `needs_human_verification` return that lacks this field (see Section 5, Check 13).
 - `pipeline_steps` uses ONE canonical shape: `{status, agent_spawned}` plus optional `confidence` (plan_check only), `skip_reason` (research/plan only), and `pass_ratio` (triage only). No `ran` field. No alternative schemas.
 - `automated_checks` includes `build` to distinguish compilation (`compile` = configured compile command) from production build (`build` = configured build command). Actual commands are read from `project.commands` in `.planning/config.json`.
 
@@ -263,6 +270,13 @@ Before applying gate logic, validate the phase-runner's return:
 12. **Failure classification (VRFY-05):** If the verifier or debugger returns failures:
     - Each failure MUST include a `category` from the defined taxonomy: `executor_incomplete`, `executor_wrong_approach`, `compilation_failure`, `lint_failure`, `build_failure`, `acceptance_criteria_unmet`, `scope_creep`, `context_exhaustion`, `tool_failure`, `coordination_failure`.
     - If any failure lacks a category: Log warning: "Unclassified failure detected: {failure_description}." This is a WARNING, not a rejection.
+
+### Status Decision Governance Checks
+
+13. **Human-verify justification required (STAT-02):** If `status` is `"needs_human_verification"`:
+    - The return MUST include a `human_verify_justification` object with a non-empty `checkpoint_task_id` field.
+    - If `human_verify_justification` is missing, null, or has an empty `checkpoint_task_id`: REJECT. Log: "needs_human_verification returned without structured justification. Re-spawning."
+    - The justification must identify the specific checkpoint task that triggered the human-verify status, not a generic reason like "it's a UI phase."
 
 ---
 
