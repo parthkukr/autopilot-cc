@@ -400,12 +400,117 @@ When user types `/autopilot resume`:
 When all target phases are done:
 
 1. **Integration check**: Spawn general-purpose agent to verify cross-phase wiring (imports, no orphaned code, E2E flows). Read pass/fail JSON.
-2. **Version bump**: Read `CLAUDE.md` for versioning rules. Bump version in `package.json`, `VERSION`, and `CHANGELOG.md` based on the highest phase completed in this run:
-   - Integer phase (e.g., 4, 5) → minor bump (reset patch to 0)
-   - Decimal phase only (e.g., 3.1, 4.1) → patch bump
+
+2. **Self-audit against requirements**: After the integration check passes and before the version bump, spawn a self-audit agent to verify that the actual implementation satisfies the frozen spec requirements -- not trusting phase-runner self-reported results. This catches requirement-level gaps that per-phase verification misses (plan-level verification confirms "did the executor follow the plan?" but NOT "does the implementation satisfy the original requirements?").
+
+   **Self-audit agent spawn:** Spawn a general-purpose subagent with the following prompt:
+
+   > You are a post-completion self-audit agent. Your job is to verify that implementation files satisfy the frozen spec requirements -- independently of what phase-runners reported.
+   >
+   > **Frozen spec:** {spec_path}
+   > **Completed phases in this run:** {list of phase IDs with their directories}
+   > **State file:** `.autopilot/state.json` (for phase status and alignment scores)
+   >
+   > <must>
+   > 1. Read the frozen spec at {spec_path}. Extract ALL requirements with their IDs, descriptions, and phase mappings.
+   > 2. For each completed phase in this run (status == "completed" in state.json), read its PLAN.md to get acceptance criteria and the files that were modified.
+   > 3. For each requirement mapped to a completed phase, verify compliance by reading the actual implementation files:
+   >    - Run the acceptance criteria verification commands (grep patterns, file existence checks) against the current codebase
+   >    - Check for cross-file consistency (e.g., if a schema is defined in one file and referenced in another, verify both match)
+   >    - Check for spec violations (e.g., PRMT-01 max 7 MUST items -- count actual MUST items in the executor prompt)
+   > 4. Produce a structured audit report as JSON (see Return JSON below). For each requirement: record the requirement ID, what was expected, what was actually found (with file:line evidence), and status (pass or gap). For gaps: include a specific description of what is missing or wrong.
+   > 5. Classify each gap by fix complexity:
+   >    - "small": Single file edit, pattern insertion/correction, < 20 lines changed
+   >    - "large": Multi-file changes, logic modifications, or cross-cutting concerns
+   > </must>
+   >
+   > <should>
+   > 1. Prioritize checking requirements that are cross-cutting (referenced by multiple phases) -- these are most likely to have inconsistencies
+   > 2. Spot-check at least one requirement per completed phase by reading the actual file, not just running grep
+   > 3. Check for cross-phase inconsistencies (e.g., a field added to the return contract in the orchestrator but missing from the schemas reference)
+   > </should>
+   >
+   > Return JSON:
+   > ```json
+   > {
+   >   "audit_results": [
+   >     {
+   >       "phase_id": "N",
+   >       "requirements_checked": [
+   >         {
+   >           "requirement_id": "REQ-XX",
+   >           "expected": "description of what spec requires",
+   >           "actual_found": "what was found in implementation files",
+   >           "file_line_evidence": "filepath:lineN -- quote or description",
+   >           "status": "pass|gap",
+   >           "gap_description": "what is missing or wrong (null if pass)",
+   >           "fix_complexity": "small|large|null"
+   >         }
+   >       ]
+   >     }
+   >   ],
+   >   "aggregate": {
+   >     "total_requirements_checked": N,
+   >     "passed_on_first_check": N,
+   >     "gaps_found": N,
+   >     "gap_details": [
+   >       {
+   >         "requirement_id": "REQ-XX",
+   >         "phase_id": "N",
+   >         "gap_description": "string",
+   >         "fix_complexity": "small|large",
+   >         "suggested_fix": "specific description of what to change"
+   >       }
+   >     ]
+   >   }
+   > }
+   > ```
+
+   **Gap-fix routing:** After the self-audit agent returns:
+
+   - If `gaps_found == 0`: Log "Self-audit: all {total} requirements passed. No gaps found." Proceed to step 3.
+   - If `gaps_found > 0`: Process each gap:
+     - **Small fix** (`fix_complexity == "small"`): Spawn a general-purpose agent with the gap description and suggested fix. The agent makes the edit and commits with message: `fix(audit): close {requirement_id} gap -- {1-line description}`. Log: "Self-audit: fixing small gap for {requirement_id}."
+     - **Large fix** (`fix_complexity == "large"`): Spawn a targeted executor (gsd-executor) with the gap as a single-task plan. The executor follows standard compile/lint/commit protocol. Log: "Self-audit: routing large gap for {requirement_id} to executor."
+   - After ALL gap fixes are applied, append a `self_audit_gaps_fixed` event to the event_log.
+
+   **Re-verification loop:** After gap fixes are applied, re-run the self-audit agent on ONLY the requirements that had gaps (pass the `gap_details` array as the scope). The re-audit agent uses the same prompt but with an additional instruction:
+
+   > **RE-AUDIT SCOPE:** You are re-verifying ONLY the following requirements after gap fixes were applied: {list of requirement_ids}. Check ONLY these requirements. Confirm each gap is closed with file:line evidence.
+
+   - If re-audit finds all gaps closed: Log "Self-audit re-verification: all {N} gaps confirmed fixed." Proceed to step 3.
+   - If re-audit finds remaining gaps AND this is re-audit cycle 1: Apply fixes and re-audit once more (cycle 2).
+   - If re-audit finds remaining gaps AND this is re-audit cycle 2: Log "Self-audit: {N} gaps could not be auto-fixed after 2 cycles. Reporting as remaining." Proceed to step 3 with remaining gaps noted.
+   - **Maximum 2 re-audit cycles.** Do not loop beyond 2.
+
+   **Self-audit results for completion report:** Store the following for inclusion in the completion report (step 4):
+   ```json
+   {
+     "self_audit": {
+       "total_requirements_checked": N,
+       "passed_on_first_check": N,
+       "gaps_found": N,
+       "gaps_fixed": N,
+       "gaps_remaining": N,
+       "remaining_gap_details": [{"requirement_id": "REQ-XX", "description": "string"}],
+       "audit_cycles": N,
+       "fix_commits": ["sha1", "sha2"]
+     }
+   }
+   ```
+
+3. **Version bump**: Read `CLAUDE.md` for versioning rules. Bump version in `package.json`, `VERSION`, and `CHANGELOG.md` based on the highest phase completed in this run:
+   - Integer phase (e.g., 4, 5) -> minor bump (reset patch to 0)
+   - Decimal phase only (e.g., 3.1, 4.1) -> patch bump
    - Commit with message: `chore: bump to vX.Y.Z after phase N`
-3. **Report**: Write `.autopilot/completion-{date}.md` (phase table, integration status, stats).
-4. **Metrics collection (MTRC-01)**: Aggregate run-level metrics from `state.json`:
+4. **Report**: Write `.autopilot/completion-{date}.md` (phase table, integration status, self-audit results, stats). The report MUST include a "## Self-Audit Results" section containing:
+   - Total requirements checked
+   - Requirements passed on first check
+   - Gaps found (with requirement IDs and descriptions)
+   - Gaps fixed (with fix commit SHAs)
+   - Gaps remaining (if any could not be auto-fixed)
+   - Number of audit cycles run
+5. **Metrics collection (MTRC-01)**: Aggregate run-level metrics from `state.json`:
    - `phases_attempted`: Count all phases in `phases` object that have a `started_at` timestamp
    - `phases_succeeded`: Count phases with `status == "completed"` and `alignment_score >= 7`
    - `phases_failed`: Count phases with `status == "failed"`
@@ -418,8 +523,8 @@ When all target phases are done:
    - `total_replan_attempts`: Sum `replan_attempts` from all phase records
    - `success_rate`: `phases_succeeded / phases_attempted`
    - `per_phase_summary`: Array of `{phase_id, status, alignment_score, estimated_tokens, duration_minutes}` for each phase
-5. **Metrics persistence (MTRC-01)**: Read `.autopilot/archive/metrics.json`. If the file does not exist, start with an empty array `[]`. Append the current run's metrics object (using the schema from autopilot-schemas.md Section 8) to the array. Write the updated array back to `.autopilot/archive/metrics.json`. Use `run_id` from `_meta.run_id` and set `timestamp` to the current ISO-8601 time.
-6. **Trend comparison (MTRC-03)**: After writing metrics.json, compare the current run against historical data:
+6. **Metrics persistence (MTRC-01)**: Read `.autopilot/archive/metrics.json`. If the file does not exist, start with an empty array `[]`. Append the current run's metrics object (using the schema from autopilot-schemas.md Section 8) to the array. Write the updated array back to `.autopilot/archive/metrics.json`. Use `run_id` from `_meta.run_id` and set `timestamp` to the current ISO-8601 time.
+7. **Trend comparison (MTRC-03)**: After writing metrics.json, compare the current run against historical data:
    - If metrics.json has only 1 entry (first run): Skip trend comparison. Log: "First run recorded. Trend analysis available after 2+ runs."
    - If metrics.json has >= 2 entries: Compute trend summary by comparing current run (last entry) vs previous run (second-to-last entry):
      - `success_rate_delta`: current `success_rate` minus previous `success_rate` (positive = improvement)
@@ -432,5 +537,5 @@ When all target phases are done:
      - `total_cost`: min, max, avg
    - Append a "## Trend Analysis" section to the completion report (`.autopilot/completion-{date}.md`) with: deltas, recurring failures, and historical min/max/avg
    - If success rate decreased from previous run, log warning: "Warning: Success rate decreased from {prev}% to {curr}%. Check failure histogram for recurring issues."
-7. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
-8. **Announce**: Show summary. Run task completion notification if available.
+8. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
+9. **Announce**: Show summary. Run task completion notification if available.
