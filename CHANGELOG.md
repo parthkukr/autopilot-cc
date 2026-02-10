@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0 (2026-02-10)
+
+### Features
+
+- **Execution Trace and Observability (Phase 5):** Structured JSONL tracing with per-tool-invocation spans from step agents, phase-level trace aggregation into TRACE.jsonl, auto-generated post-mortems on failure with root cause, timeline, evidence chain, and prevention rules
+- **Post-Mortem and Cross-Phase Learning (Phase 6):** Prevention rules appended to learnings.md after each failure, planner and executor primed with accumulated learnings, learnings file scoped to current run and reset at start, human verdict calibration from needs_human_verification outcomes
+- **Metrics and Cost Tracking (Phase 7):** Run-level metrics.json with success rate, failure taxonomy histogram, and alignment scores; pre-execution cost estimation with budget warnings at 80% cap; cross-run trend comparison with recurring failure detection
+
 ## 1.2.0 (2026-02-10)
 
 ### Features
