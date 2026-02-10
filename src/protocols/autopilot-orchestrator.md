@@ -38,6 +38,18 @@ for each phase in target_phases:
 
 That is the entire loop. No gates, no extra validation, no asking.
 
+### Human-Defer Rate Tracking (STAT-04)
+
+The orchestrator maintains two counters across the loop: `human_deferred_count` (phases returning `needs_human_verification`) and `total_phases_processed` (all phases that received a return, regardless of status). Both start at 0 at run start.
+
+After each phase return:
+1. Increment `total_phases_processed`.
+2. If `status` is `"needs_human_verification"`, increment `human_deferred_count`.
+3. Compute `defer_rate = human_deferred_count / total_phases_processed`.
+4. If `defer_rate > 0.50` AND `total_phases_processed >= 2`: Log warning: "High human-defer rate ({human_deferred_count}/{total_phases_processed}). Pipeline may be avoiding autonomous completion." Append a `high_defer_rate_warning` event to the event_log.
+
+These counters persist in `state.json` (see Section 7) so they survive resume operations.
+
 ### Pre-Spawn Checks (Automatic, No User Input)
 
 Before spawning the phase-runner for phase N:
@@ -301,12 +313,13 @@ When stopping for context (40% threshold hit):
 After each phase, update `.autopilot/state.json`:
 
 1. Backup `state.json` to `state.json.backup` before writing.
-2. `phases.{N}.status` = `"completed"` or `"failed"`.
+2. `phases.{N}.status` = `"completed"` or `"failed"` or `"needs_human_verification"`.
 3. `phases.{N}.completed_at` = ISO timestamp.
 4. Store `alignment_score`, `commit_shas`, `debug_attempts`, `replan_attempts`, `checkpoint_sha`, `automated_checks` from return JSON.
 5. `_meta.current_phase` = next phase ID. `_meta.last_checkpoint` = now.
 6. `last_checkpoint_sha` = `git rev-parse HEAD`.
 7. Append `phase_completed` event to `event_log`.
+8. Update `_meta.human_deferred_count` and `_meta.total_phases_processed` counters (see Section 2, Human-Defer Rate Tracking).
 
 ---
 
