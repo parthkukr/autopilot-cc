@@ -243,6 +243,26 @@ Before applying gate logic, validate the phase-runner's return:
      - `pipeline_steps.judge.agent_spawned` MUST be `true`
      - If ANY of these fail: REJECT. Log: "Already-implemented claims lack sufficient evidence."
 
+### Verification Pipeline Hardening Checks
+
+9. **JUDGE-REPORT.md existence and divergence (VRFY-02):** If `pipeline_steps.judge.agent_spawned` is `true`:
+   - Verify `.planning/phases/{phase}/JUDGE-REPORT.md` exists.
+   - If it does not exist: REJECT. Log: "Judge did not produce JUDGE-REPORT.md artifact. Re-spawning."
+   - If it exists, verify it contains a "Divergence Analysis" section.
+   - If the Divergence Analysis section states zero differences from VERIFICATION.md AND the judge's `independent_evidence` field is empty or missing: REJECT. Log: "JUDGE-REPORT.md shows no independent analysis. Possible rubber-stamping."
+
+10. **Verifier rubber-stamp detection (VRFY-03):** If `pipeline_steps.verify.agent_spawned` is `true`:
+    - The phase-runner MUST record `verification_duration_seconds` from the verifier's return JSON.
+    - If `verification_duration_seconds` < 120 (2 minutes): REJECT. Log: "Verifier completed in {N} seconds -- below 2-minute minimum. Possible rubber-stamp."
+    - If the verifier's `commands_run` list is empty: REJECT. Log: "Verifier reported empty commands_run. Verification without command execution is not accepted."
+
+11. **Judge rubber-stamp detection (VRFY-04):** If `pipeline_steps.judge.agent_spawned` is `true`:
+    - If the judge's `verifier_agreement` is `true` AND `verifier_missed` is empty AND `independent_evidence` is empty or missing: REJECT. Log: "Judge agrees with verifier on all points without presenting independent evidence. Possible rubber-stamp."
+
+12. **Failure classification (VRFY-05):** If the verifier or debugger returns failures:
+    - Each failure MUST include a `category` from the defined taxonomy: `executor_incomplete`, `executor_wrong_approach`, `compilation_failure`, `lint_failure`, `build_failure`, `acceptance_criteria_unmet`, `scope_creep`, `context_exhaustion`, `tool_failure`, `coordination_failure`.
+    - If any failure lacks a category: Log warning: "Unclassified failure detected: {failure_description}." This is a WARNING, not a rejection.
+
 ---
 
 ## 6. Context Management

@@ -222,7 +222,8 @@ project-root/
 │       │   ├── RESEARCH.md
 │       │   ├── PLAN.md
 │       │   ├── EXECUTION-LOG.md
-│       │   └── VERIFICATION.md
+│       │   ├── VERIFICATION.md
+│       │   └── JUDGE-REPORT.md
 │       └── ...
 │
 └── (project source files)

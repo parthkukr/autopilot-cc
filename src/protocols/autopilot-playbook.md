@@ -667,8 +667,10 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > 1. Gather evidence INDEPENDENTLY before reading VERIFICATION.md (run git diff, git log, read files)
 > 2. Spot-check at least one acceptance criterion by reading the actual file
 > 3. Check the frozen spec at {spec_path} for any missed requirements
-> 4. Identify at least one concern (even if minor) to prove independent examination
-> 5. Return structured JSON with alignment score and recommendation
+> 4. Write your independent findings to `.planning/phases/{phase}/JUDGE-REPORT.md` BEFORE reading VERIFICATION.md. This artifact is structural proof of independent execution -- the orchestrator verifies it exists.
+> 5. After writing JUDGE-REPORT.md, read VERIFICATION.md and add a "Divergence Analysis" section to your JUDGE-REPORT.md noting: (a) points where you agree with the verifier AND have independent evidence, (b) points where you disagree, (c) points the verifier missed, (d) points you missed that the verifier found. If you agree on every point, you MUST present your independent evidence (specific file:line references, command outputs) proving you reached the same conclusion independently -- agreement without independent evidence will be rejected as rubber-stamping.
+> 6. Identify at least one concern (even if minor) to prove independent examination
+> 7. Return structured JSON with alignment score and recommendation
 > </must>
 >
 > <should>
@@ -706,6 +708,7 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 >   "alignment_score": 1-10,
 >   "recommendation": "proceed|debug|rollback|halt",
 >   "concerns": ["at least one item"],
+>   "independent_evidence": ["file:line -- what was found independently"],
 >   "verifier_agreement": true|false,
 >   "verifier_missed": ["items the verifier didn't catch, if any"],
 >   "scope_creep": ["items"],
