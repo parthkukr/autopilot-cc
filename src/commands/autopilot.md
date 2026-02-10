@@ -1,7 +1,7 @@
 ---
 name: autopilot
 description: Autonomous multi-phase execution — runs development phases without human intervention
-argument-hint: <phases|resume|status|update>
+argument-hint: <phases|resume|status|update|--complete>
 allowed-tools:
   - Read
   - Write
@@ -22,7 +22,8 @@ Run 1-N development phases autonomously using the 3-tier orchestrator pattern. Y
 - `status` — show current state without executing
 - `update` — check for and install autopilot-cc updates
 
-**Options (append after phases):**
+**Options (append after phases or standalone):**
+- `--complete` — run all outstanding (incomplete) phases in dependency order without specifying a phase range; the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
 - `--sequential` — force all phases sequential
 - `--checkpoint-every N` — pause for human review every N phases
 </objective>
@@ -87,6 +88,14 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 4. If update available: show "Update available: vX.Y.Z -> vA.B.C. Installing..."
 5. Run `npx autopilot-cc@latest` (preserving --global/--local based on current install location)
 6. Show "Restart Claude Code to activate the update"
+
+### If `--complete`:
+- Follow orchestrator guide Section 1.1 (Batch Completion Mode)
+- Reads roadmap, identifies all incomplete phases, resolves dependency order
+- Skips already-completed phases with logged reasons
+- On failure: skips blocked dependent phases, continues with remaining independent phases
+- At end: writes aggregated completion report to `.autopilot/completion-report.md`
+- Combinable with `--sequential`, `--checkpoint-every N`, `--force`
 
 ### If `resume`:
 - Follow orchestrator guide Section 8 (Resume Protocol)
