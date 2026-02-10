@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 (2026-02-10)
+
+### Fixes
+
+- **Phase 7 Documentation Gaps:** Added `estimated_tokens` to state.json phase record schema, `metrics.json` to directory structure, and `estimated_tokens` placeholder to spawn template
+
 ## 1.3.0 (2026-02-10)
 
 ### Features
