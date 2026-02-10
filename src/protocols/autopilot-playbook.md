@@ -273,6 +273,10 @@ Requirements for this phase (if provided):
 2. Note related improvements outside the current phase scope
 </may>
 
+<should>
+4. Write a trace file to .planning/phases/{phase}/research-trace.jsonl with one JSONL line per significant action (file read, command run, decision made). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "research", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+</should>
+
 Return JSON:
 {
   "key_findings": ["finding 1", "finding 2"],
@@ -335,6 +339,10 @@ Requirements for this phase (if provided):
 1. Suggest task ordering optimizations
 2. Note deferred decisions for later phases
 </may>
+
+<should>
+3. Write a trace file to .planning/phases/{phase}/plan-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan", "action": "file_read|file_write|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+</should>
 
 **AUTOPILOT CONTEXT (you are in autopilot mode):**
 - Your orchestrator is the phase-runner, NOT `/gsd:plan-phase`. Do not wait for user confirmation.
@@ -405,6 +413,10 @@ Plans are in: .planning/phases/{phase}/
 1. Suggest task reordering or consolidation for efficiency
 2. Flag potential risks not covered by the plan
 </may>
+
+<should>
+6. Write a trace file to .planning/phases/{phase}/plan_check-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan_check", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+</should>
 
 Return JSON:
 {
@@ -483,6 +495,10 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 > 4. Before creating a new file, search the codebase for existing implementations of the same functionality (`grep -r "function_name\|class_name" . --include="*.ts" --include="*.tsx"`). If an existing implementation is found, extend or import it rather than creating a duplicate file.
 > </should>
 >
+> <should>
+> 5. Write a trace file to .planning/phases/{phase}/execute-trace.jsonl with one JSONL line per significant action (file write, compile run, lint run, git commit, criterion check). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "execute", "action": "file_read|file_write|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+> </should>
+>
 > <may>
 > 1. Create SUMMARY.md in the phase directory if it helps document the work.
 > 2. Add inline comments in modified files explaining non-obvious changes.
@@ -557,6 +573,10 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > 1. Record specific file:line evidence for each verified criterion
 > 2. Identify scope creep (anything built that was not in spec)
 > 3. Score conservatively: 7-8 with noted concerns is more credible than 9-10 with none
+> </should>
+>
+> <should>
+> 4. Write a trace file to .planning/phases/{phase}/verify-trace.jsonl with one JSONL line per significant action (file read, command run, criterion check). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "verify", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
 > </should>
 >
 > <may>
@@ -681,6 +701,10 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > 1. Compare your findings against the verifier's report after independent review
 > 2. Flag scope creep (code nobody asked for)
 > 3. Score independently using the scoring guide -- do not anchor to the verifier's score
+> </should>
+>
+> <should>
+> 4. Write a trace file to .planning/phases/{phase}/judge-trace.jsonl with one JSONL line per significant action (file read, command run, criterion check). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "judge", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
 > </should>
 >
 > <may>
@@ -832,6 +856,10 @@ Failing checks:
 <may>
 1. Note related issues discovered during debugging that are out of scope
 </may>
+
+<should>
+4. Write a trace file to .planning/phases/{phase}/debug-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "debug", "action": "file_read|file_write|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+</should>
 
 Mode: find_and_fix
 symptoms_prefilled: true

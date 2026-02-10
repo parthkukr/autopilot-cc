@@ -14,6 +14,7 @@
 3. [Event Types](#section-3-event-types)
 4. [Directory Structure](#section-4-directory-structure)
 5. [Step Agent Handoff Protocol](#section-5-step-agent-handoff-protocol)
+6. [Trace and Post-Mortem Schemas](#section-6-trace-and-post-mortem-schemas)
 
 ---
 
@@ -222,7 +223,8 @@ project-root/
 │   ├── archive/                         # Completed run states
 │   │   └── run-YYYY-MM-DD-HHMMSS.json
 │   └── diagnostics/                     # Failure reports
-│       └── diagnostic-YYYY-MM-DDTHHMMSS.md
+│       ├── diagnostic-YYYY-MM-DDTHHMMSS.md
+│       └── phase-{N}-postmortem.json    # Structured post-mortem (OBSV-04)
 │
 ├── .planning/                           # Phase artifacts directory
 │   └── phases/                          # One subdirectory per phase
@@ -231,7 +233,13 @@ project-root/
 │       │   ├── PLAN.md
 │       │   ├── EXECUTION-LOG.md
 │       │   ├── VERIFICATION.md
-│       │   └── JUDGE-REPORT.md
+│       │   ├── JUDGE-REPORT.md
+│       │   ├── TRIAGE.json
+│       │   ├── TRACE.jsonl               # Aggregated step traces (OBSV-02)
+│       │   ├── research-trace.jsonl       # Step-level trace (OBSV-01)
+│       │   ├── plan-trace.jsonl
+│       │   ├── execute-trace.jsonl
+│       │   └── verify-trace.jsonl
 │       └── ...
 │
 └── (project source files)
@@ -313,6 +321,126 @@ The following agents already used JSON returns before this handoff protocol was 
 
 ---
 
+## Section 6: Trace and Post-Mortem Schemas
+
+### Trace Span Schema (OBSV-01)
+
+Each step agent writes a JSONL trace file (`{step}-trace.jsonl`) to the phase directory. Each line is one trace span representing a significant action (tool invocation, file write, command execution).
+
+```jsonc
+// One line per span in {step}-trace.jsonl
+{
+  "timestamp": "2026-02-09T14:32:15Z",   // ISO-8601 when the action started
+  "phase_id": "5",                         // Phase identifier
+  "step": "execute",                       // Pipeline step name: research|plan|plan_check|execute|verify|judge|debug
+  "action": "file_write",                  // Action type: file_read|file_write|command_run|tool_call|agent_spawn|decision
+  "input_summary": "Write to src/protocols/autopilot-playbook.md",  // Truncated to 200 chars max
+  "output_summary": "File written successfully (1013 lines)",       // Truncated to 200 chars max
+  "duration_ms": 450,                      // Wall-clock milliseconds for this action
+  "status": "success"                      // success|failure|skipped
+}
+```
+
+**Action types:**
+| Action | When to log |
+|--------|------------|
+| `file_read` | Reading a source file or artifact |
+| `file_write` | Writing or editing a file |
+| `command_run` | Running a shell command (compile, lint, grep, git) |
+| `tool_call` | Any tool invocation not covered by the above |
+| `agent_spawn` | Spawning a subagent (e.g., mini-verifier) |
+| `decision` | Making a routing or gate decision |
+
+### Aggregated TRACE.jsonl Schema (OBSV-02)
+
+The phase-runner aggregates all step-level trace files into a single `TRACE.jsonl` file in the phase directory. The format is identical to individual trace spans -- it is a concatenation of all step trace files in execution order, with optional phase-runner-level spans interspersed.
+
+```jsonc
+// TRACE.jsonl = concatenation of all {step}-trace.jsonl files + phase-runner spans
+// Each line follows the trace span schema above
+// Phase-runner adds its own spans for pipeline-level actions:
+{
+  "timestamp": "2026-02-09T14:31:00Z",
+  "phase_id": "5",
+  "step": "phase_runner",                  // "phase_runner" for pipeline-level actions
+  "action": "agent_spawn",
+  "input_summary": "Spawning gsd-executor for phase 5",
+  "output_summary": "Agent completed: 3/3 tasks, 3 commits",
+  "duration_ms": 180000,
+  "status": "success"
+}
+```
+
+### Post-Mortem Schema (OBSV-03, OBSV-04)
+
+On phase failure, the phase-runner generates a structured post-mortem at `.autopilot/diagnostics/phase-{N}-postmortem.json`.
+
+```jsonc
+{
+  "phase_id": "5",
+  "phase_name": "Execution Trace and Observability",
+  "timestamp": "2026-02-09T16:45:00Z",     // When the post-mortem was generated
+  "status": "failed",                        // Always "failed" (post-mortems are for failures)
+
+  // Root cause from the failure taxonomy (Section 2.5 of playbook)
+  "root_cause": {
+    "category": "acceptance_criteria_unmet", // One of the 10 taxonomy categories
+    "description": "Verifier found 2 of 5 acceptance criteria not met after 3 debug attempts",
+    "first_observed_at": "2026-02-09T15:30:00Z",  // When the failure was first detected
+    "step": "verify"                         // Pipeline step where failure was identified
+  },
+
+  // Timeline of events leading to failure (from TRACE.jsonl or step returns)
+  "timeline": [
+    {
+      "timestamp": "2026-02-09T14:31:00Z",
+      "step": "execute",
+      "event": "Task 05-01 completed",
+      "status": "success"
+    },
+    {
+      "timestamp": "2026-02-09T15:30:00Z",
+      "step": "verify",
+      "event": "2 acceptance criteria failed",
+      "status": "failure"
+    },
+    {
+      "timestamp": "2026-02-09T15:45:00Z",
+      "step": "debug",
+      "event": "Debug attempt 1: fixed 1 of 2 issues",
+      "status": "partial"
+    }
+  ],
+
+  // Evidence chain: commands run, files checked, outputs observed
+  "evidence": {
+    "commands_run": [
+      "grep 'pattern' file.md -> no match (FAIL)",
+      "git diff d340a8a..HEAD --stat -> 3 files changed"
+    ],
+    "files_checked": [
+      "src/protocols/autopilot-playbook.md:450 -- missing trace instruction"
+    ]
+  },
+
+  // Debug attempts and their outcomes
+  "attempted_fixes": [
+    {
+      "attempt": 1,
+      "description": "Added missing trace instruction to executor prompt",
+      "commit_sha": "abc1234",
+      "resolved": ["criterion_1"],
+      "remaining": ["criterion_2"]
+    }
+  ],
+
+  // Prevention rule for the learnings file (Phase 6)
+  "prevention_rule": "When adding trace instructions to step agent prompts, verify each prompt template independently rather than assuming a bulk edit covers all cases. Check grep count matches the number of step agents."
+}
+```
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, and (5) the step agent handoff protocol with JSON return schemas for all agents. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) twenty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, and (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
