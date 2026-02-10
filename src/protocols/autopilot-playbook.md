@@ -29,6 +29,9 @@ You are spawned by the orchestrator to run one phase. You receive the following 
 | `max_replan_attempts` | Maximum replan attempts allowed (default: 1) |
 | `existing_plan` | Boolean. If true, a PLAN.md already exists -- skip Research and Plan, go to Plan-Check. |
 | `skip_research` | Boolean. If true, skip the Research step (from config.json workflow.research). |
+| `remediation_feedback` | Optional. Structured list of specific deficiencies from judge/verifier. Provided during remediation cycles (CENF-01). When present, phase-runner operates in remediation mode. |
+| `remediation_cycle` | Optional. Current remediation cycle number (0 = initial run, 1-2 = remediation). Default: 0. |
+| `pass_threshold` | Optional. Alignment score threshold for passing (default 9, 7 with --lenient). Used in gate decision. |
 
 ### Phase Directory Resolution
 
@@ -780,13 +783,22 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 **Decision tree:**
 
+The `pass_threshold` is set by the orchestrator (default 9, 7 with `--lenient`). The phase-runner uses this threshold in its gate decision. If `pass_threshold` is not provided in the spawn prompt, default to 9.
+
 ```
 IF automated_checks all pass
-   AND alignment >= 7
+   AND alignment >= pass_threshold (default 9, 7 with --lenient)
    AND recommendation == "proceed":
      -> Log decision: "Phase {N} PASSED. Proceeding."
      -> Go to STEP 6 (RESULT)
      -> Return status: "completed"
+
+IF automated_checks all pass
+   AND alignment >= 7 AND alignment < pass_threshold
+   AND recommendation == "proceed":
+     -> Log decision: "Phase {N} completed at {alignment}/10 (threshold: {pass_threshold}). Returning to orchestrator for remediation decision."
+     -> Go to STEP 6 (RESULT)
+     -> Return status: "completed" (the orchestrator handles remediation cycles -- see orchestrator Section 5.1)
 
 IF any automated_check fails OR recommendation == "debug":
      -> Log decision: "Phase {N} has failing checks. Entering debug loop."
@@ -815,6 +827,13 @@ IF max retries exceeded (3 debug attempts OR 1 re-plan + 1 debug):
      -> Go to ROLLBACK
      -> Return status "failed" with recommendation "halt"
 ```
+
+**Remediation mode:** When the phase-runner receives `remediation_feedback` and `remediation_cycle` > 0 from the orchestrator, it operates in remediation mode. In this mode:
+- Skip research and planning (treat as `existing_plan: true`, `skip_research: true`)
+- Read the `remediation_feedback` list of specific deficiencies
+- Execute ONLY targeted tasks addressing the feedback items (not the full plan)
+- Run verify and judge as normal
+- The remediation mode is orchestrator-driven (Section 5.1 of orchestrator guide) -- the phase-runner's job is to fix the specific deficiencies identified, then return its result for the orchestrator to evaluate.
 
 **ROLLBACK procedure:**
 
@@ -1090,7 +1109,7 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 | Pre-flight | all_clear = true | Return failed result immediately |
 | Triage | Routing decision made (no failure possible) | Always produces a decision; routes to verify_only (>80% pass) or full_pipeline |
 | Plan Check | pass = true, confidence >= 7 | Re-plan (max 3x), then return failed |
-| Verify + Judge | checks pass, alignment >= 7, recommendation = proceed | Debug (max 3x) or re-plan (max 1x), then return failed |
+| Verify + Judge | checks pass, alignment >= pass_threshold (default 9), recommendation = proceed | If alignment 7-8 and pass_threshold > 7: return to orchestrator for remediation (Section 5.1). If alignment < 7: re-plan (max 1x). Debug (max 3x) for check failures. |
 | Circuit Breaker | debug attempts < 3 | Return failed, recommend halt |
 
 ---
