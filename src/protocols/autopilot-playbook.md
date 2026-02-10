@@ -939,7 +939,7 @@ Return immediately with: `status: "failed"`, `alignment_score: null`, `recommend
 
 ### Human-Verify Checkpoint
 
-**Case 1 -- Mixed plan (auto + human-verify tasks):** Execute auto tasks, run verify/judge, then return with: `status: "needs_human_verification"`, populated `alignment_score`, `automated_checks`, and `commit_shas` from the auto tasks. Include `verification_request` describing what needs human approval.
+**Case 1 -- Mixed plan (auto + human-verify tasks):** Execute auto tasks, run verify/judge, then return with: `status: "needs_human_verification"`, populated `alignment_score`, `automated_checks`, and `commit_shas` from the auto tasks. Include `human_verify_justification` describing what needs human approval.
 
 **Case 2 -- Pure human-verify plan (zero auto tasks):** Skip execute/verify/judge. Return with: `status: "needs_human_verification"`, `alignment_score: null`, empty `automated_checks` and `commit_shas`. Set execute/verify/judge pipeline_steps to `"skipped"`.
 

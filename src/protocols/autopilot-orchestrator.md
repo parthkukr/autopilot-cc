@@ -73,7 +73,7 @@ If a PLAN.md exists for this phase, grep/count task types:
 1. **Check for existing plan**: Glob `.planning/phases/*{phase_id}*/PLAN.md`. Pass `existing_plan: true` or `existing_plan: false`. Phases without plans run the full pipeline from step 1 (research). No need to ask -- that is what the pipeline is for.
 2. Spawn **phase-runner** (Section 3). Wait for completion (`run_in_background: false`).
 3. Parse the **return JSON** from the phase-runner's response (last lines).
-4. **Handle human verification**: If the phase-runner returns `status: "needs_human_verification"`, log it with `verification_request` details, skip to next phase, and continue. Come back to these at the end of the run.
+4. **Handle human verification**: If the phase-runner returns `status: "needs_human_verification"`, log it with `human_verify_justification` details, skip to next phase, and continue. Come back to these at the end of the run.
 5. **Gate decision** (Section 5).
 6. **Update state** (Section 7).
 7. Log: `Phase {N} complete. Alignment: {score}/10. Progress: {done}/{total}.`
@@ -81,7 +81,7 @@ If a PLAN.md exists for this phase, grep/count task types:
 ### End-of-Run Human Verification (STAT-05)
 
 At the end of the run, for each phase that returned `needs_human_verification`:
-1. Present the `verification_request` and `human_verify_justification` to the user.
+1. Present the `human_verify_justification` to the user.
 2. Collect the user's verdict: `pass`, `fail`, or `issues_found`.
 3. Record the verdict in `state.json` under `phases.{N}.human_verdict`:
    ```json
@@ -217,7 +217,7 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 | Condition | Action |
 |-----------|--------|
 | `status=="completed"` AND `alignment_score>=7` (this is the JUDGE's score) AND `recommendation=="proceed"` | **PASS** -- checkpoint, next phase |
-| `status=="needs_human_verification"` | **SKIP** -- log verification_request, continue to next phase, revisit at end of run |
+| `status=="needs_human_verification"` | **SKIP** -- log human_verify_justification, continue to next phase, revisit at end of run |
 | `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- write diagnostic, move to next phase |
 | `status=="failed"` AND later phases depend on it | **HALT** -- write diagnostic to `.autopilot/diagnostics/`, notify user, suggest `/autopilot resume` |
 | `recommendation=="rollback"` | **ROLLBACK** -- `git revert` to last checkpoint, diagnostic, halt |
