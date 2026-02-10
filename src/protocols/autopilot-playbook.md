@@ -104,6 +104,10 @@ You are a pre-flight checker for autopilot phase {N}: {phase_name}.
 2. Check for unresolved .planning/debug/*.md files
 </should>
 
+<may>
+1. Report additional environment details (disk space, git branch name)
+</may>
+
 Return JSON:
 {
   "all_clear": true|false,
