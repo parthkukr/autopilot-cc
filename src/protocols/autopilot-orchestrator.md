@@ -418,5 +418,18 @@ When all target phases are done:
    - `success_rate`: `phases_succeeded / phases_attempted`
    - `per_phase_summary`: Array of `{phase_id, status, alignment_score, estimated_tokens, duration_minutes}` for each phase
 5. **Metrics persistence (MTRC-01)**: Read `.autopilot/archive/metrics.json`. If the file does not exist, start with an empty array `[]`. Append the current run's metrics object (using the schema from autopilot-schemas.md Section 8) to the array. Write the updated array back to `.autopilot/archive/metrics.json`. Use `run_id` from `_meta.run_id` and set `timestamp` to the current ISO-8601 time.
-6. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
-7. **Announce**: Show summary. Run task completion notification if available.
+6. **Trend comparison (MTRC-03)**: After writing metrics.json, compare the current run against historical data:
+   - If metrics.json has only 1 entry (first run): Skip trend comparison. Log: "First run recorded. Trend analysis available after 2+ runs."
+   - If metrics.json has >= 2 entries: Compute trend summary by comparing current run (last entry) vs previous run (second-to-last entry):
+     - `success_rate_delta`: current `success_rate` minus previous `success_rate` (positive = improvement)
+     - `avg_alignment_delta`: current `avg_alignment_score` minus previous `avg_alignment_score`
+     - `estimated_cost_delta`: current `total_estimated_tokens` minus previous `total_estimated_tokens` (negative = cheaper)
+     - `recurring_failures`: failure categories that appear in BOTH current and previous run's `failure_taxonomy_histogram`
+   - Compute historical aggregates across ALL runs in the array:
+     - `success_rate`: min, max, avg
+     - `avg_alignment`: min, max, avg
+     - `total_cost`: min, max, avg
+   - Append a "## Trend Analysis" section to the completion report (`.autopilot/completion-{date}.md`) with: deltas, recurring failures, and historical min/max/avg
+   - If success rate decreased from previous run, log warning: "Warning: Success rate decreased from {prev}% to {curr}%. Check failure histogram for recurring issues."
+7. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
+8. **Announce**: Show summary. Run task completion notification if available.
