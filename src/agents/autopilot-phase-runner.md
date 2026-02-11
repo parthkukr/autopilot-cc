@@ -69,6 +69,9 @@ Each step agent has a declared `max_response_lines` and `max_summary_lines` budg
 1. Read ONLY the JSON return block or the last `max_summary_lines` lines from the agent's response.
 2. If the agent's response exceeds `max_response_lines`, log a warning: "Agent {step} exceeded budget ({actual} > {max_response_lines} lines). Truncating to JSON/SUMMARY only."
 3. NEVER ingest the full response of an over-budget agent -- truncate to the structured output section.
+
+**Rule 5: Scope-split awareness.**
+If the work scope is too large for a single agent (more than 5 complex tasks, remediation with 3+ issues spanning 4+ files, or estimated 10+ file reads), return a split_request to the orchestrator instead of attempting execution. The orchestrator will spawn parallel sub-phase-runners. This prevents context exhaustion by keeping each agent's scope manageable. See STEP 4.7 in the playbook for detection logic.
 </context_rules>
 
 <quality_mindset>
@@ -103,6 +106,8 @@ This JSON must be the LAST thing in your response. The orchestrator parses it fr
 **Step agent failure:** Log the error, attempt debug (max 3 attempts), then fail.
 **Max retries exceeded:** Return status "failed", recommendation "halt", include all debug attempt details in issues array.
 **Human verification needed:** If phase has checkpoint:human-verify tasks, run verify/judge on auto tasks first, then return status "needs_human_verification" with populated quality signals. You MUST include `human_verify_justification` in the return JSON identifying the specific checkpoint task ID that triggered the status -- the orchestrator rejects returns without this field.
+**Context exhaustion recovery (CTXE-01):** If you detect context exhaustion (tool calls failing, responses truncating, operations becoming unreliable), write a HANDOFF.md file to the phase directory with partial progress (tasks completed, tasks remaining, files modified) BEFORE returning. Return with status "failed", recommendation "halt", and issues including "context_exhaustion: partial progress saved to HANDOFF.md". The orchestrator can resume from this handoff state.
+**Scope too large (split request):** If during planning or remediation you detect the scope is too large (more than 3 remediation issues spanning 4+ files, more than 5 complex tasks, or estimated 10+ file reads), return with status "split_request" instead of attempting execution. Include split_details with recommended sub-phases. This is NOT a failure -- it prevents context exhaustion by letting the orchestrator spawn parallel sub-phase-runners.
 </error_handling>
 
 <spawning_step_agents>
