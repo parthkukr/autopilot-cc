@@ -1217,6 +1217,41 @@ The orchestrator rejects any `needs_human_verification` return that lacks this f
 
 After exhausting retries, return with: `status: "failed"`, `recommendation: "halt"`, populated `debug_attempts` count, all issues listed chronologically in `issues` array (original failure + each debug attempt result). Include `diagnostic_branch` name if one was created.
 
+### Context Exhaustion Handoff (CTXE-01)
+
+When a phase-runner detects it is approaching context exhaustion (i.e., the agent is struggling to complete operations, responses are being truncated, or tool calls are failing due to context limits), it MUST write a partial-progress handoff file BEFORE returning. This preserves work already completed so the orchestrator can resume from this state instead of losing all progress.
+
+**Handoff file:** Write to `.planning/phases/{phase}/HANDOFF.md`:
+
+```markdown
+# Phase {N} Partial Progress Handoff
+
+**Reason:** Context exhaustion detected during {step_name}
+**Timestamp:** {ISO-8601}
+
+## Tasks Completed
+| Task ID | Status | Commit SHA | Files Modified |
+|---------|--------|------------|----------------|
+| {id} | COMPLETED | {sha} | {files} |
+
+## Tasks Remaining
+| Task ID | Description | Estimated Complexity |
+|---------|-------------|---------------------|
+| {id} | {description} | {simple|medium|complex} |
+
+## Files Modified (partial list)
+- {file_path}: {what was changed}
+
+## Partial Progress State
+- Current step: {step_name}
+- Last successful operation: {description}
+- Issues encountered: {list}
+```
+
+**Return JSON for context exhaustion:** Return with `status: "failed"`, `recommendation: "halt"`, and include `"issues": ["context_exhaustion: partial progress saved to HANDOFF.md"]`. The orchestrator can detect the HANDOFF.md file on resume and use it to scope a more targeted re-execution.
+
+**Resume from handoff:** When the orchestrator detects a HANDOFF.md file in a phase directory during resume (Section 8), it reads the file to determine which tasks were completed and which remain. It re-spawns the phase-runner with `remediation_feedback` set to only the remaining tasks, effectively resuming from the handoff point rather than starting over.
+
 ### Post-Mortem Generation (OBSV-03, OBSV-04)
 
 When the phase-runner is about to return `status: "failed"` (for any reason -- preflight failure, exhausted retries, rollback, or halt), it MUST generate a structured post-mortem file before returning.

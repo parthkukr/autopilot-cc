@@ -1126,9 +1126,29 @@ When context grows (tracked via warning thresholds), compress prior phase record
 
 ## 7. State File Updates
 
+### 7.0 Incremental Edit Requirement (CTXE-02)
+
+State.json updates MUST use incremental Edit() operations for targeted field changes, NOT full-file Write() rewrites. Each state update should consume fewer than 20 lines of context instead of 150+ from a full-file rewrite.
+
+**Why:** Full-file Write() of state.json generates a diff of the ENTIRE file (often 150+ lines), which is ingested into the orchestrator's context. After just 2 state updates via Write(), the orchestrator has consumed ~300 lines of context on state management alone. Incremental Edit() targets only the changed field, producing a diff of fewer than 20 lines.
+
+**How:** Use the Edit tool to update specific fields:
+```
+# Instead of: Write(state.json, full_json_content)
+# Do: Edit(state.json, old_field_value, new_field_value)
+#
+# Example: Update phase status
+Edit(state.json,
+  old: '"phases": {"16": {"status": "running"',
+  new: '"phases": {"16": {"status": "completed"'
+)
+```
+
+**Exception:** The FIRST write of state.json (at run start) uses Write() since there is no existing content to Edit(). All subsequent updates use Edit().
+
 After each phase, update `.autopilot/state.json`:
 
-1. Backup `state.json` to `state.json.backup` before writing.
+1. Backup `state.json` to `state.json.backup` before writing (use file copy, not re-read).
 2. `phases.{N}.status` = `"completed"` or `"failed"` or `"needs_human_verification"`.
 3. `phases.{N}.completed_at` = ISO timestamp.
 4. Store `alignment_score` (decimal x.x format, from rating agent), `commit_shas`, `debug_attempts`, `replan_attempts`, `checkpoint_sha`, `automated_checks` from return JSON.
