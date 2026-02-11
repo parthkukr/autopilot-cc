@@ -1,7 +1,7 @@
 ---
 name: autopilot
 description: Autonomous multi-phase execution — runs development phases without human intervention
-argument-hint: <phases|resume|status|update|--complete|--map|--lenient>
+argument-hint: <phases|resume|status|update|--complete|--map|--lenient|--force|--quality|--gaps|--discuss>
 allowed-tools:
   - Read
   - Write
@@ -26,6 +26,10 @@ Run 1-N development phases autonomously using the 3-tier orchestrator pattern. Y
 - `--complete` — run all outstanding (incomplete) phases in dependency order without specifying a phase range; the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
 - `--map [phases]` — audit context sufficiency for target phases (or all outstanding if no range given) before execution; spawns questioning agent for underspecified phases; answers recorded to `.autopilot/context-map.json`
 - `--lenient` — use relaxed 7/10 alignment threshold instead of the default 9/10; phases scoring 7-8 pass immediately without remediation cycles
+- `--force [phase]` — re-execute a completed phase from scratch through the full pipeline (research, plan, execute, verify, judge, rate), regardless of its current score; existing commits are preserved, new work layers on top; targets specific phase (`--force 3`) or all completed phases (`--force`); cannot combine with `--quality` or `--gaps`
+- `--quality [phase]` — keep working on a completed phase with remediation loops until it achieves 9.5/10 alignment; each loop extracts deficiencies, executes targeted fixes, re-verifies and re-rates; max 3 remediation cycles; targets specific phase or all completed phases below 9.5; cannot combine with `--force`
+- `--gaps [phase]` — analyze and resolve the specific deficiencies preventing a completed phase from reaching 10/10; produces ordered list of remaining issues, then executes micro-targeted fixes one deficiency at a time, working toward 9.5+/10; max 5 gap-fix iterations; can combine with `--quality` (quality runs first to 9.5, then gaps pushes higher)
+- `--discuss [phases]` — run an interactive discussion session per phase before execution begins; the orchestrator asks targeted, phase-specific questions about expected results, edge cases, and preferences; answers are recorded and injected into the phase-runner's context; combines with any other flag (always runs first)
 - `--sequential` — force all phases sequential
 - `--checkpoint-every N` — pause for human review every N phases
 </objective>
@@ -106,6 +110,38 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 - Combinable with all other flags: `--complete --lenient`, `--map --lenient`, etc.
 - Follow orchestrator guide Section 1.3 (Lenient Mode)
 
+### If `--force`:
+- Follow orchestrator guide Section 1.4 (Force Mode)
+- Re-executes completed phases through the full pipeline from scratch (research, plan, execute, verify, judge, rate)
+- Existing commits preserved, new work layers on top
+- Targets specific phase (`--force 3`) or all completed phases (`--force`)
+- Cannot combine with `--quality` or `--gaps` (mutually exclusive -- force redoes from scratch, quality/gaps refine what exists)
+- Can combine with `--discuss` (discussion runs first) and `--lenient`
+
+### If `--quality`:
+- Follow orchestrator guide Section 1.5 (Quality Mode)
+- Enters remediation loops targeting 9.5/10 alignment score
+- Each loop: extract deficiencies from rating scorecard, re-spawn phase-runner with targeted fixes, re-verify, re-rate
+- Max 3 remediation cycles per phase
+- When exhausted without reaching 9.5: reports current score + remaining gaps (does NOT fail the phase)
+- Cannot combine with `--force`; can combine with `--gaps` (quality first to 9.5, then gaps pushes higher)
+
+### If `--gaps`:
+- Follow orchestrator guide Section 1.6 (Gaps Mode)
+- Analyzes delta between current score and 10/10, produces ordered deficiency list
+- Executes micro-targeted fixes: one deficiency per iteration, verified independently, scored incrementally
+- Max 5 gap-fix iterations per phase
+- When exhausted: reports current score + remaining deficiencies (does NOT fail the phase)
+- Cannot combine with `--force`; can combine with `--quality`
+
+### If `--discuss`:
+- Follow orchestrator guide Section 1.7 (Discuss Mode)
+- Spawns discussion agent per target phase that generates 3-5 phase-specific questions
+- Questions cover: expected behavior, edge cases, implementation preferences, scope boundaries
+- User answers are recorded to `.autopilot/discuss-context.json` and injected into phase-runner context
+- Combines with any other flag -- always runs first before execution/quality/gaps/force
+- Questions are specific to each phase's content (not generic)
+
 ### If `--map`:
 - Follow orchestrator guide Section 1.2 (Context Mapping Mode)
 - Reads roadmap and requirements for each target phase (or all outstanding if no range given)
@@ -130,7 +166,7 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 There is NO session cap — ALL phases can run in one session. The orchestrator stays lean because it only reads structured JSON returns from phase-runner subagents, never full research/plan/code files.
 
 For each phase, spawn a phase-runner subagent per orchestrator guide Section 3. Read its JSON return. Apply gate logic per Section 5:
-- **PASS:** `recommendation=="proceed"` AND `alignment >= pass_threshold` (default 9/10, 7/10 with `--lenient`) — checkpoint, next phase
+- **PASS:** `recommendation=="proceed"` AND `alignment >= pass_threshold` (default 9/10, 7/10 with `--lenient`, 9.5/10 with `--quality`) — checkpoint, next phase
 - **REMEDIATE:** `recommendation=="proceed"` AND `alignment >= 7` but `< pass_threshold` — enter remediation cycle (Section 5.1)
 - **FAIL:** anything else — HALT with diagnostic
 
