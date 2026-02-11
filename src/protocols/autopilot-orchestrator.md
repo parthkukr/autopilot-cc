@@ -396,7 +396,7 @@ Spawn via **Task tool**: `subagent_type: "autopilot-phase-runner"`, `run_in_back
 > **Task type summary:** {N} auto tasks, {M} checkpoint:human-verify tasks
 > **Phase type:** {ui|protocol|data|mixed} — derived from phase content (see below)
 > **Estimated cost:** {estimated_tokens} tokens (from MTRC-02 pre-spawn estimate)
-> **ENFORCEMENT: Verify and judge steps MUST spawn independent subagents. Self-assessment is rejected by the orchestrator.**
+> **ENFORCEMENT: Verify, judge, and rating agent steps MUST spawn independent subagents. Self-assessment is rejected by the orchestrator.**
 > **Remediation feedback:** {remediation_feedback || "null" -- structured list of specific deficiencies from judge/verifier, provided during remediation cycles}
 > **Remediation cycle:** {remediation_cycle || 0 -- current remediation cycle number, 0 = initial run, 1-2 = remediation}
 > **Pass threshold:** {pass_threshold || 9 -- alignment score threshold, 9 default, 7 with --lenient}
@@ -436,7 +436,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
 {
   "phase": "{phase_id}",
   "status": "completed|failed|needs_human_verification",
-  "alignment_score": <1-10 or null>,
+  "alignment_score": <1.0-10.0 or null>,
   "tasks_completed": "N/M",
   "tasks_failed": "N/M",
   "commit_shas": ["sha1", "sha2"],
@@ -471,16 +471,18 @@ The canonical return contract is defined here. The phase-runner returns this JSO
     "plan_check": {"status": "pass|fail|skipped", "agent_spawned": true, "confidence": 8},
     "execute": {"status": "completed|partial|skipped", "agent_spawned": true},
     "verify": {"status": "pass|fail|skipped", "agent_spawned": true},
-    "judge": {"status": "pass|fail|skipped", "agent_spawned": true}
+    "judge": {"status": "pass|fail|skipped", "agent_spawned": true},
+    "rate": {"status": "pass|fail|skipped", "agent_spawned": true}
   }
 }
 ```
 
 **Field notes:**
+- `alignment_score` uses decimal precision (x.x format, e.g., 7.3, 8.6, 9.2). Produced by the dedicated rating agent (STEP 4.6 in playbook), NOT the verifier or judge. Integer scores are invalid -- the phase-runner rejects them before returning.
 - `verification_duration_seconds` is the wall-clock time the verifier agent ran, recorded by the phase-runner. Used by Check 10 (VRFY-03) for rubber-stamp detection. Set to `null` if verification was skipped.
 - `evidence` is NEW. Contains concrete proof of work. The judge uses this for independent verification. If `commit_shas` is empty (already-implemented claim), `evidence.files_checked` MUST list file:line evidence for each acceptance criterion.
 - `human_verify_justification` is REQUIRED when `status` is `"needs_human_verification"`. Omit or set to `null` for other statuses. The orchestrator rejects any `needs_human_verification` return that lacks this field (see Section 5, Check 13).
-- `pipeline_steps` uses ONE canonical shape: `{status, agent_spawned}` plus optional `confidence` (plan_check only), `skip_reason` (research/plan only), and `pass_ratio` (triage only). No `ran` field. No alternative schemas.
+- `pipeline_steps` uses ONE canonical shape: `{status, agent_spawned}` plus optional `confidence` (plan_check only), `skip_reason` (research/plan only), `pass_ratio` (triage only), and `alignment_score` (rate only). No `ran` field. No alternative schemas.
 - `automated_checks` includes `build` to distinguish compilation (`compile` = configured compile command) from production build (`build` = configured build command). Actual commands are read from `project.commands` in `.planning/config.json`.
 
 Parse from the **last lines** of the phase-runner's response. If missing, spawn a small agent to extract it.
@@ -493,14 +495,14 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 
 | Condition | Action |
 |-----------|--------|
-| `status=="completed"` AND `alignment_score >= pass_threshold` (default 9, 7 with --lenient) AND `recommendation=="proceed"` | **PASS** -- generate diagnostic file if score < 9 (CENF-02), checkpoint, next phase |
-| `status=="completed"` AND `alignment_score >= 7` AND `alignment_score < pass_threshold` AND `recommendation=="proceed"` | **REMEDIATE** -- generate diagnostic file (CENF-02), enter remediation cycle (Section 5.1) |
+| `status=="completed"` AND `alignment_score >= pass_threshold` (default 9.0, 7.0 with --lenient) AND `recommendation=="proceed"` | **PASS** -- generate diagnostic file if score < 9.0 (CENF-02), checkpoint, next phase. Note: `alignment_score` is decimal (x.x format) from the rating agent. |
+| `status=="completed"` AND `alignment_score >= 7.0` AND `alignment_score < pass_threshold` AND `recommendation=="proceed"` | **REMEDIATE** -- generate diagnostic file (CENF-02), enter remediation cycle (Section 5.1) |
 | `status=="needs_human_verification"` | **SKIP** -- log human_verify_justification, continue to next phase, revisit at end of run |
 | `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, move to next phase |
 | `status=="failed"` AND later phases depend on it | **HALT** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, notify user, suggest `/autopilot resume` |
 | `recommendation=="rollback"` | **ROLLBACK** -- `git revert` to last checkpoint, diagnostic, halt |
 
-**Pass threshold:** The `pass_threshold` is 9 by default. When `--lenient` is passed, it is set to 7. This variable is stored in `_meta.pass_threshold` in state.json and used throughout the gate logic. When `--lenient` is active, the REMEDIATE row never triggers (because `pass_threshold` equals 7, so any score >= 7 hits the PASS row).
+**Pass threshold:** The `pass_threshold` is 9.0 by default. When `--lenient` is passed, it is set to 7.0. This variable is stored in `_meta.pass_threshold` in state.json and used throughout the gate logic. When `--lenient` is active, the REMEDIATE row never triggers (because `pass_threshold` equals 7.0, so any score >= 7.0 hits the PASS row). Note: `alignment_score` from the rating agent uses decimal precision (x.x format), so comparisons use decimal thresholds.
 
 **CRITICAL: The orchestrator does NOT re-spawn failed phase-runners.** The phase-runner already exhausted its internal retry budget (max 3 debug attempts, max 1 replan). If it returns `failed`, the issue requires human intervention. But if the failed phase is independent, keep running remaining phases.
 
@@ -526,16 +528,18 @@ Before applying gate logic, validate the phase-runner's return:
    - Log warning: "Fast completion ({duration}). Checking pipeline_steps."
    - Verify `pipeline_steps` shows all expected steps ran.
 
-4. **Verify/Judge agent enforcement:** If `tasks_completed` shows completed auto tasks (N > 0 in "N/total"):
+4. **Verify/Judge/Rate agent enforcement:** If `tasks_completed` shows completed auto tasks (N > 0 in "N/total"):
    - `pipeline_steps.verify.agent_spawned` MUST be `true`
    - `pipeline_steps.judge.agent_spawned` MUST be `true`
-   - If EITHER is `false`: REJECT the return. Log: "Self-verification not accepted for phases with auto tasks. Re-spawning with enforcement flag."
-   - Re-spawn the phase-runner with an additional line in the prompt: `**ENFORCEMENT: You MUST spawn independent verify and judge agents. Self-assessment will be rejected.**`
+   - `pipeline_steps.rate.agent_spawned` MUST be `true`
+   - If ANY is `false`: REJECT the return. Log: "Self-verification/self-rating not accepted for phases with auto tasks. Re-spawning with enforcement flag."
+   - Re-spawn the phase-runner with an additional line in the prompt: `**ENFORCEMENT: You MUST spawn independent verify, judge, and rating agents. Self-assessment is rejected.**`
    - Maximum 1 enforcement re-spawn per phase. If the second attempt also returns `agent_spawned: false`, mark phase as failed.
 
-5. **Rubber-stamp detection:** After every 3rd consecutive phase completion, check if all alignment scores are identical (e.g., all 9/10):
-   - If 3+ consecutive phases have the SAME alignment_score: Log warning: "Uniform alignment scores detected ({score}/10 x {count} phases). Possible rubber-stamping."
-   - This is a WARNING, not a rejection — but it should be logged in the event_log and shown to the user at the end.
+5. **Rubber-stamp detection:** After every 3rd consecutive phase completion, check if all alignment scores are within 0.2 of each other (e.g., all between 8.5 and 8.7):
+   - If 3+ consecutive phases have alignment_scores within a 0.2 range: Log warning: "Uniform alignment scores detected ({min}-{max}/10 x {count} phases). Possible rubber-stamping."
+   - Also flag if any alignment_score is an integer (no decimal): Log warning: "Integer alignment score detected ({score}). Rating agent MUST produce decimal scores (x.x format)."
+   - This is a WARNING, not a rejection -- but it should be logged in the event_log and shown to the user at the end.
 
 6. **Already-implemented claims:** If `commit_shas` is empty AND `tasks_completed` shows completed tasks:
    - The phase-runner MUST have provided file:line evidence for each acceptance criterion
@@ -583,7 +587,7 @@ Before applying gate logic, validate the phase-runner's return:
 
 ### Confidence Enforcement (CENF-01 through CENF-05)
 
-15. **Diagnostic file generation (CENF-02, CENF-05):** After EVERY phase completion where `alignment_score < 9` (regardless of `--lenient` status), the orchestrator writes a diagnostic file:
+15. **Diagnostic file generation (CENF-02, CENF-05):** After EVERY phase completion where `alignment_score < 9.0` (regardless of `--lenient` status), the orchestrator writes a diagnostic file:
 
     **Path:** `.autopilot/diagnostics/phase-{N}-confidence.md`
 
@@ -591,8 +595,8 @@ Before applying gate logic, validate the phase-runner's return:
     ```markdown
     # Phase {N} Confidence Diagnostic
 
-    **Score:** {alignment_score}/10
-    **Threshold:** {pass_threshold}/10 (default 9, lenient 7)
+    **Score:** {alignment_score}/10 (decimal x.x format, from rating agent)
+    **Threshold:** {pass_threshold}/10 (default 9.0, lenient 7.0)
     **Status:** {passed | force_incomplete | remediated_to_{final_score}}
 
     ## Judge Concerns
@@ -610,9 +614,9 @@ Before applying gate logic, validate the phase-runner's return:
     | lint | {pass/fail} | {detail} |
     | build | {pass/fail/n/a} | {detail} |
 
-    ## Path to 9/10
-    {For each item: specific file path, specific deficiency, expected score impact}
-    1. **{file_path}**: {specific deficiency} -- fixing this addresses {judge_concern} and would resolve {N} of {M} remaining issues
+    ## Path to 9.0/10
+    {For each item: specific file path, specific deficiency, expected score impact. Derived from rating agent's scorecard deductions.}
+    1. **{file_path}**: {specific deficiency} -- fixing this addresses {scorecard_deduction} and would resolve {N} of {M} remaining issues
     2. **{file_path}**: {specific deficiency} -- {expected impact}
     ```
 
@@ -620,15 +624,16 @@ Before applying gate logic, validate the phase-runner's return:
 
     **Generation logic:**
     ```
-    if alignment_score < 9:
+    if alignment_score < 9.0:
       build diagnostic content from:
+        - rating agent return JSON: scorecard[] (per-criterion scores and deductions), aggregate_justification
         - judge return JSON: concerns[], independent_evidence[]
         - verifier return JSON: criteria_results[], automated_checks, failures[]
         - phase plan: acceptance criteria from PLAN.md
-      construct "Path to 9/10" by:
-        for each failed/partial criterion in criteria_results:
+      construct "Path to 9.0/10" by:
+        for each criterion in scorecard where score < 9.0:
           identify the target file from the criterion
-          describe what is missing or wrong
+          describe what is missing or wrong (from scorecard justification)
           estimate impact: "resolves {criterion_description}"
         for each judge concern not already covered:
           map to a specific file if possible
@@ -650,9 +655,10 @@ Before applying gate logic, validate the phase-runner's return:
       append remediation_started event to event_log
 
       extract targeted_feedback from:
+        - rating agent scorecard[] (per-criterion deductions)
         - judge concerns[]
         - verifier failures[]
-        - diagnostic file "Path to 9/10" items
+        - diagnostic file "Path to 9.0/10" items
 
       re-spawn phase-runner with:
         existing_plan: true
@@ -723,7 +729,7 @@ After each phase, update `.autopilot/state.json`:
 1. Backup `state.json` to `state.json.backup` before writing.
 2. `phases.{N}.status` = `"completed"` or `"failed"` or `"needs_human_verification"`.
 3. `phases.{N}.completed_at` = ISO timestamp.
-4. Store `alignment_score`, `commit_shas`, `debug_attempts`, `replan_attempts`, `checkpoint_sha`, `automated_checks` from return JSON.
+4. Store `alignment_score` (decimal x.x format, from rating agent), `commit_shas`, `debug_attempts`, `replan_attempts`, `checkpoint_sha`, `automated_checks` from return JSON.
 5. `_meta.current_phase` = next phase ID. `_meta.last_checkpoint` = now.
 6. `last_checkpoint_sha` = `git rev-parse HEAD`.
 7. Append `phase_completed` event to `event_log`.
@@ -872,7 +878,7 @@ When all target phases are done:
    - `phases_failed`: Count phases with `status == "failed"`
    - `phases_human_deferred`: Count phases with `status == "needs_human_verification"`
    - `failure_taxonomy_histogram`: Iterate the `event_log` for events with `failure_categories` data (from verifier and debugger returns). Build an object mapping each failure category to its count across all phases. Example: `{"executor_incomplete": 2, "lint_failure": 1}`
-   - `avg_alignment_score`: Compute the arithmetic mean of all phase `alignment_score` values (from judge returns). Exclude null scores (skipped phases).
+   - `avg_alignment_score`: Compute the arithmetic mean of all phase `alignment_score` values (decimal, from rating agent returns). Exclude null scores (skipped phases). Result uses decimal precision (x.x format).
    - `total_duration_minutes`: Compute `(current_timestamp - _meta.started_at)` in minutes
    - `total_estimated_tokens`: Sum `estimated_tokens` from all phase records (from MTRC-02 pre-spawn estimates)
    - `total_debug_loops`: Sum `debug_attempts` from all phase records
