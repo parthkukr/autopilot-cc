@@ -778,7 +778,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
     "execute": {"status": "completed|partial|skipped", "agent_spawned": true},
     "verify": {"status": "pass|fail|skipped", "agent_spawned": true},
     "judge": {"status": "pass|fail|skipped", "agent_spawned": true},
-    "rate": {"status": "pass|fail|skipped", "agent_spawned": true}
+    "rate": {"status": "pass|fail|skipped", "agent_spawned": true, "alignment_score": 8.2, "score_band": "good"}
   }
 }
 ```
