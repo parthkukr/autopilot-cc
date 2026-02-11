@@ -82,10 +82,10 @@ This is the single source of truth for a run. If the orchestrator crashes and re
         "verify": {
           "status": "pass",
           "automated": { "compile": true, "tests": true, "lint": true },
-          "alignment_score": 8.2,
           "scope_creep": []
         },
-        "judge": { "alignment": 8, "recommendation": "proceed" }
+        "judge": { "recommendation": "proceed", "concerns": ["minor style inconsistency"] },
+        "rate": { "status": "pass", "alignment_score": 8.2, "score_band": "good" }
       },
       "debug_attempts": 0,
       "replan_attempts": 0,
@@ -250,7 +250,7 @@ project-root/
 │   └── diagnostics/                     # Failure reports
 │       ├── diagnostic-YYYY-MM-DDTHHMMSS.md
 │       ├── phase-{N}-postmortem.json    # Structured post-mortem (OBSV-04)
-│       └── phase-{N}-confidence.md      # Confidence diagnostic for sub-9 phases (CENF-02)
+│       └── phase-{N}-confidence.md      # Confidence diagnostic for sub-9.0 phases (CENF-02)
 │
 ├── .planning/                           # Phase artifacts directory
 │   └── phases/                          # One subdirectory per phase
@@ -260,6 +260,7 @@ project-root/
 │       │   ├── EXECUTION-LOG.md
 │       │   ├── VERIFICATION.md
 │       │   ├── JUDGE-REPORT.md
+│       │   ├── SCORECARD.md                # Rating agent's per-criterion evaluation
 │       │   ├── TRIAGE.json
 │       │   ├── TRACE.jsonl               # Aggregated step traces (OBSV-02)
 │       │   ├── research-trace.jsonl       # Step-level trace (OBSV-01)
