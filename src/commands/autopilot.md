@@ -13,7 +13,7 @@ allowed-tools:
 ---
 
 <objective>
-Run 1-N development phases autonomously using the 3-tier orchestrator pattern. You (the orchestrator) spawn phase-runner subagents and NEVER do heavy work yourself. Your context stays under 40%.
+Run 1-N development phases autonomously using the 3-tier orchestrator pattern. You (the orchestrator) spawn phase-runner subagents and NEVER do heavy work yourself. You are a manager, not a worker — delegate all detailed analysis to sub-agents.
 **Quality bar:** Phases are verified with evidence. Compilation, lint, and build checks are mandatory. Scores of 9/10 on every phase are a red flag, not a success signal.
 
 **Arguments:**
@@ -59,7 +59,7 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 - NEVER read full RESEARCH.md, PLAN.md, or code files
 - ONLY read structured JSON returns from phase-runner subagents
 - State file is your only large direct read
-- If context > 40%: write handoff file, suggest `/autopilot resume`
+- Context tracking is observability-only — warn at 70%/90% but NEVER auto-stop
 </reference>
 
 <execution>
