@@ -1189,7 +1189,12 @@ When user types `/autopilot resume`:
 3. `"failed"` -> Retry the failed phase automatically. If it fails again, skip it and continue to next.
 4. `"running"` -> Interrupted. Find last completed phase, resume from next.
 5. Verify spec hash. If changed, log warning and continue (spec changes mid-run are the user's responsibility).
-6. Show 2-line status, then enter loop (Section 2) at resume point. No confirmation.
+6. **HANDOFF.md detection (CTXE-01):** Before resuming any phase, check for HANDOFF.md files in phase directories. For each phase that will be re-executed (failed or interrupted):
+   - Glob for `.planning/phases/{phase}/HANDOFF.md`.
+   - If found: Read the HANDOFF.md file to determine partial progress -- which tasks were completed, which remain, and what files were modified. Log: "Phase {N}: HANDOFF.md detected. Resuming from partial progress ({completed_tasks}/{total_tasks} tasks completed)."
+   - Re-spawn the phase-runner with `remediation_feedback` set to ONLY the remaining tasks from the handoff file (the `tasks_remaining` list), and `existing_plan: true`, `skip_research: true`. This resumes from the handoff point rather than re-executing the entire phase from scratch.
+   - If NOT found: Resume the phase normally (full re-execution for failed phases, next phase for interrupted runs).
+7. Show 2-line status, then enter loop (Section 2) at resume point. No confirmation.
 
 ---
 
