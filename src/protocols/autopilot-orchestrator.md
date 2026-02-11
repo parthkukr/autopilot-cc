@@ -564,10 +564,50 @@ for each phase in target_phases:
   spawn phase-runner(phase) → wait for JSON return
   if return.status == "completed": log, next phase
   if return.status == "needs_human_verification": log, skip to next phase (come back later)
+  if return.status == "split_request": handle scope split (Section 2.1)
   if return.status == "failed": log diagnostic (postmortem at .autopilot/diagnostics/phase-{N}-postmortem.json), continue to next phase if independent, halt if dependent
 ```
 
 That is the entire loop. No gates, no extra validation, no asking.
+
+### Scope Splitting (Section 2.1)
+
+When a phase-runner returns `status: "split_request"`, the phase is too large for a single agent to execute within its context budget. The phase-runner has analyzed the work scope and recommends splitting into sub-phases. This is NOT a failure -- the phase-runner is doing its job correctly by detecting scope that would cause context exhaustion.
+
+**Split handling protocol:**
+
+```
+on split_request(phase_N, split_details):
+  1. Log: "Phase {N} too large ({split_details.reason}). Splitting into {split_details.total_sub_phases} sub-phases, launching in parallel..."
+  2. For each sub_phase in split_details.recommended_sub_phases:
+     - Create sub-phase ID: "{phase_id}{letter}" (e.g., "20a", "20b", "20c")
+     - Spawn phase-runner with:
+       - phase_id: sub_phase.sub_phase_id
+       - phase_name: sub_phase.name
+       - phase_goal: sub_phase.scope
+       - remediation_feedback: sub_phase.issues
+       - All other fields inherited from parent phase
+     - Run in parallel (all sub-phase-runners spawned concurrently)
+  3. Collect results from all sub-phase-runners
+  4. Aggregate sub-phase results:
+     - status: "completed" if ALL sub-phases completed, "failed" if ANY failed
+     - alignment_score: arithmetic mean of sub-phase scores (decimal, x.x format)
+     - commit_shas: merged from all sub-phases
+     - issues: merged from all sub-phases
+  5. Report sub-phases inline in completion report: "Phase {N} (split: {Na}, {Nb}, {Nc})"
+  6. Update state.json with sub-phase details:
+     - phases.{N}.split: true
+     - phases.{N}.sub_phases: [{sub_phase_id, status, alignment_score}]
+```
+
+**Split threshold guidance (for phase-runners):** A phase-runner SHOULD return a split request when:
+- Remediation feedback contains more than 3 issues AND the issues span 4+ different files
+- The estimated task count exceeds 5 complex tasks
+- The phase-runner detects during planning that execution would require reading 10+ files
+
+The exact threshold is at the phase-runner's discretion. The priority order is **Quality > Time > Tokens** -- spawning many sub-agents is preferred over trying to squeeze everything into fewer agents.
+
+**Sub-phase verification:** Each sub-phase goes through its own independent verification cycle (verify + judge + rate). Sub-phase results are NOT shared between sub-phases. This ensures each piece of work meets the quality bar independently.
 
 ### Human-Defer Rate Tracking (STAT-04)
 
@@ -741,7 +781,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
 ```json
 {
   "phase": "{phase_id}",
-  "status": "completed|failed|needs_human_verification",
+  "status": "completed|failed|needs_human_verification|split_request",
   "alignment_score": <1.0-10.0 or null>,
   "tasks_completed": "N/M",
   "tasks_failed": "N/M",
@@ -769,6 +809,20 @@ The canonical return contract is defined here. The phase-runner returns this JSO
     "auto_tasks_passed": N,
     "auto_tasks_total": M
   },
+  "split_details": {
+    "reason": "why the phase needs splitting",
+    "recommended_sub_phases": [
+      {
+        "sub_phase_id": "{phase_id}a",
+        "name": "sub-phase name",
+        "scope": "description of what this sub-phase covers",
+        "issues": ["issue 1", "issue 2"],
+        "estimated_complexity": "simple|medium|complex"
+      }
+    ],
+    "total_sub_phases": N,
+    "original_issue_count": N
+  },
   "pipeline_steps": {
     "preflight": {"status": "pass|fail|skipped", "agent_spawned": false},
     "triage": {"status": "full_pipeline|verify_only", "agent_spawned": false, "pass_ratio": 0.0},
@@ -788,6 +842,7 @@ The canonical return contract is defined here. The phase-runner returns this JSO
 - `verification_duration_seconds` is the wall-clock time the verifier agent ran, recorded by the phase-runner. Used by Check 10 (VRFY-03) for rubber-stamp detection. Set to `null` if verification was skipped.
 - `evidence` is NEW. Contains concrete proof of work. The judge uses this for independent verification. If `commit_shas` is empty (already-implemented claim), `evidence.files_checked` MUST list file:line evidence for each acceptance criterion.
 - `human_verify_justification` is REQUIRED when `status` is `"needs_human_verification"`. Omit or set to `null` for other statuses. The orchestrator rejects any `needs_human_verification` return that lacks this field (see Section 5, Check 13).
+- `split_details` is REQUIRED when `status` is `"split_request"`. Omit or set to `null` for other statuses. Contains the recommended sub-phases for the orchestrator to spawn. See Section 2.1 for split handling.
 - `pipeline_steps` uses ONE canonical shape: `{status, agent_spawned}` plus optional `confidence` (plan_check only), `skip_reason` (research/plan only), `pass_ratio` (triage only), and `alignment_score` (rate only). No `ran` field. No alternative schemas.
 - `automated_checks` includes `build` to distinguish compilation (`compile` = configured compile command) from production build (`build` = configured build command). Actual commands are read from `project.commands` in `.planning/config.json`.
 
@@ -804,6 +859,7 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 | `status=="completed"` AND `alignment_score >= pass_threshold` (default 9.0, 7.0 with --lenient, 9.5 with --quality) AND `recommendation=="proceed"` | **PASS** -- generate diagnostic file if score < 9.0 (CENF-02), checkpoint, next phase. Note: `alignment_score` is decimal (x.x format) from the rating agent. |
 | `status=="completed"` AND `alignment_score >= 7.0` AND `alignment_score < pass_threshold` AND `recommendation=="proceed"` | **REMEDIATE** -- generate diagnostic file (CENF-02), enter remediation cycle (Section 5.1 for standard, Section 1.5 for --quality, Section 1.6 for --gaps) |
 | `status=="needs_human_verification"` | **SKIP** -- log human_verify_justification, continue to next phase, revisit at end of run |
+| `status=="split_request"` | **SPLIT** -- handle scope split per Section 2.1, spawn sub-phase-runners in parallel, aggregate results |
 | `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, move to next phase |
 | `status=="failed"` AND later phases depend on it | **HALT** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, notify user, suggest `/autopilot resume` |
 | `recommendation=="rollback"` | **ROLLBACK** -- `git revert` to last checkpoint, diagnostic, halt |

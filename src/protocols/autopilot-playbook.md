@@ -891,6 +891,78 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 ---
 
+### STEP 4.7: SCOPE-SPLIT DETECTION (conditional)
+
+**Purpose:** Detect when phase scope is too large for a single agent and return a split request to the orchestrator instead of attempting execution that will exhaust context.
+
+**When to check:** The phase-runner SHOULD evaluate scope at two points:
+1. **After planning (STEP 2):** If the plan contains more than 5 complex tasks, or touches more than 10 files, consider splitting.
+2. **During remediation:** If `remediation_feedback` contains more than 3 issues spanning 4+ different files, consider splitting.
+
+**Split threshold guidance:**
+- Remediation feedback > 3 issues AND issues span 4+ files: RECOMMEND split
+- Plan contains > 5 complex tasks: RECOMMEND split
+- Estimated file reads during execution > 10 unique files: RECOMMEND split
+- The exact threshold is at the phase-runner's discretion. Priority: **Quality > Time > Tokens** -- spawning many sub-agents is preferred over context exhaustion.
+
+**Action:** If scope exceeds threshold, the phase-runner returns immediately with `status: "split_request"` instead of proceeding to execution. The orchestrator handles spawning sub-phase-runners in parallel (see orchestrator Section 2.1).
+
+**Split request return JSON:**
+```json
+{
+  "phase": "{phase_id}",
+  "status": "split_request",
+  "alignment_score": null,
+  "tasks_completed": "0/0",
+  "tasks_failed": "0/0",
+  "commit_shas": [],
+  "automated_checks": {"compile": "n/a", "build": "n/a", "lint": "n/a"},
+  "issues": [],
+  "debug_attempts": 0,
+  "replan_attempts": 0,
+  "recommendation": "proceed",
+  "summary": "Phase scope too large. Recommending split into {N} sub-phases.",
+  "checkpoint_sha": null,
+  "verification_duration_seconds": null,
+  "evidence": {"files_checked": [], "commands_run": [], "git_diff_summary": ""},
+  "split_details": {
+    "reason": "why the phase needs splitting",
+    "recommended_sub_phases": [
+      {
+        "sub_phase_id": "{phase_id}a",
+        "name": "sub-phase name",
+        "scope": "description of what this sub-phase covers",
+        "issues": ["issue 1", "issue 2"],
+        "estimated_complexity": "simple|medium|complex"
+      }
+    ],
+    "total_sub_phases": N,
+    "original_issue_count": N
+  },
+  "pipeline_steps": {
+    "preflight": {"status": "pass", "agent_spawned": false},
+    "triage": {"status": "full_pipeline", "agent_spawned": false, "pass_ratio": 0.0},
+    "research": {"status": "completed|skipped", "agent_spawned": true|false},
+    "plan": {"status": "completed|skipped", "agent_spawned": true|false},
+    "plan_check": {"status": "skipped", "agent_spawned": false},
+    "execute": {"status": "skipped", "agent_spawned": false},
+    "verify": {"status": "skipped", "agent_spawned": false},
+    "judge": {"status": "skipped", "agent_spawned": false},
+    "rate": {"status": "skipped", "agent_spawned": false}
+  }
+}
+```
+
+**Note:** A split request is NOT a failure. The phase-runner is doing its job correctly by detecting scope that would cause context exhaustion. The orchestrator handles the split by spawning sub-phase-runners in parallel.
+
+<context_budget>
+max_response_lines: 20
+max_summary_lines: 5
+enforcement: Phase-runner performs this step directly -- no agent to budget
+</context_budget>
+
+---
+
 ### STEP 5: GATE DECISION
 
 **Purpose:** YOU (the phase-runner) decide what happens next. This is your logic, not a subagent.
