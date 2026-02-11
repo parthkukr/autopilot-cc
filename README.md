@@ -39,10 +39,14 @@ In any project with a `.planning/ROADMAP.md`:
 | `--complete` | Run all outstanding phases in dependency order; skips completed ones; continues past independent failures |
 | `--map [phases]` | Audit context sufficiency before execution; asks clarifying questions for underspecified phases |
 | `--lenient` | Relaxed 7/10 alignment threshold instead of the default 9/10 |
+| `--force [phase]` | Re-execute a completed phase from scratch through the full pipeline, regardless of current score |
+| `--quality [phase]` | Remediation loops targeting 9.5/10 alignment (max 3 cycles) -- keeps refining until good enough |
+| `--gaps [phase]` | Analyze and fix specific deficiencies with micro-targeted iterations toward 9.5+/10 |
+| `--discuss [phase]` | Interactive Q&A per phase before execution -- asks targeted questions to enrich context |
 | `--sequential` | Force all phases to run sequentially |
 | `--checkpoint-every N` | Pause for human review every N phases |
 
-Flags are combinable: `--complete --map --lenient` maps context first, then runs all remaining phases with relaxed thresholds.
+Flags are combinable: `--complete --map --lenient` maps context first, then runs all remaining phases with relaxed thresholds. `--discuss` combines with any flag and always runs first. `--gaps` can combine with `--quality`. `--force` and `--quality` are mutually exclusive.
 
 ## What It Does
 
@@ -51,7 +55,7 @@ Flags are combinable: `--complete --map --lenient` maps context first, then runs
 Each phase runs through a full pipeline automatically:
 
 ```
-Pre-flight → Research → Plan → Plan-Check → Execute → Verify → Judge → Gate
+Pre-flight → Research → Plan → Plan-Check → Execute → Verify → Judge → Rate → Gate
 ```
 
 - **Pre-execution triage** skips phases that are already implemented, routing straight to verification
@@ -65,10 +69,11 @@ Pre-flight → Research → Plan → Plan-Check → Execute → Verify → Judge
 Verification is adversarial by design:
 
 - The **verifier** never sees what the executor claims it did -- it checks the codebase blind
-- The **judge** gathers its own evidence independently before seeing the verifier's report, then scores alignment
+- The **judge** gathers its own evidence independently before seeing the verifier's report, then recommends proceed/debug/halt
+- A dedicated **rating agent** scores alignment in isolation -- it sees only acceptance criteria and the git diff, never the executor's confidence or the verifier/judge conclusions. Scores use decimal precision (e.g., 7.3, 8.6, 9.2) with calibrated bands
 - Both verifier and judge have **rubber-stamp detection** -- if either just agrees without doing real work, they get flagged
-- Default alignment threshold is **9/10**. Sub-threshold phases enter up to 2 remediation cycles (re-verify + re-judge) before failing. Use `--lenient` to accept 7/10.
-- Every sub-9 completion produces a **diagnostic file** with a concrete "path to 9/10" section
+- Default alignment threshold is **9/10**. Sub-threshold phases enter up to 2 remediation cycles before failing. Use `--lenient` to accept 7/10, or `--quality` to push to 9.5/10
+- Every sub-9 completion produces a **diagnostic file** with a concrete "path to 9/10" section. Use `--gaps` to auto-fix remaining deficiencies
 
 ### Learns
 
@@ -98,7 +103,7 @@ Tier 1: Orchestrator (/autopilot command)
 
 Tier 2: Phase Runner (autopilot-phase-runner agent)
   Runs the full pipeline for one phase
-  Spawns step agents: researcher, planner, executor, verifier, judge
+  Spawns step agents: researcher, planner, executor, verifier, judge, rater
 
 Tier 3: Step Agents (vanilla GSD agents)
   No modifications needed -- autopilot context injected via spawn prompts

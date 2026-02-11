@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.1 (2026-02-11)
+
+### Features
+
+- **CLI Quality Flags:** Four new flags for post-completion quality management -- `--force` re-executes completed phases from scratch through the full pipeline, `--quality` runs remediation loops targeting 9.5/10 alignment (max 3 cycles), `--gaps` analyzes and fixes specific deficiencies with micro-targeted iterations toward 9.5+/10, `--discuss` runs interactive Q&A per phase before execution to enrich context
+- **Score History Tracking:** Each quality flag execution preserves the old alignment score in a history array for trend tracking
+- **Flag Combinability:** `--discuss` combines with any flag (always runs first); `--gaps` combines with `--quality`; `--force` and `--quality` are mutually exclusive
+
+## 1.6.0 (2026-02-11)
+
+### Features
+
+- **Dedicated Rating Agent:** Alignment scoring moved from inline judge/verifier assessment to a context-isolated rating agent (STEP 4.6) that does nothing but evaluate work quality -- cannot see executor confidence, verifier report, or judge recommendation
+- **Decimal Precision Scoring:** All alignment scores now use x.x/10 format (e.g., 7.3, 8.6, 9.2) instead of integers, forcing granular quality distinctions
+- **Calibrated Score Distribution:** Six-band calibration guide ensures scores reflect actual quality -- 9.5+ requires verified excellence, 7.0-8.9 means real deficiencies exist, below 5.0 means fundamental failures
+- **Per-Criterion Scorecards:** Rating agent produces detailed SCORECARD.md with per-criterion scores, verification evidence, and justifications
+
 ## 1.5.3 (2026-02-11)
 
 ### Changes
