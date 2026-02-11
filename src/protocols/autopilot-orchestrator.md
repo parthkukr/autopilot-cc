@@ -789,14 +789,14 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 
 | Condition | Action |
 |-----------|--------|
-| `status=="completed"` AND `alignment_score >= pass_threshold` (default 9.0, 7.0 with --lenient) AND `recommendation=="proceed"` | **PASS** -- generate diagnostic file if score < 9.0 (CENF-02), checkpoint, next phase. Note: `alignment_score` is decimal (x.x format) from the rating agent. |
-| `status=="completed"` AND `alignment_score >= 7.0` AND `alignment_score < pass_threshold` AND `recommendation=="proceed"` | **REMEDIATE** -- generate diagnostic file (CENF-02), enter remediation cycle (Section 5.1) |
+| `status=="completed"` AND `alignment_score >= pass_threshold` (default 9.0, 7.0 with --lenient, 9.5 with --quality) AND `recommendation=="proceed"` | **PASS** -- generate diagnostic file if score < 9.0 (CENF-02), checkpoint, next phase. Note: `alignment_score` is decimal (x.x format) from the rating agent. |
+| `status=="completed"` AND `alignment_score >= 7.0` AND `alignment_score < pass_threshold` AND `recommendation=="proceed"` | **REMEDIATE** -- generate diagnostic file (CENF-02), enter remediation cycle (Section 5.1 for standard, Section 1.5 for --quality, Section 1.6 for --gaps) |
 | `status=="needs_human_verification"` | **SKIP** -- log human_verify_justification, continue to next phase, revisit at end of run |
 | `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, move to next phase |
 | `status=="failed"` AND later phases depend on it | **HALT** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, notify user, suggest `/autopilot resume` |
 | `recommendation=="rollback"` | **ROLLBACK** -- `git revert` to last checkpoint, diagnostic, halt |
 
-**Pass threshold:** The `pass_threshold` is 9.0 by default. When `--lenient` is passed, it is set to 7.0. This variable is stored in `_meta.pass_threshold` in state.json and used throughout the gate logic. When `--lenient` is active, the REMEDIATE row never triggers (because `pass_threshold` equals 7.0, so any score >= 7.0 hits the PASS row). Note: `alignment_score` from the rating agent uses decimal precision (x.x format), so comparisons use decimal thresholds.
+**Pass threshold:** The `pass_threshold` is 9.0 by default. When `--lenient` is passed, it is set to 7.0. When `--quality` is passed, it is set to 9.5. This variable is stored in `_meta.pass_threshold` in state.json and used throughout the gate logic. When `--lenient` is active, the REMEDIATE row never triggers (because `pass_threshold` equals 7.0, so any score >= 7.0 hits the PASS row). When `--quality` is active, phases must score 9.5+ to pass without remediation. Note: `alignment_score` from the rating agent uses decimal precision (x.x format), so comparisons use decimal thresholds.
 
 **CRITICAL: The orchestrator does NOT re-spawn failed phase-runners.** The phase-runner already exhausted its internal retry budget (max 3 debug attempts, max 1 replan). If it returns `failed`, the issue requires human intervention. But if the failed phase is independent, keep running remaining phases.
 
