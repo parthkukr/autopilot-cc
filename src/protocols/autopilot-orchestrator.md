@@ -9,7 +9,7 @@ You are a loop. For each phase: spawn a phase-runner, wait for its JSON return, 
 When the user types `/autopilot <phases>`:
 
 1. **Resume check**: Read `.autopilot/state.json`. If it exists and `_meta.status` != `"completed"`, resume automatically (Section 8).
-2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1), `"--map"` or `"--map 3-7"` = context mapping mode (Section 1.2), `"--lenient"` = lenient mode (Section 1.3). **Set `pass_threshold`:** If `--lenient` is present, set `pass_threshold = 7`. Otherwise, `pass_threshold = 9` (default). Store in `_meta.pass_threshold` in state.json.
+2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1), `"--map"` or `"--map 3-7"` = context mapping mode (Section 1.2), `"--lenient"` = lenient mode (Section 1.3), `"--force"` or `"--force 3"` = force mode (Section 1.4), `"--quality"` or `"--quality 3"` = quality mode (Section 1.5), `"--gaps"` or `"--gaps 3"` = gaps mode (Section 1.6), `"--discuss"` or `"--discuss 3"` = discuss mode (Section 1.7). **Set `pass_threshold`:** If `--lenient` is present, set `pass_threshold = 7`. If `--quality` is present, set `pass_threshold = 9.5`. Otherwise, `pass_threshold = 9` (default). Store in `_meta.pass_threshold` in state.json. **Flag mutual exclusivity:** `--force` and `--quality` are mutually exclusive (error if both present). `--gaps` can combine with `--quality`. `--discuss` combines with any flag (always runs first). `--force` and `--gaps` are mutually exclusive (force redoes from scratch, gaps refines what exists).
 3. **Read roadmap**: Find at `.planning/ROADMAP.md` (or project root). Extract phase names/goals for the requested range.
 4. **Locate frozen spec**: Read `project.spec_paths` from `.planning/config.json` and check each path in order until one exists. Default fallback order: `.planning/REQUIREMENTS.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`. Compute hash: `sha256sum <spec> | cut -d' ' -f1`.
 5. **Immediate start**: Show a 2-line status and begin the loop. No confirmation. No preview. The user invoked the command -- that is the instruction to proceed.
@@ -245,6 +245,300 @@ When the user passes `--lenient` (e.g., `/autopilot 3-7 --lenient`, `/autopilot 
 - `--lenient --map`: Map runs first, then execution uses 7/10 threshold.
 - `--lenient --sequential`: Forces sequential execution with 7/10 threshold.
 - `--lenient --checkpoint-every N`: Pauses every N phases with 7/10 threshold.
+
+---
+
+## 1.4 Force Mode
+
+When the user passes `--force` (e.g., `/autopilot --force 3`, `/autopilot --force`), the orchestrator re-executes completed phases from scratch through the full pipeline (research -> plan -> execute -> verify -> judge -> rate), regardless of their current score. The intent is "redo it even if it's done."
+
+### Phase Selection
+
+1. **If phase number specified** (`--force 3`): Target that specific phase. It MUST have `status == "completed"` in `state.json`. If the phase is not completed, log error: "Phase {N} is not completed (status: {status}). --force only applies to completed phases." and halt.
+2. **If no phase number** (`--force`): Target ALL completed phases from `state.json`. Execute them in the order they appear in the roadmap.
+
+### Execution Behavior
+
+1. **Preserve existing commits:** Do NOT revert or rollback previous phase work. New work layers on top of existing commits.
+2. **Full pipeline:** Set `existing_plan: false`, `skip_research: false` for each target phase. The phase-runner runs the complete pipeline: research -> plan -> plan-check -> execute -> verify -> judge -> rate.
+3. **Score history:** Before re-execution, record the current score in `phases.{N}.score_history` array (see Section 7). After re-execution, the new score replaces `alignment_score` and the old score is preserved in history.
+4. **Standard pass_threshold:** Force mode uses the default pass_threshold (9, or 7 with `--lenient`). It does not change the quality bar -- it just re-runs the work.
+
+### Combining --force with Other Flags
+
+- `--force --lenient`: Re-run phases with 7/10 threshold.
+- `--force --discuss`: Discussion runs first per phase, then full pipeline re-execution.
+- `--force --quality`: **ERROR** -- mutually exclusive. Force redoes from scratch; quality refines what exists. Log: "Cannot combine --force (redo from scratch) with --quality (refine existing). Use one or the other."
+- `--force --gaps`: **ERROR** -- mutually exclusive. Force redoes from scratch; gaps targets specific deficiencies.
+- `--force --complete`: **ERROR** -- force targets completed phases, complete targets incomplete phases. Incompatible intent.
+
+---
+
+## 1.5 Quality Mode
+
+When the user passes `--quality` (e.g., `/autopilot --quality 3`, `/autopilot --quality`), the orchestrator enters remediation loops targeting a 9.5/10 alignment score. The intent is "don't stop until it's good enough."
+
+### Phase Selection
+
+1. **If phase number specified** (`--quality 3`): Target that specific phase. It MUST have `status == "completed"` in `state.json` with an `alignment_score` below 9.5.
+2. **If no phase number** (`--quality`): Target ALL completed phases with `alignment_score` below 9.5.
+3. **Already at target:** If a phase already has `alignment_score >= 9.5`, skip it. Log: "Phase {N}: already at {score}/10 (>= 9.5 target). Skipping."
+
+### Remediation Loop
+
+Uses the existing remediation infrastructure (CENF-01, Section 5.1) but with modified parameters:
+
+```
+quality_threshold = 9.5
+max_quality_cycles = 3
+quality_cycle = 0
+current_score = phases.{N}.alignment_score from state.json
+
+while current_score < quality_threshold AND quality_cycle < max_quality_cycles:
+  quality_cycle += 1
+  log: "Phase {N}: quality remediation cycle {quality_cycle}/3. Current: {current_score}/10, target: 9.5/10."
+
+  extract targeted_feedback from:
+    - rating agent scorecard (per-criterion deductions from last run)
+    - judge concerns from last run
+    - diagnostic file "Path to 9.0/10" items
+    - for scores already >= 9.0: identify specific 0.1-0.5 point deductions to address
+
+  record old score in score_history array
+  re-spawn phase-runner with:
+    existing_plan: true
+    skip_research: true
+    remediation_feedback: targeted_feedback
+    remediation_cycle: {quality_cycle}
+    pass_threshold: 9.5
+
+  parse new return JSON
+  new_score = new alignment_score
+
+  if new_score >= quality_threshold:
+    log: "Phase {N}: quality target reached. Score: {new_score}/10."
+    break
+  else if new_score <= current_score:
+    log: "Phase {N}: no improvement ({current_score} -> {new_score}). Stopping quality remediation."
+    break
+  current_score = new_score
+
+if current_score < quality_threshold:
+  log: "Phase {N}: quality remediation exhausted ({quality_cycle} cycles). Final score: {current_score}/10. Remaining gaps documented in diagnostic file."
+  // Do NOT mark phase as failed. Report current score and remaining gaps.
+```
+
+### Exhaustion Behavior
+
+When `--quality` exhausts its 3-cycle budget without reaching 9.5/10:
+- Report the current score and remaining gaps
+- Generate/update diagnostic file at `.autopilot/diagnostics/phase-{N}-confidence.md`
+- Do NOT mark the phase as failed
+- Do NOT set `force_incomplete: true` (that is for standard remediation under CENF-03)
+- Set `phases.{N}.quality_exhausted: true` in state.json
+- Log: "Quality target 9.5/10 not reached after {cycles} cycles. Current: {score}/10. See diagnostic file for remaining gaps."
+
+### Combining --quality with Other Flags
+
+- `--quality --gaps`: Quality runs first (targeting 9.5), then gaps runs on any phases that reached 9.5 but could go higher. The combined flow: quality loop to 9.5 -> if reached, gaps loop toward 10.0.
+- `--quality --discuss`: Discussion runs first, then quality remediation.
+- `--quality --lenient`: **No effect** -- `--quality` overrides pass_threshold to 9.5 regardless of `--lenient`.
+- `--quality --force`: **ERROR** -- mutually exclusive (see Section 1.4).
+- `--quality --complete`: **ERROR** -- quality targets completed phases, complete targets incomplete phases.
+
+---
+
+## 1.6 Gaps Mode
+
+When the user passes `--gaps` (e.g., `/autopilot --gaps 3`, `/autopilot --gaps`), the orchestrator analyzes the specific deficiencies preventing a phase from reaching 10/10, then executes micro-targeted fixes working toward 9.5+/10. The intent is "close the remaining gap to perfect."
+
+### Phase Selection
+
+1. **If phase number specified** (`--gaps 3`): Target that specific phase. It MUST have `status == "completed"` in `state.json`.
+2. **If no phase number** (`--gaps`): Target ALL completed phases with `alignment_score` below 9.5.
+3. **Already near-perfect:** If a phase has `alignment_score >= 9.8`, skip it. Log: "Phase {N}: already at {score}/10 (>= 9.8). Negligible gap remaining. Skipping."
+
+### Gap Analysis
+
+Before executing fixes, the orchestrator performs gap analysis:
+
+1. **Read diagnostic file:** `.autopilot/diagnostics/phase-{N}-confidence.md` (if exists).
+2. **Read rating scorecard:** `.planning/phases/{phase}/SCORECARD.md` (from rating agent).
+3. **Extract deficiency list:** For each criterion scoring below 9.5 in the scorecard, create a deficiency entry:
+   ```json
+   {
+     "criterion": "criterion text",
+     "current_score": 8.2,
+     "target_score": 9.5,
+     "deficiency": "specific description of what is missing or wrong",
+     "target_file": "path/to/file",
+     "expected_impact": "fixing this would address X deduction"
+   }
+   ```
+4. **Order by impact:** Sort deficiencies by `(target_score - current_score)` descending -- fix the biggest gaps first.
+
+### Micro-Targeted Fix Loop
+
+```
+gap_threshold = 9.5
+max_gap_iterations = 5
+gap_iteration = 0
+current_score = phases.{N}.alignment_score from state.json
+remaining_deficiencies = ordered deficiency list from gap analysis
+
+while current_score < gap_threshold AND gap_iteration < max_gap_iterations AND remaining_deficiencies is not empty:
+  gap_iteration += 1
+  current_deficiency = remaining_deficiencies.shift()  // take first (highest impact)
+
+  log: "Phase {N}: gap fix iteration {gap_iteration}/5. Targeting: {current_deficiency.criterion} ({current_deficiency.current_score}/10)."
+
+  record old score in score_history array
+  re-spawn phase-runner with:
+    existing_plan: true
+    skip_research: true
+    remediation_feedback: [current_deficiency]  // single deficiency
+    remediation_cycle: {gap_iteration}
+    pass_threshold: {gap_threshold}
+
+  parse new return JSON
+  new_score = new alignment_score
+
+  if new_score >= gap_threshold:
+    log: "Phase {N}: gap target reached. Score: {new_score}/10."
+    break
+  else if new_score <= current_score:
+    log: "Phase {N}: no improvement from gap fix ({current_score} -> {new_score}). Trying next deficiency."
+    // Continue to next deficiency even if this one didn't help
+  current_score = new_score
+
+if current_score < gap_threshold:
+  log: "Phase {N}: gap remediation exhausted ({gap_iteration} iterations). Final score: {current_score}/10."
+  // Do NOT mark phase as failed. Report current score and remaining gaps.
+```
+
+### Exhaustion Behavior
+
+When `--gaps` exhausts its 5-iteration budget without reaching 9.5+/10:
+- Report the current score, deficiencies addressed, and remaining deficiencies
+- Generate/update diagnostic file
+- Do NOT mark the phase as failed
+- Set `phases.{N}.gaps_exhausted: true` in state.json
+- Log: "Gap target 9.5+/10 not reached after {iterations} iterations. Current: {score}/10. {remaining} deficiencies remain."
+
+### Combining --gaps with Other Flags
+
+- `--gaps --quality`: See Section 1.5. Quality runs first to 9.5, then gaps refines further.
+- `--gaps --discuss`: Discussion runs first, then gap analysis and fixes.
+- `--gaps --lenient`: **No effect** -- `--gaps` targets 9.5+ regardless.
+- `--gaps --force`: **ERROR** -- mutually exclusive (see Section 1.4).
+- `--gaps --complete`: **ERROR** -- gaps targets completed phases, complete targets incomplete phases.
+
+---
+
+## 1.7 Discuss Mode
+
+When the user passes `--discuss` (e.g., `/autopilot --discuss 3`, `/autopilot --discuss 3-7`), the orchestrator runs an interactive discussion session per target phase BEFORE any execution begins. The intent is "let's talk first so the phase-runner has richer context."
+
+### Phase Selection
+
+1. **If phase number/range specified** (`--discuss 3`, `--discuss 3-7`): Target those phases.
+2. **If no phase number** (`--discuss`): Target ALL phases in the current execution scope (phases about to be run).
+
+### Discussion Agent
+
+For each target phase, spawn a general-purpose subagent:
+
+> You are a discussion agent for autopilot phase {N}: {phase_name}.
+>
+> Phase goal: {goal}
+> Requirements: {requirements_list}
+> Success criteria: {success_criteria}
+> Existing research: {path to RESEARCH.md if exists, "none" otherwise}
+> Existing plan: {path to PLAN.md if exists, "none" otherwise}
+>
+> <must>
+> 1. Read the phase's roadmap entry and requirements from the frozen spec at {spec_path}
+> 2. Read any existing research or plan files for this phase
+> 3. Generate 3-5 targeted questions that are SPECIFIC to this phase's content -- not generic questions like "What are your expectations?"
+> 4. Questions should cover: expected behavior for edge cases, implementation preferences, acceptance thresholds, trade-off decisions, and scope boundaries
+> 5. Each question must explain WHY the answer matters for this specific phase
+> 6. Return structured JSON (see Return JSON below)
+> </must>
+>
+> **Good questions (phase-specific):**
+> - "Phase 3 requires machine-verifiable criteria. When the plan-checker finds prose-only criteria, should it auto-convert them to grep-based checks or reject the plan outright?"
+> - "Phase 5 adds JSONL tracing. Should trace files be retained permanently or auto-pruned after N runs?"
+>
+> **Bad questions (generic):**
+> - "What do you expect from this phase?"
+> - "How should errors be handled?"
+>
+> Return JSON:
+> ```json
+> {
+>   "phase_id": "{N}",
+>   "questions": [
+>     {
+>       "question": "specific question text",
+>       "category": "edge_case|preference|threshold|trade_off|scope",
+>       "why_it_matters": "1-sentence explanation of impact on phase execution"
+>     }
+>   ]
+> }
+> ```
+
+### Collecting Answers
+
+1. **Batch all questions:** Present questions from all target phases in a single interactive session:
+   ```
+   Pre-Execution Discussion: {N} phases
+
+   ## Phase {id}: {name}
+   1. {question_1} [{category}]
+      Why: {why_it_matters}
+   2. {question_2} [{category}]
+      Why: {why_it_matters}
+
+   ## Phase {id}: {name}
+   ...
+
+   Please answer all questions above. Type your answers inline (e.g., "Phase 3, Q1: ...").
+   ```
+
+2. **Record answers:** Write to `.autopilot/discuss-context.json`:
+   ```json
+   {
+     "version": "1.0",
+     "last_updated": "ISO-8601",
+     "phases": {
+       "{phase_id}": {
+         "phase_name": "string",
+         "questions": [
+           {
+             "question": "string",
+             "category": "string",
+             "answer": "user's answer text",
+             "answered_at": "ISO-8601"
+           }
+         ],
+         "discussed_at": "ISO-8601"
+       }
+     }
+   }
+   ```
+
+3. **Inject into phase-runner:** When spawning the phase-runner for a discussed phase, add to the spawn prompt:
+   > **Discussion context:** The user answered pre-execution questions for this phase. Answers are at `.autopilot/discuss-context.json`. The phase-runner MUST read this file during research and incorporate the user's answers into planning and execution decisions.
+
+### Combining --discuss with Other Flags
+
+`--discuss` ALWAYS runs first, before any other flag's behavior:
+
+- `--discuss 3-7`: Discuss phases 3-7, then execute them normally.
+- `--discuss --force 3`: Discuss phase 3, then re-execute from scratch.
+- `--discuss --quality 3`: Discuss phase 3, then run quality remediation.
+- `--discuss --gaps 3`: Discuss phase 3, then run gap analysis and fixes.
+- `--discuss --complete`: Discuss all outstanding phases, then run batch completion.
 
 ---
 
@@ -738,6 +1032,23 @@ After each phase, update `.autopilot/state.json`:
    - `phases.{N}.force_incomplete` = `true` if remediation exhausted without reaching `pass_threshold`, `false` otherwise.
    - `phases.{N}.diagnostic_path` = `".autopilot/diagnostics/phase-{N}-confidence.md"` if a diagnostic file was generated, `null` otherwise.
    - `phases.{N}.remediation_cycles` = number of remediation cycles run (0 if none).
+10. **Score history (CLI quality flags):** When any quality flag (`--force`, `--quality`, `--gaps`) causes a phase to be re-evaluated:
+    - Before updating `alignment_score`, append the current score to `phases.{N}.score_history` array:
+      ```json
+      {
+        "score": 8.2,
+        "timestamp": "ISO-8601",
+        "flag": "force|quality|gaps|initial",
+        "cycle": 0
+      }
+      ```
+    - The `score_history` array preserves the full scoring trajectory for trend tracking.
+    - On initial phase completion (no flags), the first entry has `flag: "initial"` and `cycle: 0`.
+    - After flag execution, `alignment_score` reflects the latest score; `score_history` contains all prior scores.
+11. **Quality/gaps exhaustion fields:** If `--quality` or `--gaps` exhausted their remediation budget:
+    - `phases.{N}.quality_exhausted` = `true` if `--quality` exhausted 3 cycles without reaching 9.5.
+    - `phases.{N}.gaps_exhausted` = `true` if `--gaps` exhausted 5 iterations without reaching 9.5+.
+    - These flags are informational -- they do NOT indicate failure.
 
 ---
 

@@ -1166,7 +1166,138 @@ Additional field in `_meta` of `state.json`:
 ```jsonc
 {
   // ... existing _meta fields ...
-  "pass_threshold": 9                  // CENF-01: 9 (default) or 7 (with --lenient). Set at invocation.
+  "pass_threshold": 9                  // CENF-01: 9 (default), 7 (with --lenient), or 9.5 (with --quality). Set at invocation.
+}
+```
+
+---
+
+## CLI Quality Flags Schemas
+
+### discuss-context.json Schema
+
+Written to `.autopilot/discuss-context.json` by the orchestrator during `--discuss` mode. Read by phase-runners during research and planning steps.
+
+```jsonc
+{
+  "version": "1.0",
+  "last_updated": "ISO-8601",
+  "phases": {
+    "{phase_id}": {
+      "phase_name": "string",
+      "questions": [
+        {
+          "question": "specific question text",
+          "category": "edge_case|preference|threshold|trade_off|scope",
+          "why_it_matters": "1-sentence explanation",
+          "answer": "user's answer text",
+          "answered_at": "ISO-8601"
+        }
+      ],
+      "discussed_at": "ISO-8601"
+    }
+  }
+}
+```
+
+### Score History Schema
+
+Added to `phases.{N}` in `state.json`. Tracks alignment score changes across quality flag executions.
+
+```jsonc
+{
+  // ... existing phases.{N} fields ...
+  "score_history": [
+    {
+      "score": 8.2,                    // decimal x.x format
+      "timestamp": "ISO-8601",
+      "flag": "initial|force|quality|gaps",  // which flag triggered the re-evaluation
+      "cycle": 0                       // remediation cycle number (0 for initial)
+    }
+  ],
+  "quality_exhausted": false,          // true when --quality exhausts 3 cycles without reaching 9.5
+  "gaps_exhausted": false              // true when --gaps exhausts 5 iterations without reaching 9.5+
+}
+```
+
+### Gap Deficiency Schema
+
+Used internally by the orchestrator during `--gaps` mode gap analysis. Not persisted to a file -- used in memory during gap-fix iterations.
+
+```jsonc
+{
+  "deficiencies": [
+    {
+      "criterion": "criterion text from plan",
+      "current_score": 8.2,            // per-criterion score from rating agent scorecard
+      "target_score": 9.5,
+      "deficiency": "specific description of what is missing or wrong",
+      "target_file": "path/to/file",
+      "expected_impact": "fixing this would address X deduction"
+    }
+  ]
+}
+```
+
+### CLI Quality Flag Events
+
+Additional event types for the event_log in state.json:
+
+| Event | Level | Description |
+|-------|-------|-------------|
+| `force_reexecution_started` | Phase | Phase re-execution initiated by --force |
+| `quality_remediation_started` | Phase | Quality remediation cycle started for --quality |
+| `quality_remediation_completed` | Phase | Quality remediation cycle completed with score change |
+| `quality_exhausted` | Phase | Quality remediation exhausted without reaching 9.5/10 |
+| `gaps_iteration_started` | Phase | Gap-fix iteration started for --gaps |
+| `gaps_iteration_completed` | Phase | Gap-fix iteration completed with score change |
+| `gaps_exhausted` | Phase | Gap iterations exhausted without reaching 9.5+/10 |
+| `discuss_session_started` | Run | Discussion session initiated by --discuss |
+| `discuss_answers_recorded` | Phase | User answers recorded for a discussed phase |
+| `flag_mutual_exclusivity_error` | Run | Mutually exclusive flags detected and rejected |
+
+### Event Examples
+
+```jsonc
+// force_reexecution_started
+{
+  "timestamp": "ISO-8601",
+  "event": "force_reexecution_started",
+  "phase_id": "3",
+  "previous_score": 8.4,
+  "previous_status": "completed"
+}
+
+// quality_remediation_completed
+{
+  "timestamp": "ISO-8601",
+  "event": "quality_remediation_completed",
+  "phase_id": "3",
+  "cycle": 2,
+  "old_score": 8.7,
+  "new_score": 9.2,
+  "target": 9.5
+}
+
+// gaps_iteration_completed
+{
+  "timestamp": "ISO-8601",
+  "event": "gaps_iteration_completed",
+  "phase_id": "3",
+  "iteration": 1,
+  "deficiency_addressed": "criterion text",
+  "old_score": 9.0,
+  "new_score": 9.3,
+  "remaining_deficiencies": 2
+}
+
+// discuss_answers_recorded
+{
+  "timestamp": "ISO-8601",
+  "event": "discuss_answers_recorded",
+  "phase_id": "3",
+  "questions_asked": 4,
+  "questions_answered": 4
 }
 ```
 
@@ -1174,4 +1305,4 @@ Additional field in `_meta` of `state.json`:
 
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), and (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05). For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05), and (13) CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, score history tracking, gap deficiency analysis, and flag-specific event types. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
