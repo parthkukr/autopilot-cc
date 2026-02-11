@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.0 (2026-02-11)
+
+### Features
+
+- **Context Exhaustion Prevention:** Orchestrator enforces manager-not-worker principle -- delegates all detailed analysis to sub-agents, never reads plan files, source code, or full state dumps directly
+- **Scope Splitting:** Phase-runners detect oversized work scopes and return split requests; orchestrator spawns parallel sub-phase-runners with independent verification per sub-phase
+- **Handoff-on-Failure:** Phase-runners write HANDOFF.md partial-progress files when hitting context limits; orchestrator detects these during resume and re-spawns with only remaining tasks
+- **Incremental State Updates:** State.json updates use targeted Edit() operations instead of full-file rewrites, reducing per-update context consumption from 150+ lines to under 20
+- **Observability-Only Context Tracking:** Replaced the 40% hard context gate with advisory-only warnings at 70% and 90% thresholds -- the system never auto-stops work due to context percentage
+- **Pre-Run Context Cost Estimation:** Multi-phase quality/force runs get estimated context cost before execution begins, with warnings when estimated cost exceeds 80% of session budget
+
 ## 1.6.1 (2026-02-11)
 
 ### Features
