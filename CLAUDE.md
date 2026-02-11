@@ -15,16 +15,22 @@ After every completed phase, bump the version in ALL three files:
 
 Read `package.json` for the current version, then apply the logic above based on which phase just completed.
 
+### Public-Facing Language (MUST follow)
+
+Phases are internal implementation details. **Never reference phase numbers or names in public-facing content** — this includes CHANGELOG.md, README.md, PR titles, and commit messages (except the version-bump commit which uses `after phase N` for internal tracking).
+
+Instead, describe **features by what they do**, not which phase produced them.
+
 ### CHANGELOG Format
 
-Each version entry must list the phase name and a 1-line summary per requirement addressed:
+Each version entry must list the feature name and a 1-line summary per requirement addressed:
 
 ```markdown
 ## X.Y.Z (YYYY-MM-DD)
 
 ### Features
 
-- **Phase Name (Phase N):** One-line summary of what was added/changed
+- **Feature Name:** One-line summary of what was added/changed
 ```
 
 ### When to Bump
