@@ -83,6 +83,7 @@ Every step agent has a declared line budget. The phase-runner reads ONLY the JSO
 | 3 - Execute | gsd-executor | 500 | 15 | Read JSON return only |
 | 4 - Verify | gsd-verifier | 200 | 10 | JSON return only |
 | 4.5 - Judge | general-purpose | 100 | 5 | JSON return only |
+| 4.6 - Rate | general-purpose | 150 | 5 | JSON return only |
 | 5a - Debug | gsd-debugger | 200 | 10 | JSON return only |
 
 **Budget enforcement rule:** The phase-runner ingests at most `max_summary_lines` from each agent. If the agent's full response exceeds `max_response_lines`, the phase-runner reads only the last `max_summary_lines` lines or the JSON block, whichever applies.
@@ -588,7 +589,7 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > 4. **Independent wire check for new files:** For each file ADDED in the git diff (new files, not modifications), verify it has at least one import or reference elsewhere in the codebase (`grep -r "filename" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.md"` etc.). If a new file has zero imports AND is not a known standalone type (entry point, config, test, script, type declaration, documentation) AND does not have an explicit standalone justification documented in the EXECUTION-LOG.md task entry, flag it as a verification concern: "ORPHANED FILE: {path} -- zero imports, no standalone justification." Record all wire-check results in VERIFICATION.md.
 > 5. Write verification report to .planning/phases/{phase}/VERIFICATION.md
 > 6. Record every command you run in a `commands_run` list (command + result) -- an empty commands_run list will be rejected as rubber-stamping. Classify every failure using the failure taxonomy (Section 2.5): executor_incomplete, executor_wrong_approach, compilation_failure, lint_failure, build_failure, acceptance_criteria_unmet, scope_creep, context_exhaustion, tool_failure, coordination_failure.
-> 7. Return structured JSON with pass/fail, criteria results, and alignment score
+> 7. Return structured JSON with pass/fail and criteria results
 > </must>
 >
 > <should>
@@ -667,7 +668,6 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 >   "criteria_results": [
 >     {"criterion": "text", "status": "verified|failed", "evidence": "file:line -- what"}
 >   ],
->   "alignment_score": 1-10,
 >   "verification_duration_seconds": N,
 >   "commands_run": ["command -> result"],
 >   "failures": ["description"],
@@ -697,7 +697,7 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 **Rules:**
 1. You MUST spawn a judge subagent (subagent_type: "general-purpose")
 2. The judge receives: (a) the frozen spec requirements, (b) the PLAN.md, (c) the raw git diff, (d) the executor's evidence
-3. The judge does NOT receive the verifier's alignment score or pass/fail conclusion
+3. The judge does NOT receive the verifier's pass/fail conclusion (alignment scoring is handled by the dedicated rating agent in STEP 4.6)
 4. The judge runs its OWN checks before reading the VERIFICATION.md
 5. The judge MUST identify at least one concern (even if minor) to prove it examined the work
 
@@ -716,13 +716,13 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > 4. Write your independent findings to `.planning/phases/{phase}/JUDGE-REPORT.md` BEFORE reading VERIFICATION.md. This artifact is structural proof of independent execution -- the orchestrator verifies it exists.
 > 5. After writing JUDGE-REPORT.md, read VERIFICATION.md and add a "Divergence Analysis" section to your JUDGE-REPORT.md noting: (a) points where you agree with the verifier AND have independent evidence, (b) points where you disagree, (c) points the verifier missed, (d) points you missed that the verifier found. If you agree on every point, you MUST present your independent evidence (specific file:line references, command outputs) proving you reached the same conclusion independently -- agreement without independent evidence will be rejected as rubber-stamping.
 > 6. Identify at least one concern (even if minor) to prove independent examination
-> 7. Return structured JSON with alignment score and recommendation
+> 7. Return structured JSON with recommendation and concerns (the rating agent handles scoring separately)
 > </must>
 >
 > <should>
 > 1. Compare your findings against the verifier's report after independent review
 > 2. Flag scope creep (code nobody asked for)
-> 3. Score independently using the scoring guide -- do not anchor to the verifier's score
+> 3. Assess independently -- the rating agent handles scoring, your job is recommendation and concerns
 > </should>
 >
 > <should>
@@ -745,17 +745,15 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > **AFTER gathering your own evidence, read:**
 > 6. .planning/phases/{phase}/VERIFICATION.md (the verifier's report)
 >
-> **Scoring guide (scores should be INDEPENDENT):**
-> - 9-10: All criteria verified, all checks pass, no scope creep
-> - 7-8: All criteria verified, minor issues
-> - 5-6: Most criteria verified, some failures
-> - 3-4: Multiple criteria failed
-> - 1-2: Fundamental misalignment
+> **Assessment guide (focus on concerns and recommendation, NOT scoring -- the rating agent handles scoring separately):**
+> - If all criteria verified, all checks pass, no scope creep: recommend "proceed"
+> - If minor issues only: recommend "proceed" with concerns noted
+> - If significant failures: recommend "debug"
+> - If fundamental misalignment: recommend "rollback" or "halt"
 >
 > Return JSON:
 > ```json
 > {
->   "alignment_score": 1-10,
 >   "recommendation": "proceed|debug|rollback|halt",
 >   "concerns": ["at least one item"],
 >   "independent_evidence": ["file:line -- what was found independently"],
@@ -775,11 +773,126 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 ---
 
+### STEP 4.6: RATE -- MANDATORY INDEPENDENT AGENT
+
+The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but evaluate work quality and produce the alignment score. It replaces the previous inline scoring that was done by the verifier and judge as a side-task.
+
+**Rules:**
+1. You MUST spawn a rating subagent (subagent_type: "general-purpose")
+2. The rating agent is CONTEXT-ISOLATED: it receives ONLY (a) acceptance criteria from PLAN.md, (b) the git diff command to run, and (c) read access to the codebase
+3. The rating agent does NOT receive: executor confidence scores, verifier report/pass-fail, judge recommendation/concerns, or any prior assessment
+4. The rating agent's `alignment_score` is the AUTHORITATIVE score used in the return contract and gate decision
+5. All scores MUST use decimal precision (x.x/10 format). Integer scores are NOT allowed
+
+**Action:** Spawn `general-purpose` agent via Task tool, run_in_background=false.
+
+**Rating agent prompt template:**
+
+> You are a dedicated rating agent. Your ONLY job is to evaluate work quality and produce a calibrated alignment score. You have NO other responsibilities. You do NOT make recommendations about proceeding, debugging, or rolling back -- that is the judge's job. You ONLY score.
+>
+> Phase: {N} -- {phase_name}
+> Phase goal: {goal_from_roadmap}
+> Phase type: {ui|protocol|data|mixed}
+> Plans at: .planning/phases/{phase}/PLAN.md
+> Changes since last checkpoint: Run `git diff {last_checkpoint_sha}..HEAD`
+>
+> **CONTEXT ISOLATION: You do NOT see the executor's confidence score, the verifier's report or pass/fail conclusion, or the judge's recommendation. You evaluate from scratch using ONLY the acceptance criteria and the actual codebase state. This isolation is intentional -- it prevents anchoring bias and score inflation.**
+>
+> <must>
+> 1. Read the acceptance criteria from PLAN.md. Extract every criterion with its verification command.
+> 2. For EACH criterion, independently verify it against the codebase:
+>    - Run the verification command specified in the criterion
+>    - Read the actual file(s) to confirm the criterion is truly met (not just pattern-matched)
+>    - Record: criterion text, verification command, command output, manual confirmation result, and any concerns
+> 3. Run ALL verification commands from all criteria. An empty `commands_run` list will be rejected.
+> 4. Check for side effects and regressions:
+>    - Review the git diff for changes outside the scope of acceptance criteria
+>    - Check for removed functionality, broken cross-references, or unintended modifications
+>    - Record any side effects found
+> 5. Assign a per-criterion score using DECIMAL PRECISION (x.x/10 format):
+>    - 9.5-10.0: Criterion fully met with excellence, no concerns
+>    - 8.0-9.4: Criterion met but with minor concerns (style, edge cases)
+>    - 7.0-7.9: Criterion met with notable deficiencies
+>    - 5.0-6.9: Criterion partially met, significant gaps remain
+>    - 3.0-4.9: Criterion mostly unmet
+>    - 0.0-2.9: Criterion not addressed or fundamentally wrong
+> 6. Compute a weighted aggregate score:
+>    - All criteria are weighted equally unless the plan specifies priority weights
+>    - The aggregate is the arithmetic mean of per-criterion scores, rounded to one decimal place
+>    - Provide explicit justification for each point deducted from 10.0
+> 7. Write a detailed scorecard to `.planning/phases/{phase}/SCORECARD.md` containing:
+>    - Per-criterion scores with evidence and justifications
+>    - Side effects analysis
+>    - Aggregate score with deduction justifications
+>    - Score calibration note (which band the score falls in and why)
+> 8. Return structured JSON (see Return JSON below). ALL scores MUST be decimal (x.x format). Integer scores (7, 8, 9) are NOT valid -- use 7.0, 8.0, 9.0 at minimum.
+> </must>
+>
+> <should>
+> 1. Record specific file:line evidence for each criterion evaluation
+> 2. Note any acceptance criteria that are ambiguous or untestable
+> 3. Compare the scope of changes against the plan scope -- flag both missing work and scope creep
+> </should>
+>
+> <may>
+> 1. Note potential improvements that would raise the score
+> 2. Flag technical debt introduced by the changes
+> </may>
+>
+> **CALIBRATION GUIDE (scores MUST follow this distribution):**
+>
+> - **9.5-10.0 (Excellence):** ALL criteria fully met with verification evidence. Zero concerns. Zero side effects. No scope creep. This score is RARE and requires evidence of exceptional quality.
+> - **8.0-9.4 (Good with minor issues):** All criteria met, but with minor concerns: style issues, edge cases not covered, slight imprecision in implementation. Most well-executed phases land here.
+> - **7.0-7.9 (Acceptable with real deficiencies):** Most criteria met, but real deficiencies exist that should be addressed. Something is genuinely missing or wrong, even if not critical.
+> - **5.0-6.9 (Significant gaps):** Multiple criteria partially unmet. The work is incomplete or has meaningful quality issues. Not a failure, but clearly needs more work.
+> - **3.0-4.9 (Major failures):** Multiple criteria unmet. The work has fundamental issues that prevent it from achieving the phase goal.
+> - **0.0-2.9 (Not implemented):** The work does not address the phase goal in any meaningful way.
+>
+> **ANTI-INFLATION RULES:**
+> - You MUST NOT default to 8.x or 9.x. Start from 5.0 (baseline) and ADD points based on evidence of criteria being met.
+> - Every 0.5 points above 7.0 requires explicit justification in the scorecard.
+> - If you cannot find file:line evidence that a criterion is met, it scores below 7.0 for that criterion.
+> - Rounding is ALWAYS down (7.45 -> 7.4, not 7.5).
+>
+> Return JSON:
+> ```json
+> {
+>   "alignment_score": <decimal x.x format, e.g., 7.3>,
+>   "scorecard": [
+>     {
+>       "criterion": "criterion text",
+>       "score": <decimal x.x>,
+>       "max_score": 10.0,
+>       "verification_command": "the command run",
+>       "command_output": "first 200 chars of output",
+>       "evidence": "file:line -- what was found",
+>       "justification": "why this score"
+>     }
+>   ],
+>   "aggregate_justification": "explanation of how aggregate was computed and what deductions were made",
+>   "side_effects": ["any side effects found"],
+>   "commands_run": ["command -> result"],
+>   "score_band": "excellence|good|acceptable|significant_gaps|major_failures|not_implemented"
+> }
+> ```
+
+**Read back:** ONLY the JSON result.
+
+**Phase-runner validation:** Check the returned `alignment_score`. If it is an integer (no decimal point), reject the rating and re-spawn the rating agent with a reminder about decimal precision. Check `commands_run` -- if empty, reject as rubber-stamping.
+
+<context_budget>
+max_response_lines: 150
+max_summary_lines: 5
+enforcement: JSON return only -- phase-runner reads the JSON block
+</context_budget>
+
+---
+
 ### STEP 5: GATE DECISION
 
 **Purpose:** YOU (the phase-runner) decide what happens next. This is your logic, not a subagent.
 
-**Read:** The verify result (from STEP 4) and the judge result (from STEP 4.5).
+**Read:** The verify result (from STEP 4), the judge result (from STEP 4.5), and the rating result (from STEP 4.6).
 
 **Decision tree:**
 
@@ -956,7 +1069,7 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 3. **Gather result data:**
    - Collect commit SHAs from execution
-   - Collect verification/judge scores
+   - Collect rating agent's alignment_score (decimal) and scorecard
    - Count debug and replan attempts
    - Summarize what was accomplished
    - **Compile evidence from executor summary and verifier results:**
@@ -1010,9 +1123,9 @@ Return immediately with: `status: "failed"`, `alignment_score: null`, `recommend
 
 ### Human-Verify Checkpoint
 
-**Case 1 -- Mixed plan (auto + human-verify tasks):** Execute auto tasks, run verify/judge, then return with: `status: "needs_human_verification"`, populated `alignment_score`, `automated_checks`, and `commit_shas` from the auto tasks. Include `human_verify_justification` describing what needs human approval.
+**Case 1 -- Mixed plan (auto + human-verify tasks):** Execute auto tasks, run verify/judge/rate, then return with: `status: "needs_human_verification"`, populated `alignment_score` (decimal, from rating agent), `automated_checks`, and `commit_shas` from the auto tasks. Include `human_verify_justification` describing what needs human approval.
 
-**Case 2 -- Pure human-verify plan (zero auto tasks):** Skip execute/verify/judge. Return with: `status: "needs_human_verification"`, `alignment_score: null`, empty `automated_checks` and `commit_shas`. Set execute/verify/judge pipeline_steps to `"skipped"`.
+**Case 2 -- Pure human-verify plan (zero auto tasks):** Skip execute/verify/judge/rate. Return with: `status: "needs_human_verification"`, `alignment_score: null`, empty `automated_checks` and `commit_shas`. Set execute/verify/judge/rate pipeline_steps to `"skipped"`.
 
 **REQUIRED for both cases:** When returning `status: "needs_human_verification"`, the phase-runner MUST populate the `human_verify_justification` field in the return JSON. This field identifies the specific checkpoint task that triggered the human-verify status:
 ```json
@@ -1078,7 +1191,7 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 - `pipeline_steps` uses shape: `{"status": "pass|fail|completed|skipped", "agent_spawned": boolean}`
 - `pipeline_steps.triage` should include `{"status": "full_pipeline|verify_only", "agent_spawned": false, "pass_ratio": 0.0-1.0}`
 - `evidence` field is REQUIRED for completed phases (see orchestrator Section 4)
-- `alignment_score` is the JUDGE's score (not the verifier's)
+- `alignment_score` is the RATING AGENT's score (decimal x.x format, from STEP 4.6 -- not the verifier's or judge's)
 
 ---
 
@@ -1093,12 +1206,13 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 | 2.5 - Plan Check | gsd-plan-checker | No | ~5 lines | JSON: pass/issues |
 | 3 - Execute | gsd-executor | Yes | ~15 lines | SUMMARY section |
 | 4 - Verify | gsd-verifier | No | ~10 lines | JSON: pass/alignment |
-| 4.5 - Judge | general-purpose | No | ~5 lines | JSON: alignment/recommendation |
+| 4.5 - Judge | general-purpose | No | ~5 lines | JSON: recommendation/concerns |
+| 4.6 - Rate | general-purpose | No | ~5 lines | JSON: alignment_score (decimal)/scorecard |
 | 5a - Debug | gsd-debugger | No | ~10 lines | JSON: fixed/remaining |
 
-**Total per phase (happy path, full_pipeline):** ~75 lines of context consumed.
-**Total per phase (happy path, verify_only):** ~25 lines of context consumed.
-**Total per phase (with 1 debug):** ~90 lines.
+**Total per phase (happy path, full_pipeline):** ~80 lines of context consumed.
+**Total per phase (happy path, verify_only):** ~30 lines of context consumed.
+**Total per phase (with 1 debug):** ~95 lines.
 
 ---
 
@@ -1109,7 +1223,7 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 | Pre-flight | all_clear = true | Return failed result immediately |
 | Triage | Routing decision made (no failure possible) | Always produces a decision; routes to verify_only (>80% pass) or full_pipeline |
 | Plan Check | pass = true, confidence >= 7 | Re-plan (max 3x), then return failed |
-| Verify + Judge | checks pass, alignment >= pass_threshold (default 9), recommendation = proceed | If alignment 7-8 and pass_threshold > 7: return to orchestrator for remediation (Section 5.1). If alignment < 7: re-plan (max 1x). Debug (max 3x) for check failures. |
+| Verify + Judge + Rate | checks pass, alignment (from rating agent, decimal) >= pass_threshold (default 9.0), recommendation = proceed | If alignment 7.0-8.9 and pass_threshold > 7.0: return to orchestrator for remediation (Section 5.1). If alignment < 7.0: re-plan (max 1x). Debug (max 3x) for check failures. |
 | Circuit Breaker | debug attempts < 3 | Return failed, recommend halt |
 
 ---
