@@ -1221,13 +1221,15 @@ After exhausting retries, return with: `status: "failed"`, `recommendation: "hal
 
 When a phase-runner detects it is approaching context exhaustion (i.e., the agent is struggling to complete operations, responses are being truncated, or tool calls are failing due to context limits), it MUST write a partial-progress handoff file BEFORE returning. This preserves work already completed so the orchestrator can resume from this state instead of losing all progress.
 
-**Handoff file:** Write to `.planning/phases/{phase}/HANDOFF.md`:
+**Handoff file:** Write to `.planning/phases/{phase}/HANDOFF.md`. Required fields: phase_id, tasks_completed, tasks_remaining, files_modified, last_checkpoint_sha.
 
 ```markdown
 # Phase {N} Partial Progress Handoff
 
+**Phase ID:** {phase_id}
 **Reason:** Context exhaustion detected during {step_name}
 **Timestamp:** {ISO-8601}
+**Last Checkpoint SHA:** {last_checkpoint_sha}
 
 ## Tasks Completed
 | Task ID | Status | Commit SHA | Files Modified |
