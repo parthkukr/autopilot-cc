@@ -1019,12 +1019,52 @@ Before applying gate logic, validate the phase-runner's return:
 
 ## 6. Context Management
 
-There is no phase cap per session. The orchestrator's context stays minimal because it only reads JSON returns (~5-10 lines per phase). Monitor actual context usage -- if it exceeds 40%, compress prior phase records to single-line entries. Never artificially limit the number of phases.
+### 6.1 Manager-Not-Worker Principle
 
-When stopping for context (40% threshold hit):
-1. Write `.autopilot/handoff-{timestamp}.md` (completed phases, next phase, scores).
-2. Save state with current position.
-3. Tell user: `"Context threshold reached. {N} done. Run /autopilot resume for Phase {next}."`
+The orchestrator is a **manager, not a worker**. It knows what is going on and where a project is in the pipeline, but it does NOT do detailed work itself. This is the PRIMARY context exhaustion prevention mechanism -- a lightweight orchestrator will never hit context limits.
+
+**The orchestrator MUST NOT read detailed files directly.** This includes:
+- Plan files (PLAN.md, RESEARCH.md)
+- Source code or implementation files
+- Full verification/judge reports (VERIFICATION.md, JUDGE-REPORT.md, SCORECARD.md)
+- UAT reports, full test output, or build logs
+- Full state.json dumps (use targeted reads for specific fields)
+
+**All detailed analysis is delegated to sub-agents who return summaries.** If the orchestrator needs to assess UAT results, gap analysis, or any complex evaluation, it spawns a sub-agent that reads the files and returns a structured JSON summary (e.g., "phase 16: 5 issues, phase 17: 4 issues, summaries: [...]"). The orchestrator ingests ONLY the summary.
+
+**What the orchestrator holds:** Phase names, scores, status, routing decisions, and JSON returns from phase-runners (~5-10 lines per phase). Nothing else.
+
+### 6.2 Context Tracking (Observability Only)
+
+There is no phase cap per session. The orchestrator's context stays minimal because it only reads JSON returns (~5-10 lines per phase).
+
+**Context tracking is for observability only -- the orchestrator NEVER auto-stops work because of context percentage.** There is no hard context gate. If the orchestrator's context grows large, it indicates an architectural violation (the orchestrator is reading too much detail), not a budget limit that needs enforcement.
+
+**Warning thresholds (non-blocking):**
+- **70% estimated context:** Log warning: "Context at ~70%. If approaching limits, verify orchestrator is not reading detailed files directly."
+- **90% estimated context:** Log warning: "Context at ~90%. Consider writing handoff file for safety. Verify manager-not-worker principle."
+
+These warnings are advisory. Execution continues regardless. The orchestrator should self-check against the Manager-Not-Worker rules (Section 6.1) when warnings trigger.
+
+**Handoff file (safety net, should be rare):** If the orchestrator ever needs to stop (e.g., approaching absolute limit), write `.autopilot/handoff-{timestamp}.md` with completed phases, next phase, and scores. Save state with current position. Tell user: `"Context approaching limit. {N} done. Run /autopilot resume for Phase {next}."` This should be extremely rare if the manager-not-worker principle is followed.
+
+### 6.3 Pre-Run Context Cost Estimation
+
+When running `--quality` or `--force` on **multiple phases** (3+), the orchestrator estimates total context cost before beginning execution:
+
+```
+estimated_session_cost = sum(per_phase_estimated_tokens from MTRC-02) + orchestrator_overhead (10000 tokens per phase for JSON parsing and state updates)
+estimated_session_budget = 180000 tokens (conservative estimate for orchestrator session)
+
+if estimated_session_cost > 0.80 * estimated_session_budget:
+  log warning: "Estimated cost ({estimated_session_cost} tokens) exceeds 80% of session budget. Consider splitting into smaller batches: /autopilot --quality {first_half} then /autopilot --quality {second_half}."
+```
+
+This is a WARNING only. Execution proceeds regardless. The warning helps users avoid sessions that are likely to approach context limits.
+
+### 6.4 Compression Heuristic
+
+When context grows (tracked via warning thresholds), compress prior phase records to single-line entries. Never artificially limit the number of phases. Compression format: `"Phase {N}: {status} ({score}/10)"` -- replacing the full JSON return stored in memory.
 
 ---
 
