@@ -360,11 +360,18 @@ When the user passes `--gaps` (e.g., `/autopilot --gaps 3`, `/autopilot --gaps`)
 
 ### Gap Analysis
 
-Before executing fixes, the orchestrator performs gap analysis:
+Before executing fixes, the orchestrator performs gap analysis. Sources are tried in priority order -- the orchestrator uses the best available evidence:
 
-1. **Read diagnostic file:** `.autopilot/diagnostics/phase-{N}-confidence.md` (if exists).
-2. **Read rating scorecard:** `.planning/phases/{phase}/SCORECARD.md` (from rating agent).
-3. **Extract deficiency list:** For each criterion scoring below 9.5 in the scorecard, create a deficiency entry:
+1. **Primary source -- Rating scorecard:** Read `.planning/phases/{phase}/SCORECARD.md` (from rating agent, available for phases that have been rated). For each criterion scoring below 9.5 in the scorecard, create a deficiency entry.
+2. **Secondary source -- Diagnostic file:** Read `.autopilot/diagnostics/phase-{N}-confidence.md` (if exists). Use the "path to 9/10" section and judge concerns to identify deficiencies.
+3. **Fallback source -- Verification and judge artifacts:** When neither SCORECARD.md nor the diagnostic file exists (e.g., pre-Phase-15 phases that lack a rating agent), derive the gap analysis from:
+   - The judge's `concerns` array and `verifier_missed` items from `.planning/phases/{phase}/JUDGE-REPORT.md`
+   - The verifier's `criteria_results` (any criterion with status "failed" or noted concerns) from `.planning/phases/{phase}/VERIFICATION.md`
+   - The phase-runner's return JSON `issues` array from `state.json`
+
+   Log: "SCORECARD.md not available for phase {N}. Deriving gap analysis from judge concerns and verifier criteria results."
+
+4. **Extract deficiency list:** For each identified deficiency (from whichever source was used), create a deficiency entry:
    ```json
    {
      "criterion": "criterion text",
@@ -372,10 +379,11 @@ Before executing fixes, the orchestrator performs gap analysis:
      "target_score": 9.5,
      "deficiency": "specific description of what is missing or wrong",
      "target_file": "path/to/file",
-     "expected_impact": "fixing this would address X deduction"
+     "expected_impact": "fixing this would address X deduction",
+     "source": "scorecard|diagnostic|judge_report|verification"
    }
    ```
-4. **Order by impact:** Sort deficiencies by `(target_score - current_score)` descending -- fix the biggest gaps first.
+5. **Order by impact:** Sort deficiencies by `(target_score - current_score)` descending -- fix the biggest gaps first. When scores are not available from the source (e.g., judge concerns do not have numeric scores), estimate impact as high/medium/low and sort high first.
 
 ### Micro-Targeted Fix Loop
 
@@ -529,6 +537,10 @@ For each target phase, spawn a general-purpose subagent:
 
 3. **Inject into phase-runner:** When spawning the phase-runner for a discussed phase, add to the spawn prompt:
    > **Discussion context:** The user answered pre-execution questions for this phase. Answers are at `.autopilot/discuss-context.json`. The phase-runner MUST read this file during research and incorporate the user's answers into planning and execution decisions.
+
+### Standalone --discuss (No Other Execution Flags)
+
+When `--discuss` is used WITHOUT `--force`, `--quality`, or `--gaps` (e.g., `/autopilot --discuss 3-7`), the orchestrator runs the discussion session for the specified phases and then proceeds with normal execution of those phases. The discussion context is injected into each phase-runner's spawn prompt. When no phase range is specified (e.g., `/autopilot --discuss`), it applies to all phases in the current execution scope (the phases about to be run, determined by the accompanying phase range argument or all outstanding phases if none given).
 
 ### Combining --discuss with Other Flags
 
