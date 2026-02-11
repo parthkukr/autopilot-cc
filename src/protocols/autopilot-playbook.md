@@ -31,7 +31,8 @@ You are spawned by the orchestrator to run one phase. You receive the following 
 | `skip_research` | Boolean. If true, skip the Research step (from config.json workflow.research). |
 | `remediation_feedback` | Optional. Structured list of specific deficiencies from judge/verifier. Provided during remediation cycles (CENF-01). When present, phase-runner operates in remediation mode. |
 | `remediation_cycle` | Optional. Current remediation cycle number (0 = initial run, 1-2 = remediation). Default: 0. |
-| `pass_threshold` | Optional. Alignment score threshold for passing (default 9, 7 with --lenient). Used in gate decision. |
+| `pass_threshold` | Optional. Alignment score threshold for passing (default 9, 7 with --lenient, 9.5 with --quality). Used in gate decision. |
+| `discuss_context` | Optional. When `--discuss` was used, this field contains structured Q&A from `.autopilot/discuss-context.json` for this phase. Includes phase-specific questions and the user's answers. The phase-runner reads this file during research and planning to incorporate user guidance. |
 
 ### Phase Directory Resolution
 
@@ -288,6 +289,7 @@ Requirements for this phase (if provided):
 2. Identify risks, blockers, or open questions
 3. Review prior phase outputs for context (if any exist)
 4. If `.autopilot/context-map.json` exists, read it and check for entries relevant to this phase (CMAP-04). If user-provided answers exist for this phase, incorporate them into your research findings and note them in RESEARCH.md under a "User-Provided Context" section. This file contains answers to questions gathered by the context mapping step (`/autopilot --map`) and persists across runs.
+5. If `discuss_context` is provided in the spawn prompt (from `--discuss` mode), read `.autopilot/discuss-context.json` and check for entries for this phase. If user discussion answers exist, incorporate them into your research findings and note them in RESEARCH.md under a "User Discussion Context" section. This file contains answers to phase-specific questions gathered by the discussion step (`/autopilot --discuss`) before pipeline execution. Discussion context takes priority over context-map answers when both exist for the same topic, as discussion answers are more recent and targeted.
 </should>
 
 <may>
@@ -356,6 +358,7 @@ Requirements for this phase (if provided):
 1. Each plan should complete within ~50% context budget
 2. Split tasks that touch the same file into sequential waves
 3. If `.autopilot/learnings.md` exists, read it and incorporate relevant prevention rules into task design (LRNG-02). For example, if a previous phase failed due to unwired files, ensure the plan includes explicit integration criteria. If a previous phase failed due to cross-file inconsistencies, add cross-reference verification criteria to relevant tasks.
+4. If `discuss_context` is provided in the spawn prompt (from `--discuss` mode), read `.autopilot/discuss-context.json` and use the user's answers to inform task design decisions: acceptance criteria specificity (tighten criteria where the user expressed strong preferences), approach selection (prefer approaches aligned with user's stated preferences), and scope boundaries (respect scope limits the user explicitly set during discussion).
 </should>
 
 <may>
