@@ -82,7 +82,7 @@ This is the single source of truth for a run. If the orchestrator crashes and re
         "verify": {
           "status": "pass",
           "automated": { "compile": true, "tests": true, "lint": true },
-          "alignment_score": 8,
+          "alignment_score": 8.2,
           "scope_creep": []
         },
         "judge": { "alignment": 8, "recommendation": "proceed" }
@@ -341,9 +341,45 @@ The following agents already used JSON returns before this handoff protocol was 
 
 - **Preflight**: `all_clear`, `spec_hash_match`, `working_tree_clean`, `dependencies_met`, `unresolved_debug`, `issues`
 - **Plan-checker**: `pass`, `issues`, `confidence`, `blocker_count`, `warning_count`
-- **Verifier**: `pass`, `automated_checks`, `criteria_results`, `alignment_score`, `verification_duration_seconds`, `commands_run`, `failures`, `failure_categories`, `scope_creep`
-- **Judge**: `alignment_score`, `recommendation`, `concerns`, `independent_evidence`, `verifier_agreement`, `verifier_missed`, `scope_creep`, `missing_requirements`, `notes`
+- **Verifier**: `pass`, `automated_checks`, `criteria_results`, `verification_duration_seconds`, `commands_run`, `failures`, `failure_categories`, `scope_creep`
+- **Judge**: `recommendation`, `concerns`, `independent_evidence`, `verifier_agreement`, `verifier_missed`, `scope_creep`, `missing_requirements`, `notes`
+- **Rating Agent**: `alignment_score` (decimal x.x format), `scorecard` (array of per-criterion entries), `aggregate_justification`, `side_effects`, `commands_run`, `score_band`
 - **Debugger**: `fixed`, `changes`, `commits`, `remaining_issues`, `failure_categories`
+
+### Rating Agent Return Schema
+
+The rating agent is a dedicated, context-isolated agent that produces the authoritative alignment score. It receives ONLY acceptance criteria and git diff -- no verifier report, judge recommendation, or executor confidence.
+
+```jsonc
+{
+  "alignment_score": 7.3,                    // Decimal x.x format REQUIRED. Integer scores rejected.
+  "scorecard": [                             // Per-criterion detailed evaluation
+    {
+      "criterion": "criterion text from plan",
+      "score": 8.2,                          // Decimal score for this criterion (0.0-10.0)
+      "max_score": 10.0,
+      "verification_command": "grep -c 'pattern' file.md",
+      "command_output": "first 200 chars of command output",
+      "evidence": "file:line -- what was found",
+      "justification": "Why this score: what earned points, what lost points"
+    }
+  ],
+  "aggregate_justification": "Explanation of weighted aggregate computation and deductions from 10.0",
+  "side_effects": ["description of any side effects found"],
+  "commands_run": ["command -> result"],      // MUST NOT be empty
+  "score_band": "excellence|good|acceptable|significant_gaps|major_failures|not_implemented"
+}
+```
+
+**Score bands:**
+| Band | Range | Meaning |
+|------|-------|---------|
+| excellence | 9.5-10.0 | All criteria fully met with evidence, zero concerns |
+| good | 8.0-9.4 | All criteria met, minor concerns |
+| acceptable | 7.0-7.9 | Most criteria met, real deficiencies |
+| significant_gaps | 5.0-6.9 | Multiple criteria partially unmet |
+| major_failures | 3.0-4.9 | Multiple criteria unmet |
+| not_implemented | 0.0-2.9 | Work does not address phase goal |
 
 ---
 
@@ -541,7 +577,7 @@ The metrics file is a JSON array. Each element represents one completed run. The
       "executor_incomplete": 1,
       "acceptance_criteria_unmet": 1
     },
-    "avg_alignment_score": 7.8,                  // Mean of all phase alignment_score values (judge scores)
+    "avg_alignment_score": 7.8,                  // Mean of all phase alignment_score values (decimal, from rating agent)
     "total_duration_minutes": 135,               // Wall-clock minutes from _meta.started_at to completion
     "total_estimated_tokens": 425000,            // Sum of per-phase estimated_tokens (from MTRC-02)
     "total_debug_loops": 2,                      // Sum of debug_attempts across all phases
@@ -551,7 +587,7 @@ The metrics file is a JSON array. Each element represents one completed run. The
       {
         "phase_id": "7",
         "status": "completed",
-        "alignment_score": 8,
+        "alignment_score": 8.2,
         "estimated_tokens": 110000,
         "duration_minutes": 25
       }
@@ -1002,16 +1038,16 @@ Events appended to the `event_log` in `state.json` during context mapping:
 ### Confidence Diagnostic File Schema (CENF-02, CENF-05)
 
 **File:** `.autopilot/diagnostics/phase-{N}-confidence.md`
-**Created by:** Orchestrator after any phase completes with alignment_score < 9
+**Created by:** Orchestrator after any phase completes with alignment_score < 9.0
 **Read by:** User, remediation cycle (for targeted feedback), completion report
 
-The confidence diagnostic file is a markdown document generated for every sub-9/10 phase completion. It provides a structured analysis of why the phase scored below 9 and what specific changes would raise the score.
+The confidence diagnostic file is a markdown document generated for every sub-9.0/10 phase completion. It provides a structured analysis of why the phase scored below 9.0 and what specific changes would raise the score. The alignment_score is decimal (x.x format) from the dedicated rating agent.
 
 ```markdown
 # Phase {N} Confidence Diagnostic
 
-**Score:** {alignment_score}/10
-**Threshold:** {pass_threshold}/10 (default 9, lenient 7)
+**Score:** {alignment_score}/10 (decimal, from rating agent)
+**Threshold:** {pass_threshold}/10 (default 9.0, lenient 7.0)
 **Status:** {passed | force_incomplete | remediated_to_{final_score}}
 
 ## Judge Concerns
@@ -1043,7 +1079,7 @@ The confidence diagnostic file is a markdown document generated for every sub-9/
 | 2 | {score_after_cycle_2} | {changes_description} | {remaining_issues} |
 ```
 
-**CENF-05 rule:** Every item in the "Path to 9/10" section MUST contain three components:
+**CENF-05 rule:** Every item in the "Path to 9.0/10" section MUST contain three components (derived from rating agent's scorecard deductions):
 1. A specific file path (e.g., `src/protocols/autopilot-playbook.md`)
 2. The specific deficiency in that file (e.g., "Line 450: missing grep pattern for acceptance criterion 3")
 3. The expected impact on the score (e.g., "resolves the 'acceptance_criteria_unmet' failure, addressing 1 of 2 judge concerns")
@@ -1062,8 +1098,8 @@ Events appended to the `event_log` in `state.json` during confidence enforcement
   "details": {
     "phase_id": "7",
     "cycle": 1,                              // 1 or 2
-    "current_score": 8,                      // Score before remediation
-    "pass_threshold": 9,                     // Target score
+    "current_score": 8.2,                    // Score before remediation (decimal from rating agent)
+    "pass_threshold": 9.0,                   // Target score
     "feedback_items": 2                      // Number of targeted deficiencies
   }
 }
@@ -1075,8 +1111,8 @@ Events appended to the `event_log` in `state.json` during confidence enforcement
   "details": {
     "phase_id": "7",
     "cycle": 1,
-    "old_score": 8,
-    "new_score": 9,
+    "old_score": 8.2,
+    "new_score": 9.1,
     "improved": true,                        // new_score > old_score
     "reached_threshold": true                // new_score >= pass_threshold
   }
@@ -1088,10 +1124,10 @@ Events appended to the `event_log` in `state.json` during confidence enforcement
   "event": "confidence_diagnostic_written",
   "details": {
     "phase_id": "7",
-    "alignment_score": 8,
-    "pass_threshold": 9,
+    "alignment_score": 8.2,
+    "pass_threshold": 9.0,
     "diagnostic_path": ".autopilot/diagnostics/phase-7-confidence.md",
-    "path_to_9_items": 3                    // Number of actionable items in "Path to 9/10"
+    "path_to_9_items": 3                    // Number of actionable items in "Path to 9.0/10"
   }
 }
 
@@ -1101,8 +1137,8 @@ Events appended to the `event_log` in `state.json` during confidence enforcement
   "event": "force_incomplete_marked",
   "details": {
     "phase_id": "7",
-    "final_score": 8,
-    "pass_threshold": 9,
+    "final_score": 8.2,
+    "pass_threshold": 9.0,
     "remediation_cycles": 2,
     "diagnostic_path": ".autopilot/diagnostics/phase-7-confidence.md"
   }
