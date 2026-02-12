@@ -18,7 +18,9 @@ const packageRoot = path.resolve(__dirname, '..');
 // File mapping: package source → install destination (relative to target)
 const FILE_MAP = [
   { src: 'src/commands/autopilot.md',             dest: 'commands/autopilot.md' },
+  { src: 'src/commands/autopilot-debug.md',       dest: 'commands/autopilot-debug.md' },
   { src: 'src/agents/autopilot-phase-runner.md',  dest: 'agents/autopilot-phase-runner.md' },
+  { src: 'src/agents/autopilot-debugger.md',      dest: 'agents/autopilot-debugger.md' },
   { src: 'src/protocols/autopilot-orchestrator.md', dest: 'autopilot/protocols/autopilot-orchestrator.md' },
   { src: 'src/protocols/autopilot-playbook.md',   dest: 'autopilot/protocols/autopilot-playbook.md' },
   { src: 'src/protocols/autopilot-schemas.md',    dest: 'autopilot/protocols/autopilot-schemas.md' },
