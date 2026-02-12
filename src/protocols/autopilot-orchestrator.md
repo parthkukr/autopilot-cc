@@ -276,13 +276,15 @@ When the user passes `--force` (e.g., `/autopilot --force 3`, `/autopilot --forc
 
 ## 1.5 Quality Mode
 
-When the user passes `--quality` (e.g., `/autopilot --quality 3`, `/autopilot --quality`), the orchestrator enters remediation loops targeting a 9.5/10 alignment score. The intent is "don't stop until it's good enough."
+When the user passes `--quality` (e.g., `/autopilot --quality 3`, `/autopilot --quality`), the orchestrator targets a 9.5/10 alignment score. For unexecuted phases, it runs the standard pipeline with the elevated 9.5 threshold. For already-completed phases below 9.5, it enters remediation loops. The intent is "don't stop until it's good enough."
 
 ### Phase Selection
 
-1. **If phase number specified** (`--quality 3`): Target that specific phase. It MUST have `status == "completed"` in `state.json` with an `alignment_score` below 9.5.
-2. **If no phase number** (`--quality`): Target ALL completed phases with `alignment_score` below 9.5.
-3. **Already at target:** If a phase already has `alignment_score >= 9.5`, skip it. Log: "Phase {N}: already at {score}/10 (>= 9.5 target). Skipping."
+1. **If phase number specified** (`--quality 3`): Target that specific phase.
+   - If `status == "completed"` with `alignment_score >= 9.5`: skip. Log: "Phase {N}: already at {score}/10 (>= 9.5 target). Skipping."
+   - If `status == "completed"` with `alignment_score < 9.5`: enter remediation loop (below).
+   - If phase is not yet completed (no status or status != "completed"): run the standard pipeline (Section 2) with `pass_threshold = 9.5`. The elevated threshold ensures the phase is held to quality standards on its first run. If the first run scores below 9.5, enter remediation loop automatically.
+2. **If no phase number** (`--quality`): Target ALL phases that need work — both completed phases with `alignment_score` below 9.5 AND incomplete phases. Run incomplete phases through the standard pipeline first (with 9.5 threshold), then remediate completed-but-below-target phases.
 
 ### Remediation Loop
 
@@ -344,7 +346,7 @@ When `--quality` exhausts its 3-cycle budget without reaching 9.5/10:
 - `--quality --discuss`: Discussion runs first, then quality remediation.
 - `--quality --lenient`: **No effect** -- `--quality` overrides pass_threshold to 9.5 regardless of `--lenient`.
 - `--quality --force`: **ERROR** -- mutually exclusive (see Section 1.4).
-- `--quality --complete`: **ERROR** -- quality targets completed phases, complete targets incomplete phases.
+- `--quality --complete`: Quality threshold applies to the batch completion run. All incomplete phases execute with `pass_threshold = 9.5`, and any that score below 9.5 enter remediation loops.
 
 ---
 
