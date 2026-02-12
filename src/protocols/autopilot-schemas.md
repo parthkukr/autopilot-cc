@@ -1559,6 +1559,138 @@ Agents can use the repo-map for structural queries:
 
 ---
 
+## Section 16: Visual Testing Schemas
+
+**Added by:** Phase 22 (Visual Testing with Screenshot Automation)
+**Purpose:** Define schemas for visual testing configuration, screenshot results, and visual bug reports. Visual testing enables the verification pipeline to launch web/Electron apps, capture screenshots, and analyze them for visual regressions using Claude's multimodal capabilities.
+
+### Visual Testing Configuration Schema
+
+Added to `.planning/config.json` under `project.visual_testing`:
+
+```jsonc
+{
+  "visual_testing": {
+    "enabled": true,                        // master toggle for visual testing
+    "framework": "playwright",              // screenshot capture tool (playwright recommended)
+    "launch_command": "npm run dev",        // command to start the app server
+    "launch_wait_ms": 5000,                 // ms to wait after launch before capturing
+    "base_url": "http://localhost:3000",     // app base URL for navigation
+    "screenshot_dir": ".planning/screenshots", // directory for captured screenshots
+    "routes": [                             // routes/screens to test
+      {
+        "path": "/",                        // URL path appended to base_url
+        "name": "home",                     // human-readable name (used in filenames)
+        "wait_ms": 2000                     // ms to wait after navigation before capture
+      },
+      {
+        "path": "/dashboard",
+        "name": "dashboard",
+        "wait_ms": 3000
+      }
+    ],
+    "viewport": {                           // browser viewport dimensions
+      "width": 1280,
+      "height": 720
+    },
+    "headless": true                        // run browser in headless mode (CLI-compatible)
+  }
+}
+```
+
+**Required fields:** `enabled`, `launch_command`, `base_url`, `routes` (at least one route with `path` and `name`).
+**Optional fields:** `framework` (default: "playwright"), `launch_wait_ms` (default: 5000), `screenshot_dir` (default: ".planning/screenshots"), `viewport` (default: 1280x720), `headless` (default: true), `routes[].wait_ms` (default: 2000).
+
+### Screenshot Result Schema
+
+Each screenshot capture and analysis produces a result entry:
+
+```jsonc
+{
+  "route": "/dashboard",
+  "name": "dashboard",
+  "screenshot_path": ".planning/screenshots/dashboard-20260212T120000Z.png",
+  "viewport": {"width": 1280, "height": 720},
+  "capture_timestamp": "2026-02-12T12:00:00Z",
+  "analysis": {
+    "issues_found": 2,
+    "issues": [
+      {
+        "type": "layout|rendering|regression|accessibility",
+        "severity": "critical|major|minor",
+        "description": "Button overlaps sidebar at 1280px width",
+        "location": "top-right quadrant, approximately 200px from top",
+        "suggested_fix": "Check CSS flex layout in sidebar component"
+      }
+    ],
+    "overall_assessment": "pass|issues_found|error"
+  }
+}
+```
+
+**Issue types:**
+- `layout`: Overlapping elements, broken grids, misaligned text, overflow/clipping
+- `rendering`: Blank/white screens, missing images, broken icons, unstyled elements
+- `regression`: Visual change compared to baseline screenshot (when baseline exists)
+- `accessibility`: Text too small, insufficient contrast, missing visual indicators
+
+**Severity levels:**
+- `critical`: App is unusable on the tested route (blank screen, major layout collapse)
+- `major`: Significant visual defect affecting user experience (overlaps, missing content)
+- `minor`: Cosmetic issue not affecting functionality (slight misalignment, color inconsistency)
+
+### Visual Bug Report Schema
+
+Generated at `.planning/phases/{phase}/VISUAL-BUGS.md` when visual issues are detected:
+
+```jsonc
+{
+  "phase_id": "22",
+  "timestamp": "2026-02-12T12:00:00Z",
+  "total_routes_tested": 5,
+  "routes_passed": 3,
+  "routes_with_issues": 2,
+  "screenshots": [
+    // Array of Screenshot Result objects (see schema above)
+  ],
+  "summary": "2 visual issues found across 5 routes",
+  "regression_status": "new_issues|resolved|no_change"
+}
+```
+
+**Regression status values:**
+- `new_issues`: Visual issues found that were not present in baseline screenshots
+- `resolved`: Previously reported issues are no longer present in current screenshots
+- `no_change`: No visual changes detected compared to baseline (or no baseline exists)
+
+### Verifier Visual Test Results (in return JSON)
+
+The verifier includes visual test results in its return JSON when visual testing is performed:
+
+```jsonc
+{
+  // ... existing verifier return fields ...
+  "visual_test_results": {
+    "routes_tested": 5,
+    "routes_passed": 3,
+    "issues_found": [
+      {
+        "route": "/dashboard",
+        "type": "layout",
+        "severity": "major",
+        "description": "Button overlaps sidebar at 1280px width"
+      }
+    ],
+    "screenshots": [".planning/screenshots/home-20260212.png", ".planning/screenshots/dashboard-20260212.png"],
+    "infrastructure_available": true   // false if Playwright not installed or app failed to launch
+  }
+}
+```
+
+When visual testing is not configured or infrastructure is unavailable, this field is omitted from the return JSON (not set to null).
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05), and (13) CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, score history tracking, gap deficiency analysis, and flag-specific event types, and (14) sandbox execution schemas for execution-based verification results including exit codes, stdout/stderr capture, timeout handling, and sandbox violation detection, and (15) repository map schema for structured codebase understanding including exports, imports, functions, classes per file with size caps, incremental update instructions, and structural query examples. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05), and (13) CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, score history tracking, gap deficiency analysis, and flag-specific event types, and (14) sandbox execution schemas for execution-based verification results including exit codes, stdout/stderr capture, timeout handling, and sandbox violation detection, and (15) repository map schema for structured codebase understanding including exports, imports, functions, classes per file with size caps, incremental update instructions, and structural query examples, and (16) visual testing schemas for screenshot-based visual regression detection including visual testing configuration, screenshot result format, visual bug reports, and verifier return extensions. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.

@@ -839,6 +839,15 @@ Before spawning, classify the phase. Read `project.ui.source_dir` and `project.c
 For **ui** phases: The orchestrator MUST add this to the spawn prompt:
 > **AUTONOMOUS VERIFICATION REQUIRED: This is a UI phase. The verifier MUST attempt autonomous resolution using build checks, behavioral traces, and code analysis before considering any deferral. Deferral is only permitted when the verifier's autonomous_confidence is below 6 AND specific deferral_evidence documents what cannot be verified and why. Generic visual confirmation is NOT a valid deferral reason -- the verifier must trace handler chains, verify build output, and run all acceptance criteria autonomously. Return status as "completed" unless autonomous verification is genuinely insufficient.**
 
+### Visual Testing Configuration
+
+If `.planning/config.json` contains `project.visual_testing` with `enabled: true`, validate the configuration before spawning phase-runners for UI phases:
+
+1. **Required fields check:** Verify `visual_testing.launch_command`, `visual_testing.base_url`, and `visual_testing.routes` (non-empty array, each route has `path` and `name`) are present. If any required field is missing, log warning: "Visual testing config incomplete: missing {field}. Visual testing will be skipped." and proceed without visual testing.
+2. **Pass to phase-runner:** Add `visual_testing_enabled: true` to the phase-runner spawn prompt for UI and mixed phases. This tells the verifier to run Step 2.5 (Visual Testing) during verification.
+3. **When `--visual` flag is used:** Set `visual_testing_enabled: true` even if `visual_testing.enabled` is false in config.json, allowing one-off visual test runs without permanent config changes. The `--visual` flag requires that `project.visual_testing` section exists in config.json (with at least `launch_command`, `base_url`, and `routes`).
+4. **Visual issues in debug loop:** When the verifier reports `visual_test_results.issues_found` with severity `critical` or `major`, include these visual issues in the debug loop issue list alongside functional failures. The debugger receives the `.planning/phases/{phase}/VISUAL-BUGS.md` path as additional context. After debug fixes, re-verification includes re-running visual tests (Step 2.5) to confirm visual issue resolution.
+
 ---
 
 ## 4. Phase-Runner Return Contract
