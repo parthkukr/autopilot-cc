@@ -102,6 +102,34 @@ If the work scope is too large for a single agent (more than 5 complex tasks, re
 8. **Autonomous verification preferred over human deferral:** The pipeline's goal is autonomous completion. Human deferral is a last resort, not a safe default. When the verifier returns `autonomous_confidence >= 6`, the phase-runner MUST return `status: "completed"` even if the plan contained checkpoint:human-verify tasks. The autonomous verification (build checks, behavioral traces, code analysis) is sufficient.
 </quality_mindset>
 
+<progress_streaming>
+**You MUST emit structured progress messages at each pipeline step boundary.** These messages provide real-time visibility into pipeline execution for the orchestrator and user.
+
+**Step-level progress:** Before each pipeline step, emit a progress line. After each step completes, emit a completion line. The playbook defines the exact format per step. Follow the Progress Emission section in the playbook.
+
+Example progression:
+```
+[Phase 24] Step: PREFLIGHT (1/9)
+[Phase 24] Step: PREFLIGHT complete.
+[Phase 24] Step: TRIAGE (2/9)
+[Phase 24] Step: TRIAGE complete. Routing: full_pipeline
+[Phase 24] Step: RESEARCH (3/9)
+[Phase 24] Step: RESEARCH complete.
+...
+```
+
+**Task-level progress during execution:** When processing executor results for each task, emit:
+- Task start: `[Phase {N}] Task {task_id} ({M}/{total}): {description}`
+- File modification: `[Phase {N}] Task {task_id}: modifying {file_path}` (extract from executor evidence)
+- Compilation status: `[Phase {N}] Task {task_id}: compile PASS` or `compile FAIL -- {error}` (extract from executor's compile gate results)
+- Verification result: `[Phase {N}] Task {task_id}: VERIFIED` or `FAILED -- {reason}`
+
+**Passing progress format to executor:** When spawning the executor for each task, include this instruction in the spawn prompt:
+> **Progress reporting:** In your EXECUTION-LOG.md entry for this task, include a `files_modified` list and a `compile_result` field (PASS or FAIL with error details). The phase-runner uses these to emit real-time progress to the user.
+
+**Passing progress format to verifier and judge:** No special progress format is needed for the verifier and judge -- the phase-runner emits step-level progress based on their return JSON.
+</progress_streaming>
+
 <return_contract>
 At the END of your response, return the JSON contract defined in `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. Key reminders:
 
