@@ -1429,6 +1429,9 @@ The repository map provides structural codebase understanding to all agents. It 
       ],
       "classes": [
         {"name": "ClassName", "extends": "BaseClass|null", "methods": ["method1", "method2"], "line": 25}
+      ],
+      "call_graph": [
+        {"caller": "functionName", "callees": ["otherFunction", "ClassName.method1"], "line": 12}
       ]
     }
   ],
@@ -1449,6 +1452,7 @@ The repository map provides structural codebase understanding to all agents. It 
 - `imports`: Import statements with source path and imported names. For dynamic imports, `names` may be `["*"]`.
 - `functions`: Top-level and exported function signatures. Does not include internal/private helper functions to keep the map concise.
 - `classes`: Class declarations with inheritance chain and public method names.
+- `call_graph`: Intra-file call relationships. Each entry maps a caller (function or method name) to its callees (functions or methods it invokes). Only includes calls to symbols defined within the project (excludes external library calls). Used to answer "what calls function Y?" and "what does function X call?" queries. For large files, limit to top-level and exported functions to keep the map concise.
 - `summary`: Aggregated statistics for quick orientation. `top_importers` lists the 5 files with the most import statements. `top_exporters` lists the 5 files with the most export statements.
 
 ### Size Cap
@@ -1471,6 +1475,7 @@ Scan source files in the project directory (excluding node_modules, dist, .git, 
 3. Extract imports (import statements, require calls)
 4. Extract top-level function signatures (name, params, return type)
 5. Extract class declarations (name, extends, method names)
+6. Extract intra-file call graph (for each top-level/exported function, list project-internal functions and methods it calls)
 Write the result as JSON to .autopilot/repo-map.json using the schema above.
 If the resulting JSON exceeds 500 lines, apply the size cap.
 ```
@@ -1497,7 +1502,8 @@ Agents can use the repo-map for structural queries:
 | Query | How to Answer from Map |
 |-------|----------------------|
 | "Which files import X?" | Filter `files[].imports` where `names` includes "X" |
-| "What calls function Y?" | Filter `files[].imports` where `names` includes "Y" -- these files likely call Y |
+| "What calls function Y?" | Filter `files[].call_graph` where `callees` includes "Y" -- returns the calling functions. Also filter `files[].imports` where `names` includes "Y" for cross-file callers |
+| "What does function X call?" | Find the file containing X, then filter its `call_graph` where `caller` == "X" -- returns the `callees` array |
 | "Where is class Z defined?" | Filter `files[].classes` where `name` == "Z" -- returns file path and line |
 | "Does function F already exist?" | Filter `files[].functions` where `name` == "F" OR `files[].exports` where `name` == "F" |
 | "What does file P export?" | Find `files[]` where `path` == "P" -- read its `exports` array |

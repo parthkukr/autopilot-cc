@@ -637,7 +637,7 @@ before spawning phase-runner for phase N:
 
 **Cost consideration:** Map generation adds approximately 10000-30000 tokens per phase depending on project size. For projects with no source code files (protocol-only projects), the map will be minimal. The map is cached between phases (only incremental updates after the first generation), so the cost is amortized across the run.
 
-**Passing the map to phase-runners:** The repo-map path (`.autopilot/repo-map.json`) is implicitly available to all agents through the `.autopilot/` directory. The phase-runner playbook instructs research and executor agents to check for and read this file. No explicit path parameter is needed in the spawn template.
+**Passing the map to phase-runners:** The repo-map path is passed explicitly to each phase-runner via the `repo_map_path` field in the spawn template (Section 3). The phase-runner playbook instructs research and executor agents to read this file for structural codebase queries.
 
 ### Human-Defer Rate Tracking (STAT-04)
 
@@ -772,6 +772,7 @@ Spawn via **Task tool**: `subagent_type: "autopilot-phase-runner"`, `run_in_back
 > **Task type summary:** {N} auto tasks, {M} checkpoint:human-verify tasks
 > **Phase type:** {ui|protocol|data|mixed} — derived from phase content (see below)
 > **Estimated cost:** {estimated_tokens} tokens (from MTRC-02 pre-spawn estimate)
+> **Repo map path:** .autopilot/repo-map.json
 > **ENFORCEMENT: Verify, judge, and rating agent steps MUST spawn independent subagents. Self-assessment is rejected by the orchestrator.**
 > **Remediation feedback:** {remediation_feedback || "null" -- structured list of specific deficiencies from judge/verifier, provided during remediation cycles}
 > **Remediation cycle:** {remediation_cycle || 0 -- current remediation cycle number, 0 = initial run, 1-2 = remediation}
