@@ -21,6 +21,7 @@
 10. [Batch Completion Report Schema](#section-10-batch-completion-report-schema)
 11. [Context Mapping Schemas](#section-11-context-mapping-schemas)
 12. [Confidence Enforcement Schemas](#section-12-confidence-enforcement-schemas)
+13. [Sandbox Execution Schemas](#section-13-sandbox-execution-schemas)
 
 ---
 
@@ -1303,6 +1304,101 @@ Additional event types for the event_log in state.json:
 
 ---
 
+## Section 13: Sandbox Execution Schemas
+
+**Added by:** Phase 17 (Sandboxed Code Execution)
+**Purpose:** Define schemas for execution-based verification results captured by the verifier and rating agent when running code (build, test, lint, scripts) instead of just grepping.
+
+### Execution Result Schema
+
+Each execution-based verification produces a result entry:
+
+```jsonc
+{
+  "criterion": "Description of the acceptance criterion",
+  "command": "the shell command that was executed",
+  "exit_code": 0,                    // integer, 0 = success
+  "stdout_truncated": "first 500 chars of stdout",
+  "stderr_truncated": "first 500 chars of stderr",
+  "duration_ms": 1234,               // wall-clock execution time
+  "sandbox_violation": false,         // true if command attempted to modify files outside project dir
+  "assessment": "pass|fail|timeout|violation"
+}
+```
+
+**Assessment values:**
+- `pass`: exit_code == 0 and output matches expected result
+- `fail`: non-zero exit_code, runtime error, or output does not match expected result
+- `timeout`: command exceeded 60-second timeout limit
+- `violation`: command attempted to modify files outside project directory (sandbox breach)
+
+### Verifier Execution Results (in return JSON)
+
+The verifier includes execution results in its return JSON:
+
+```jsonc
+{
+  // ... existing verifier return fields ...
+  "execution_results": [
+    {
+      "criterion": "All tests pass",
+      "command": "npm test 2>&1",
+      "exit_code": 0,
+      "output": "All 42 tests passed",
+      "assessment": "pass"
+    },
+    {
+      "criterion": "Build succeeds",
+      "command": "npm run build 2>&1",
+      "exit_code": 1,
+      "output": "Error: Module not found: ./missing.ts",
+      "assessment": "fail"
+    }
+  ]
+}
+```
+
+### Rating Agent Execution Results (in scorecard)
+
+The rating agent includes execution results per-criterion in its scorecard:
+
+```jsonc
+{
+  // ... existing scorecard item fields ...
+  "execution_result": {
+    "command": "npm test 2>&1",
+    "exit_code": 0,
+    "output": "All 42 tests passed"
+  }
+  // null when criterion uses grep-based verification instead of execution
+}
+```
+
+### Verification Report Sandbox Section
+
+When execution-based verification is performed, VERIFICATION.md includes a "Sandbox Execution Results" section:
+
+```markdown
+## Sandbox Execution Results
+
+| Criterion | Command | Exit Code | Output (truncated) | Assessment |
+|-----------|---------|-----------|-------------------|------------|
+| Tests pass | npm test 2>&1 | 0 | All 42 tests passed | VERIFIED |
+| Build succeeds | npm run build 2>&1 | 1 | Error: Module not found | FAILED |
+```
+
+### Sandbox Policy Reference
+
+The sandbox execution policy is defined in `autopilot-playbook.md` under "Sandbox Execution Policy." Key constraints:
+- Commands scoped to project directory only
+- No global package installs
+- No unauthorized network access
+- 60-second timeout per command
+- Non-zero exit codes reported as verification failures
+- Sandbox violations reported as scope_creep in failure taxonomy
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05), and (13) CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, score history tracking, gap deficiency analysis, and flag-specific event types. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05), and (13) CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, score history tracking, gap deficiency analysis, and flag-specific event types, and (14) sandbox execution schemas for execution-based verification results including exit codes, stdout/stderr capture, timeout handling, and sandbox violation detection. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
