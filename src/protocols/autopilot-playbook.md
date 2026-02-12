@@ -349,9 +349,14 @@ Requirements for this phase (if provided):
 3. Every acceptance criterion MUST include a verification command in the format: "{description} -- verified by: `{command}`". Acceptable command types: `grep` with pattern and file, `test -f`/`test -d` for existence, shell command with expected output, `wc -l` or `grep -c` for counting. Do NOT write prose-only criteria like "should work correctly" or "properly handles errors".
    Good example: "The executor prompt contains compile gate language -- verified by: `grep 'MUST fix that file' src/protocols/autopilot-playbook.md`"
    Bad example: "The executor properly enforces compilation" (no verification command -- will be rejected by plan-checker)
-4. Include a traceability table mapping requirements to tasks
-5. Every task MUST have a `complexity` attribute (simple, medium, or complex) for cost prediction
-6. Return structured JSON at the END of your response (see Return JSON below)
+4. **Behavioral criteria for UI/mixed phases:** For phases classified as `ui` or `mixed`, every task that modifies interactive code (event handlers, click handlers, drag handlers, form submissions, navigation logic) MUST include at least one behavioral criterion that describes the expected logic flow, not just pattern presence. A behavioral criterion traces from trigger to terminal action.
+   Good example: "Click handler opens event URL via shell.openExternal -- verified by: `read EventBlock.tsx:handleClick and trace to shell.openExternal call`"
+   Good example: "Drag handler updates position state and persists to store -- verified by: `read DragPanel.tsx:onDragEnd and trace through setState to persistPosition call`"
+   Bad example: "Button exists -- verified by: `grep 'onClick' EventBlock.tsx`" (grep confirms presence, not behavior)
+   Grep-based criteria remain valid for structural checks (file existence, import presence, config values). But each interactive task MUST also have a behavioral criterion that a verifier can trace through the code.
+5. Include a traceability table mapping requirements to tasks
+6. Every task MUST have a `complexity` attribute (simple, medium, or complex) for cost prediction
+7. Return structured JSON at the END of your response (see Return JSON below)
 </must>
 
 <should>
@@ -424,7 +429,8 @@ Plans are in: .planning/phases/{phase}/
    - Any command with an explicit expected output (e.g., "returns 1", "returns at least 1")
    If a criterion lacks a verification command, flag it as a **blocker** with severity "blocker".
 5. Reject any acceptance criterion that uses only subjective or vague language without a verification command. Prose-only blocklist patterns: "should work", "properly handles", "is correct", "works as expected", "functions correctly", "is implemented" (without an accompanying command). Any criterion matching these patterns without a runnable verification command is a **blocker**.
-6. Return structured JSON with pass/fail, issues, and confidence score
+6. **Behavioral criteria check for UI/mixed phases:** If the phase type is `ui` or `mixed`, check each task that modifies interactive code (event handlers, click/drag/submit handlers, navigation logic). If a task's acceptance criteria contain ONLY grep-based or file-existence verification commands (`grep`, `test -f`, `test -d`, `wc`) without any behavioral criterion (one that traces handler logic from trigger to terminal action), flag it as a **warning** (not blocker) with: `{"severity": "warning", "description": "Task {id} modifies interactive code but has only grep-based verification. Add a behavioral criterion tracing handler logic.", "fix_hint": "Add a criterion like: '{handler} calls {terminal_action} -- verified by: read {file}:{handler} and trace to {terminal_action} call'"}`. This is a warning because grep criteria are still valid for structural checks, but behavioral criteria catch logic bugs that grep cannot.
+7. Return structured JSON with pass/fail, issues, and confidence score
 </must>
 
 <should>
@@ -627,9 +633,32 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 >
 > **If UI phase:**
 > ```bash
+> # Standard automated checks
 > {project.commands.build} 2>&1
 > grep -r "import.*ComponentName" {project.ui.source_dir} --include="{project.ui.file_extensions}"
 > ```
+>
+> **Behavioral Trace step (UI/mixed phases only):**
+> For each interactive handler found in the git diff (`onClick`, `onDrag`, `onDragEnd`, `onSubmit`, `onChange`, `onKeyDown`, `onMouseDown`, event listeners, IPC handlers), trace the handler chain:
+> 1. **Identify trigger:** Find the handler declaration in the diff (e.g., `const handleClick = ...` or `onClick={...}`)
+> 2. **Trace function calls:** Follow each function call from the handler body. For each call, read the target function definition. Continue until reaching a terminal action.
+> 3. **Identify terminal action:** The chain ends at one of: API call, URL navigation (`shell.openExternal`, `window.open`, `router.push`), state mutation (`setState`, store dispatch), DOM manipulation, IPC message, file system operation, or external library call.
+> 4. **Verify correctness:** Compare the terminal action against the acceptance criterion. Does the handler DO what the criterion says it should do?
+> 5. **Record trace:** For each handler, record a trace entry in VERIFICATION.md under a "Behavioral Traces" section:
+>
+> ```markdown
+> ## Behavioral Traces
+>
+> | Handler | File:Line | Chain | Terminal Action | Criterion Match | Status |
+> |---------|-----------|-------|-----------------|-----------------|--------|
+> | handleJoin | EventBlock.tsx:42 | handleJoin -> openURL -> shell.openExternal | Opens event URL in default browser | "Join opens event URL" | VERIFIED |
+> | onDragEnd | DragPanel.tsx:87 | onDragEnd -> updatePosition -> store.set | Persists position to electron-store | "Drag updates position" | VERIFIED |
+> | handleDelete | EventCard.tsx:31 | handleDelete -> ??? (opaque library) | Could not trace past library boundary | "Delete removes event" | BEHAVIORAL_UNVERIFIABLE |
+> ```
+>
+> 6. **Handle untraceable chains:** If a trace cannot be completed (e.g., opaque third-party library call, dynamic dispatch that cannot be statically resolved), record the handler as `BEHAVIORAL_UNVERIFIABLE` with the reason. This is NOT a failure -- it is an honest acknowledgment of verification limits. The verifier should note what percentage of handlers were fully traced vs. unverifiable.
+>
+> **IMPORTANT:** Behavioral traces are in ADDITION to the standard grep-based acceptance criteria checks, not a replacement. Both must pass.
 >
 > **If PROTOCOL phase:**
 > ```bash
@@ -714,7 +743,7 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 >
 > <must>
 > 1. Gather evidence INDEPENDENTLY before reading VERIFICATION.md (run git diff, git log, read files)
-> 2. Spot-check at least one acceptance criterion by reading the actual file
+> 2. Spot-check at least one acceptance criterion by reading the actual file. **For UI/mixed phases:** Your spot-check MUST be a behavioral spot-check -- trace one handler chain from trigger (e.g., onClick, onDrag, onSubmit) to terminal action (API call, URL open, state mutation), not just grep-verify a pattern. Read the handler function, follow its calls, and confirm the terminal action matches the criterion.
 > 3. Check the frozen spec at {spec_path} for any missed requirements
 > 4. Write your independent findings to `.planning/phases/{phase}/JUDGE-REPORT.md` BEFORE reading VERIFICATION.md. This artifact is structural proof of independent execution -- the orchestrator verifies it exists.
 > 5. After writing JUDGE-REPORT.md, read VERIFICATION.md and add a "Divergence Analysis" section to your JUDGE-REPORT.md noting: (a) points where you agree with the verifier AND have independent evidence, (b) points where you disagree, (c) points the verifier missed, (d) points you missed that the verifier found. If you agree on every point, you MUST present your independent evidence (specific file:line references, command outputs) proving you reached the same conclusion independently -- agreement without independent evidence will be rejected as rubber-stamping.
@@ -743,7 +772,8 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > 2. Run: `git diff {last_checkpoint_sha}..HEAD --stat`
 > 3. Run: `git log --oneline {last_checkpoint_sha}..HEAD`
 > 4. For each acceptance criterion in the plan, spot-check ONE by reading the actual file
-> 5. Read the frozen spec at {spec_path}
+> 5. **For UI/mixed phases:** Read the verifier's VERIFICATION.md and check for a "Behavioral Traces" table. Independently verify at least one entry from this table by re-tracing the handler chain yourself. If the "Behavioral Traces" section is missing entirely for a UI/mixed phase, note this as a concern: "Verifier did not perform behavioral traces for UI phase."
+> 6. Read the frozen spec at {spec_path}
 >
 > **AFTER gathering your own evidence, read:**
 > 6. .planning/phases/{phase}/VERIFICATION.md (the verifier's report)
@@ -807,28 +837,33 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 >    - Run the verification command specified in the criterion
 >    - Read the actual file(s) to confirm the criterion is truly met (not just pattern-matched)
 >    - Record: criterion text, verification command, command output, manual confirmation result, and any concerns
-> 3. Run ALL verification commands from all criteria. An empty `commands_run` list will be rejected.
-> 4. Check for side effects and regressions:
+> 3. **Behavioral criteria scoring (UI/mixed phases):** For criteria marked as behavioral (those requiring code tracing rather than grep), verification MUST involve reading the handler code and tracing the logic chain. Scoring rules for behavioral criteria:
+>    - Score < 7.0 if the terminal behavior (the final action the handler performs) cannot be confirmed from code reading alone (e.g., handler calls an opaque function with no visible definition)
+>    - Score < 5.0 if the traced logic CONTRADICTS the criterion (e.g., criterion says "opens event URL" but handler actually opens a hardcoded URL or different resource)
+>    - Record the trace result (trigger -> intermediate calls -> terminal action) alongside each behavioral criterion score in the scorecard
+>    - If a criterion has both a grep command AND a behavioral trace requirement, BOTH must pass for the criterion to score above 7.0
+> 4. Run ALL verification commands from all criteria. An empty `commands_run` list will be rejected.
+> 5. Check for side effects and regressions:
 >    - Review the git diff for changes outside the scope of acceptance criteria
 >    - Check for removed functionality, broken cross-references, or unintended modifications
 >    - Record any side effects found
-> 5. Assign a per-criterion score using DECIMAL PRECISION (x.x/10 format):
+> 6. Assign a per-criterion score using DECIMAL PRECISION (x.x/10 format):
 >    - 9.5-10.0: Criterion fully met with excellence, no concerns
 >    - 8.0-9.4: Criterion met but with minor concerns (style, edge cases)
 >    - 7.0-7.9: Criterion met with notable deficiencies
 >    - 5.0-6.9: Criterion partially met, significant gaps remain
 >    - 3.0-4.9: Criterion mostly unmet
 >    - 0.0-2.9: Criterion not addressed or fundamentally wrong
-> 6. Compute a weighted aggregate score:
+> 7. Compute a weighted aggregate score:
 >    - All criteria are weighted equally unless the plan specifies priority weights
 >    - The aggregate is the arithmetic mean of per-criterion scores, rounded to one decimal place
 >    - Provide explicit justification for each point deducted from 10.0
-> 7. Write a detailed scorecard to `.planning/phases/{phase}/SCORECARD.md` containing:
+> 8. Write a detailed scorecard to `.planning/phases/{phase}/SCORECARD.md` containing:
 >    - Per-criterion scores with evidence and justifications
 >    - Side effects analysis
 >    - Aggregate score with deduction justifications
 >    - Score calibration note (which band the score falls in and why)
-> 8. Return structured JSON (see Return JSON below). ALL scores MUST be decimal (x.x format). Integer scores (7, 8, 9) are NOT valid -- use 7.0, 8.0, 9.0 at minimum.
+> 9. Return structured JSON (see Return JSON below). ALL scores MUST be decimal (x.x format). Integer scores (7, 8, 9) are NOT valid -- use 7.0, 8.0, 9.0 at minimum.
 > </must>
 >
 > <should>

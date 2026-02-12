@@ -898,10 +898,19 @@ Before applying gate logic, validate the phase-runner's return:
    - Re-spawn the phase-runner with an additional line in the prompt: `**ENFORCEMENT: You MUST spawn independent verify, judge, and rating agents. Self-assessment is rejected.**`
    - Maximum 1 enforcement re-spawn per phase. If the second attempt also returns `agent_spawned: false`, mark phase as failed.
 
-5. **Rubber-stamp detection:** After every 3rd consecutive phase completion, check if all alignment scores are within 0.2 of each other (e.g., all between 8.5 and 8.7):
-   - If 3+ consecutive phases have alignment_scores within a 0.2 range: Log warning: "Uniform alignment scores detected ({min}-{max}/10 x {count} phases). Possible rubber-stamping."
-   - Also flag if any alignment_score is an integer (no decimal): Log warning: "Integer alignment score detected ({score}). Rating agent MUST produce decimal scores (x.x format)."
-   - This is a WARNING, not a rejection -- but it should be logged in the event_log and shown to the user at the end.
+5. **Rubber-stamp detection (3-tier escalation):** Track consecutive phase completions where alignment scores are within 0.2 of each other. Also flag integer scores (no decimal). Escalation tiers:
+
+   - **Tier 1 (3 consecutive uniform scores):** Log warning: "Uniform alignment scores detected ({min}-{max}/10 x {count} phases). Possible rubber-stamping." Append `rubber_stamp_warning` event to event_log. This is a WARNING only -- execution continues normally.
+
+   - **Tier 2 (5 consecutive uniform scores):** Log warning: "Rubber-stamp pattern persists ({count} consecutive uniform scores). Enabling enhanced verification for next phase." Append `rubber_stamp_enhanced` event to event_log. For the NEXT phase, inject enhanced verification into the phase-runner spawn prompt:
+     > **ENHANCED VERIFICATION (rubber-stamp mitigation):** Uniform alignment scores detected across {count} consecutive phases. To counter potential rubber-stamping: (1) Rating agent: start scoring from 5.0 baseline and ADD points only with explicit evidence, (2) Verifier: perform behavioral trace for ALL interactive handlers (not just UI phases), (3) Judge: identify at least 2 concerns (not just 1). These measures apply to this phase only.
+
+   - **Tier 3 (7+ consecutive uniform scores):** Log critical warning: "CRITICAL: {count} consecutive uniform alignment scores ({min}-{max}/10). Strong rubber-stamp indicator." Append `rubber_stamp_critical` event to event_log. Additionally:
+     - Include a "Rubber-Stamp Alert" section in the completion report with all affected phase IDs and their scores
+     - Mark all affected phases in state.json: `phases.{N}.rubber_stamp_suspect: true`
+     - Continue enhanced verification injection for all remaining phases
+
+   - **Integer score flag (any tier):** If any alignment_score is an integer (no decimal): Log warning: "Integer alignment score detected ({score}). Rating agent MUST produce decimal scores (x.x format)."
 
 6. **Already-implemented claims:** If `commit_shas` is empty AND `tasks_completed` shows completed tasks:
    - The phase-runner MUST have provided file:line evidence for each acceptance criterion

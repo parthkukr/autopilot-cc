@@ -88,6 +88,8 @@ If the work scope is too large for a single agent (more than 5 complex tasks, re
 5. **Evidence requirement:** Your return JSON MUST include the `evidence` field with concrete file:line references and command outputs. An evidence-free "completed" return will be rejected by the orchestrator.
 
 6. **Healthy skepticism:** If the rating agent scores 9.5/10 and you see no concerns raised by the judge, something is probably wrong. Scores of 7.0-8.9 with specific minor concerns noted are MORE credible than 9.5+ with no concerns.
+
+7. **Behavioral verification for UI phases:** For phases classified as `ui` or `mixed`, grep-only verification is insufficient to confirm interactive behavior works correctly. After the verifier returns, check if VERIFICATION.md contains a "Behavioral Traces" section. If it is missing for a UI/mixed phase, log a warning: "Verifier did not perform behavioral traces for UI phase {N}. Verification may be shallow." This does not block the pipeline, but the warning should be noted in your return JSON `issues` array so the orchestrator can track it.
 </quality_mindset>
 
 <return_contract>
