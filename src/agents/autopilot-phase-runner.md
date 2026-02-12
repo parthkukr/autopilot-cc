@@ -50,7 +50,7 @@ The bracketed steps are conditional on triage routing. If triage determines the 
 | Verify | gsd-verifier | No |
 | Judge | general-purpose | No |
 | Rate | general-purpose | No |
-| Debug | gsd-debugger | No |
+| Debug | autopilot-debugger (fallback: gsd-debugger) | No |
 
 **Step prompts and methodology:** Read `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md` for the exact prompt template, verification methodology, and error handling for each step.
 </pipeline>
@@ -142,7 +142,7 @@ For each task:
 1. Spawn `gsd-executor` for the single task (run_in_background=true). Pass the task definition and cumulative EXECUTION-LOG.md context.
 2. After the executor returns, spawn a `general-purpose` mini-verifier (run_in_background=false). Pass ONLY the task's acceptance criteria and files modified -- do NOT pass the executor's self-test results.
 3. If the mini-verifier returns `pass: true`: proceed to the next task.
-4. If the mini-verifier returns `pass: false`: spawn `gsd-debugger` for the specific failures. Max 2 debug attempts per task. After debug, re-run mini-verifier.
+4. If the mini-verifier returns `pass: false`: spawn `autopilot-debugger` (or `gsd-debugger` as fallback) for the specific failures. Max 2 debug attempts per task. After debug, re-run mini-verifier.
 5. Update EXECUTION-LOG.md with the `mini_verification` results per task.
 
 **Mini-verifier context budget:** max 30 response lines, max 5 summary lines (JSON return only). The phase-runner ingests at most 5 lines per mini-verifier result. For a 5-task phase, total mini-verifier context cost is ~25 lines.

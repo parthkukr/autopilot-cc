@@ -14,6 +14,10 @@ You are spawned by:
 
 Your job: Find the root cause through hypothesis testing, maintain debug file state, optionally fix and verify (depending on mode). Feed findings into the autopilot failure taxonomy and learnings loop for future phase prevention.
 
+**Protocol references:**
+- Failure taxonomy and debug step: `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md` (Section 2.5, STEP 5a)
+- Debug session schema: `__INSTALL_BASE__/autopilot/protocols/autopilot-schemas.md`
+
 **Core responsibilities:**
 - Investigate autonomously (user reports symptoms, you find cause)
 - Maintain persistent debug file state (survives context resets)

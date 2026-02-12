@@ -85,7 +85,7 @@ Every step agent has a declared line budget. The phase-runner reads ONLY the JSO
 | 4 - Verify | gsd-verifier | 200 | 10 | JSON return only |
 | 4.5 - Judge | general-purpose | 100 | 5 | JSON return only |
 | 4.6 - Rate | general-purpose | 150 | 5 | JSON return only |
-| 5a - Debug | gsd-debugger | 200 | 10 | JSON return only |
+| 5a - Debug | autopilot-debugger (fallback: gsd-debugger) | 200 | 10 | JSON return only |
 
 **Budget enforcement rule:** The phase-runner ingests at most `max_summary_lines` from each agent. If the agent's full response exceeds `max_response_lines`, the phase-runner reads only the last `max_summary_lines` lines or the JSON block, whichever applies.
 
@@ -528,7 +528,7 @@ for each task in tasks:
      - Mini-verifier runs each verification command independently, returns structured JSON
   3. PROCESS RESULT:
      - If mini-verifier returns pass: log "Task {id} VERIFIED. Proceeding to next task." Continue loop.
-     - If mini-verifier returns fail: spawn gsd-debugger targeting the specific failures.
+     - If mini-verifier returns fail: spawn autopilot-debugger (or gsd-debugger as fallback) targeting the specific failures.
        - Debugger fixes issues, re-commits.
        - Re-run mini-verifier (max 2 debug attempts per task).
        - If still failing after 2 attempts: log failure, mark task as FAILED in EXECUTION-LOG.md, continue to next task (do not halt entire phase for one task failure).
@@ -584,7 +584,7 @@ Return JSON:
 
 When the mini-verifier reports `pass: false`:
 1. Extract the failed criteria from `criteria_results`.
-2. Spawn `gsd-debugger` with the failed criteria as the issue list.
+2. Spawn `autopilot-debugger` (or `gsd-debugger` as fallback) with the failed criteria as the issue list.
 3. After the debugger returns, re-spawn the mini-verifier to confirm the fix.
 4. Max 2 debug attempts per task. If the task still fails after 2 attempts, mark it as FAILED in EXECUTION-LOG.md and proceed to the next task.
 5. At the end of the per-task loop, if ANY task has status FAILED, the phase proceeds to final verification (STEP 4) but the phase-runner notes the failures in its return JSON `issues` array.
@@ -1454,7 +1454,7 @@ enforcement: Phase-runner performs this step directly -- no agent to budget
 
 **Purpose:** Fix failing automated checks or verification issues.
 
-**Action:** Spawn `gsd-debugger` agent via Task tool, run_in_background=false. Alternatively, if the `autopilot-debugger` agent type is available, prefer it -- it uses the same scientific method debugging approach but is native to autopilot-cc with failure taxonomy integration and learnings loop support. The `/autopilot debug` command provides standalone access to the same debugging methodology outside the pipeline.
+**Action:** Spawn `autopilot-debugger` agent via Task tool, run_in_background=false. The autopilot-debugger is the native debug agent for autopilot-cc, using scientific method debugging with failure taxonomy integration and learnings loop support. If `autopilot-debugger` is not available (e.g., not yet installed), fall back to `gsd-debugger` as a compatible alternative. The `/autopilot debug` command provides standalone access to the same debugging methodology outside the pipeline.
 
 **Prompt template:**
 
@@ -1726,7 +1726,7 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 | 4 - Verify | gsd-verifier | No | ~10 lines | JSON: pass/alignment |
 | 4.5 - Judge | general-purpose | No | ~5 lines | JSON: recommendation/concerns |
 | 4.6 - Rate | general-purpose | No | ~5 lines | JSON: alignment_score (decimal)/scorecard |
-| 5a - Debug | gsd-debugger | No | ~10 lines | JSON: fixed/remaining |
+| 5a - Debug | autopilot-debugger (fallback: gsd-debugger) | No | ~10 lines | JSON: fixed/remaining |
 
 **Total per phase (happy path, full_pipeline):** ~80 lines of context consumed.
 **Total per phase (happy path, verify_only):** ~30 lines of context consumed.
