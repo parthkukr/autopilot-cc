@@ -367,6 +367,7 @@ Requirements for this phase (if provided):
 2. Split tasks that touch the same file into sequential waves
 3. If `.autopilot/learnings.md` exists, read it and incorporate relevant prevention rules into task design (LRNG-02). For example, if a previous phase failed due to unwired files, ensure the plan includes explicit integration criteria. If a previous phase failed due to cross-file inconsistencies, add cross-reference verification criteria to relevant tasks.
 4. If `discuss_context` is provided in the spawn prompt (from `--discuss` mode), read `.autopilot/discuss-context.json` and use the user's answers to inform task design decisions: acceptance criteria specificity (tighten criteria where the user expressed strong preferences), approach selection (prefer approaches aligned with user's stated preferences), and scope boundaries (respect scope limits the user explicitly set during discussion).
+5. Each task SHOULD include at least one execution-based verification criterion (compile, test, lint, build, or script execution) when the project has configured commands in `.planning/config.json`. Grep-based criteria remain valid for structural checks, but execution-based criteria provide stronger verification confidence.
 </should>
 
 <may>
@@ -375,7 +376,7 @@ Requirements for this phase (if provided):
 </may>
 
 <should>
-4. Write a trace file to .planning/phases/{phase}/plan-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan", "action": "file_read|file_write|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+6. Write a trace file to .planning/phases/{phase}/plan-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan", "action": "file_read|file_write|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
 </should>
 
 **AUTOPILOT CONTEXT (you are in autopilot mode):**
@@ -445,6 +446,7 @@ Plans are in: .planning/phases/{phase}/
 3. Verify external dependencies exist (referenced packages, APIs, services)
 4. Each acceptance criterion should follow the pattern: "{description} -- verified by: `{command}`"
 5. Verify every `<task>` element has a `complexity` attribute with a valid value (simple, medium, or complex). Flag missing complexity as a warning.
+6. If the project config (`.planning/config.json`) has `project.commands.test` or `project.commands.compile` configured, and a task has zero execution-based criteria (all criteria use only grep/test-f/test-d/wc), flag as an info-level note: `{"severity": "info", "description": "Task {id} has no execution-based verification criteria. Consider adding a compile/test/lint verification command for stronger verification confidence.", "fix_hint": "Add a criterion like: 'Project compiles after changes -- verified by: {project.commands.compile} 2>&1; echo EXIT:$?'"}`.
 </should>
 
 <may>
