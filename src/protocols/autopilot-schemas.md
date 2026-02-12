@@ -23,6 +23,7 @@
 12. [Confidence Enforcement Schemas](#section-12-confidence-enforcement-schemas)
 13. [Sandbox Execution Schemas](#section-13-sandbox-execution-schemas)
 14. [Repository Map Schema](#section-14-repository-map-schema)
+15. [Debug Session Schema](#section-15-debug-session-schema)
 
 ---
 
@@ -1691,6 +1692,140 @@ When visual testing is not configured or infrastructure is unavailable, this fie
 
 ---
 
+## Section 15: Debug Session Schema
+
+**Created by:** `/autopilot debug` command and `autopilot-debugger` agent
+**Location:** `.planning/debug/{slug}.md` (active), `.planning/debug/resolved/{slug}.md` (resolved)
+**Purpose:** Persistent debug session state that survives context resets. The file IS the debugging brain -- it captures the full investigation state so a fresh agent can resume from any point.
+
+### Debug Session File Format
+
+```markdown
+---
+status: gathering | investigating | fixing | verifying | resolved | diagnosed
+trigger: "[verbatim user input or phase failure reference]"
+failure_category: "[taxonomy category -- filled when root cause identified]"
+created: [ISO-8601 timestamp]
+updated: [ISO-8601 timestamp]
+---
+
+## Current Focus
+<!-- OVERWRITE on each update - reflects NOW -->
+
+hypothesis: [current theory being tested]
+test: [how testing it]
+expecting: [what result means]
+next_action: [immediate next step]
+
+## Symptoms
+<!-- Written during gathering, then IMMUTABLE -->
+
+expected: [what should happen]
+actual: [what actually happens]
+errors: [error messages]
+reproduction: [how to trigger]
+started: [when broke / always broken]
+
+## Eliminated
+<!-- APPEND only - prevents re-investigating dead ends -->
+
+- hypothesis: [theory that was wrong]
+  evidence: [what disproved it]
+  timestamp: [when eliminated]
+
+## Evidence
+<!-- APPEND only - facts discovered during investigation -->
+
+- timestamp: [when found]
+  checked: [what was examined]
+  found: [what was observed]
+  implication: [what this means for the investigation]
+
+## Resolution
+<!-- OVERWRITE as understanding evolves -->
+
+root_cause: [empty until found]
+failure_category: [taxonomy value from autopilot failure categories]
+fix: [empty until applied]
+verification: [empty until verified]
+prevention_rule: [rule for learnings.md -- specific, actionable]
+files_changed: []
+```
+
+### Status Transitions
+
+```
+gathering -> investigating -> fixing -> verifying -> resolved
+                  ^            |           |
+                  |____________|___________|
+                  (if verification fails)
+
+investigating -> diagnosed (find_root_cause_only mode)
+```
+
+| Status | Meaning |
+|--------|---------|
+| `gathering` | Collecting symptoms from user |
+| `investigating` | Autonomous investigation in progress |
+| `fixing` | Root cause confirmed, applying fix |
+| `verifying` | Fix applied, testing against original symptoms |
+| `resolved` | Fix verified, session archived |
+| `diagnosed` | Root cause found, no fix applied (find_root_cause_only mode) |
+
+### Section Update Rules
+
+| Section | Rule | When |
+|---------|------|------|
+| Frontmatter.status | OVERWRITE | Each status transition |
+| Frontmatter.updated | OVERWRITE | Every file update |
+| Frontmatter.failure_category | OVERWRITE | When root cause classified |
+| Current Focus | OVERWRITE | Before every investigation action |
+| Symptoms | IMMUTABLE | After gathering phase complete |
+| Eliminated | APPEND only | When hypothesis disproved |
+| Evidence | APPEND only | After each finding |
+| Resolution | OVERWRITE | As understanding evolves |
+
+### Failure Taxonomy Categories
+
+Debug findings are classified using the autopilot failure taxonomy (playbook Section 2.5):
+
+| Category | Description |
+|----------|-------------|
+| `executor_incomplete` | Task marked complete but acceptance criteria not met |
+| `executor_wrong_approach` | Wrong API, algorithm, or implementation approach |
+| `compilation_failure` | Syntax error, missing import, type mismatch |
+| `lint_failure` | Linting violations, formatting errors |
+| `build_failure` | Production build error, missing dependency |
+| `acceptance_criteria_unmet` | Specific criterion not satisfied |
+| `scope_creep` | Code implemented that was not in spec |
+| `context_exhaustion` | Agent ran out of context before completing |
+| `tool_failure` | External tool returned unexpected error |
+| `coordination_failure` | Handoff between steps lost or corrupted data |
+
+### Learnings Integration
+
+After a debug session resolves, the prevention rule is appended to `.autopilot/learnings.md`:
+
+```markdown
+### Debug session: {slug} -- {failure_category}
+**Prevention rule:** {specific actionable rule}
+**Context:** Root cause: {root_cause}. Recorded: {ISO-8601 timestamp}.
+```
+
+### Debug Session Directory Structure
+
+```
+.planning/
+  debug/
+    {slug-1}.md              # Active session
+    {slug-2}.md              # Active session
+    resolved/
+      {slug-3}.md            # Resolved session (archived)
+      {slug-4}.md            # Resolved session (archived)
+```
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05), and (13) CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, score history tracking, gap deficiency analysis, and flag-specific event types, and (14) sandbox execution schemas for execution-based verification results including exit codes, stdout/stderr capture, timeout handling, and sandbox violation detection, and (15) repository map schema for structured codebase understanding including exports, imports, functions, classes per file with size caps, incremental update instructions, and structural query examples, and (16) visual testing schemas for screenshot-based visual regression detection including visual testing configuration, screenshot result format, visual bug reports, and verifier return extensions. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05), and (13) CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, score history tracking, gap deficiency analysis, and flag-specific event types, and (14) sandbox execution schemas for execution-based verification results including exit codes, stdout/stderr capture, timeout handling, and sandbox violation detection, and (15) repository map schema for structured codebase understanding including exports, imports, functions, classes per file with size caps, incremental update instructions, and structural query examples, and (16) visual testing schemas for screenshot-based visual regression detection including visual testing configuration, screenshot result format, visual bug reports, and verifier return extensions, and (17) debug session schemas for persistent debug state management including session file format, status transitions, failure taxonomy classification, and learnings loop integration. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.

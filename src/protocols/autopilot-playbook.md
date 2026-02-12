@@ -1454,7 +1454,7 @@ enforcement: Phase-runner performs this step directly -- no agent to budget
 
 **Purpose:** Fix failing automated checks or verification issues.
 
-**Action:** Spawn `gsd-debugger` agent via Task tool, run_in_background=false.
+**Action:** Spawn `gsd-debugger` agent via Task tool, run_in_background=false. Alternatively, if the `autopilot-debugger` agent type is available, prefer it -- it uses the same scientific method debugging approach but is native to autopilot-cc with failure taxonomy integration and learnings loop support. The `/autopilot debug` command provides standalone access to the same debugging methodology outside the pipeline.
 
 **Prompt template:**
 
