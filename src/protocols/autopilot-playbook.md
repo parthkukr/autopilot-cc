@@ -346,8 +346,11 @@ Requirements for this phase (if provided):
 <must>
 1. Write plan(s) to .planning/phases/{phase}/PLAN.md
 2. Create 2-5 atomic tasks per plan with files, action, verify, and done fields. Use task XML format: `<task id="XX-YY" type="auto" complexity="simple|medium|complex">`. Complexity levels: `simple` (single file, straightforward edit, <30 min), `medium` (2-3 files, moderate logic, 30-60 min), `complex` (4+ files, significant logic or cross-cutting changes, 60+ min).
-3. Every acceptance criterion MUST include a verification command in the format: "{description} -- verified by: `{command}`". Acceptable command types: `grep` with pattern and file, `test -f`/`test -d` for existence, shell command with expected output, `wc -l` or `grep -c` for counting. Do NOT write prose-only criteria like "should work correctly" or "properly handles errors".
-   Good example: "The executor prompt contains compile gate language -- verified by: `grep 'MUST fix that file' src/protocols/autopilot-playbook.md`"
+3. Every acceptance criterion MUST include a verification command in the format: "{description} -- verified by: `{command}`". Acceptable command types: `grep` with pattern and file, `test -f`/`test -d` for existence, shell command with expected output, `wc -l` or `grep -c` for counting, project commands from config.json (`{project.commands.compile}`, `{project.commands.lint}`, `{project.commands.build}`, `{project.commands.test}`), direct shell command execution with exit code check (e.g., `npm test 2>&1; echo "EXIT:$?"`), or script execution with output capture (e.g., `node scripts/validate.js 2>&1`). Do NOT write prose-only criteria like "should work correctly" or "properly handles errors".
+   Good example (grep): "The executor prompt contains compile gate language -- verified by: `grep 'MUST fix that file' src/protocols/autopilot-playbook.md`"
+   Good example (execution): "Project compiles after changes -- verified by: `{project.commands.compile} 2>&1; echo EXIT:$?` (expect EXIT:0)"
+   Good example (execution): "All tests pass -- verified by: `{project.commands.test} 2>&1; echo EXIT:$?` (expect EXIT:0)"
+   Good example (execution): "Lint passes with no errors -- verified by: `{project.commands.lint} 2>&1; echo EXIT:$?` (expect EXIT:0)"
    Bad example: "The executor properly enforces compilation" (no verification command -- will be rejected by plan-checker)
 4. **Behavioral criteria for UI/mixed phases:** For phases classified as `ui` or `mixed`, every task that modifies interactive code (event handlers, click handlers, drag handlers, form submissions, navigation logic) MUST include at least one behavioral criterion that describes the expected logic flow, not just pattern presence. A behavioral criterion traces from trigger to terminal action.
    Good example: "Click handler opens event URL via shell.openExternal -- verified by: `read EventBlock.tsx:handleClick and trace to shell.openExternal call`"
@@ -427,6 +430,9 @@ Plans are in: .planning/phases/{phase}/
    - `test -f` or `test -d` for file/directory existence (e.g., `test -f path/to/file`)
    - A shell command piped to `grep` or `wc` for output matching (e.g., `cmd | grep "expected"`)
    - Any command with an explicit expected output (e.g., "returns 1", "returns at least 1")
+   - Project commands from config.json (compile, lint, build, test) with exit code or output check (e.g., `{project.commands.test} 2>&1; echo EXIT:$?`)
+   - Direct shell command execution with exit code check (e.g., `npm test 2>&1; echo EXIT:$?`)
+   - Script execution with output capture (e.g., `node scripts/validate.js 2>&1`)
    If a criterion lacks a verification command, flag it as a **blocker** with severity "blocker".
 5. Reject any acceptance criterion that uses only subjective or vague language without a verification command. Prose-only blocklist patterns: "should work", "properly handles", "is correct", "works as expected", "functions correctly", "is implemented" (without an accompanying command). Any criterion matching these patterns without a runnable verification command is a **blocker**.
 6. **Behavioral criteria check for UI/mixed phases:** If the phase type is `ui` or `mixed`, check each task that modifies interactive code (event handlers, click/drag/submit handlers, navigation logic). If a task's acceptance criteria contain ONLY grep-based or file-existence verification commands (`grep`, `test -f`, `test -d`, `wc`) without any behavioral criterion (one that traces handler logic from trigger to terminal action), flag it as a **warning** (not blocker) with: `{"severity": "warning", "description": "Task {id} modifies interactive code but has only grep-based verification. Add a behavioral criterion tracing handler logic.", "fix_hint": "Add a criterion like: '{handler} calls {terminal_action} -- verified by: read {file}:{handler} and trace to {terminal_action} call'"}`. This is a warning because grep criteria are still valid for structural checks, but behavioral criteria catch logic bugs that grep cannot.
@@ -719,6 +725,35 @@ max_response_lines: 200
 max_summary_lines: 10
 enforcement: JSON return only -- phase-runner reads the JSON block
 </context_budget>
+
+---
+
+### Sandbox Execution Policy
+
+**Purpose:** Define the boundaries and rules for executing code during verification. The verifier, rating agent, and plan-checker reference this policy when running execution-based verification commands.
+
+**What is the sandbox?**
+The sandbox is Claude Code's built-in runtime environment (Bash tool) scoped to the project directory. There is no separate container or VM. The sandbox boundary is enforced by instruction, not by infrastructure.
+
+**Sandbox boundaries (MUST enforce):**
+1. Commands MUST NOT modify files outside the project directory. If a command writes to a path outside the project root, flag it as a sandbox violation in the verification report.
+2. Commands MUST NOT install global packages (no `npm install -g`, `pip install --user`, `sudo apt install`, etc.).
+3. Commands MUST NOT access network resources not required by the project's own configuration. Build/test commands that fetch dependencies (e.g., `npm install`) are permitted if they are the project's configured commands.
+4. Commands MUST use the Bash tool's timeout parameter, set to 60 seconds maximum for any single execution command. Timeouts are reported as verification failures, not retried.
+
+**Error handling:**
+- Non-zero exit codes: Record the exit code and stderr output (first 500 chars). Classify as verification failure.
+- Unhandled exceptions / crashes: Record the error output. Classify using failure taxonomy: `compilation_failure`, `build_failure`, `lint_failure`, or `tool_failure` as appropriate.
+- Timeouts (>60 seconds): Record as `tool_failure` with note "execution timeout exceeded 60s."
+- Sandbox violations: Record as `scope_creep` with note "command attempted to modify files outside project directory."
+
+**When to use execution-based verification:**
+- ALWAYS for compile, lint, and build checks (Step 1 of verification methodology) -- these are already execution-based.
+- For any acceptance criterion that specifies an execution command (e.g., `{project.commands.test}`, `npm run validate`, `node scripts/check.js`).
+- Execution-based verification is STRONGER than grep-based verification. When both are available for a criterion, execution takes precedence.
+
+**Blind verification compatibility:**
+Execution-based verification preserves the blind verification principle (VRFY-01). The verifier runs commands from the acceptance criteria, not from the executor's evidence. The commands to run come from the PLAN.md criteria, not from the executor's EXECUTION-LOG.md. The output is assessed independently by the verifier.
 
 ---
 
