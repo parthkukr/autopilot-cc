@@ -548,6 +548,7 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 > 2. Follow commit message conventions from the repository's recent git log.
 > 3. If planned code already exists, verify EACH acceptance criterion with file:line evidence and report commit_sha as null.
 > 4. Before creating a new file, consult `.autopilot/repo-map.json` first (if it exists) to check whether the functionality already exists -- search the `exports`, `functions`, and `classes` arrays for matching names. If the repo-map does not exist or does not cover the symbol, fall back to text search (`grep -r "function_name\|class_name" . --include="*.ts" --include="*.tsx"`). If an existing implementation is found via either method, extend or import it rather than creating a duplicate file.
+> 5. After each commit, update `.autopilot/repo-map.json` incrementally if it exists: for each file modified or added in the commit, re-read the file and update its entry in the map (exports, imports, functions, classes). For deleted files, remove their entries. Update the summary statistics. Do NOT regenerate the entire map -- only update changed entries. If `.autopilot/repo-map.json` does not exist, skip this step.
 > </should>
 >
 > <should>
