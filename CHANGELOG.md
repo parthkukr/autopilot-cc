@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.1 (2026-02-12)
+
+### Features
+
+- **Behavioral Verification for UI Phases:** Verification pipeline now traces interactive handler chains (trigger -> function calls -> terminal action) instead of relying solely on grep pattern matching, catching logic bugs that structural checks miss
+- **Behavioral Criteria in Planning:** Planner requires at least one behavioral criterion per interactive task; plan-checker warns when UI tasks have only grep-based verification
+- **Behavioral Scoring:** Rating agent scores UI criteria via code tracing -- scores below 7.0 when terminal behavior can't be confirmed, below 5.0 when traced logic contradicts the criterion
+- **Escalating Rubber-Stamp Detection:** Uniform alignment scores across consecutive phases now trigger a 3-tier escalation: warning at 3 phases, enhanced verification injection at 5, critical alert with state marking at 7+
+
 ## 1.7.0 (2026-02-11)
 
 ### Features
