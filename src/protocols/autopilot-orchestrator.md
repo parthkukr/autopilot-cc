@@ -647,7 +647,7 @@ After each phase return:
 1. Increment `total_phases_processed`.
 2. If `status` is `"needs_human_verification"`, increment `human_deferred_count`.
 3. Compute `defer_rate = human_deferred_count / total_phases_processed`.
-4. If `defer_rate > 0.50` AND `total_phases_processed >= 2`: Log warning: "High human-defer rate ({human_deferred_count}/{total_phases_processed}). Pipeline may be avoiding autonomous completion." Append a `high_defer_rate_warning` event to the event_log.
+4. If `defer_rate > 0.05` AND `total_phases_processed >= 2`: Log warning: "High human-defer rate ({human_deferred_count}/{total_phases_processed}). Pipeline may be avoiding autonomous completion. Target: below 5%." Append a `high_defer_rate_warning` event to the event_log.
 
 These counters persist in `state.json` (see Section 7) so they survive resume operations.
 
@@ -795,13 +795,13 @@ Spawn via **Task tool**: `subagent_type: "autopilot-phase-runner"`, `run_in_back
 
 Before spawning, classify the phase. Read `project.ui.source_dir` and `project.commands` from `.planning/config.json` to determine project-specific paths and commands.
 
-- **ui**: Phase modifies files in the configured `project.ui.source_dir` or any frontend code. Requires: (1) compile check (`project.commands.compile`), (2) production build (`project.commands.build`), (3) mandatory human-verify checkpoint if not already in plan.
+- **ui**: Phase modifies files in the configured `project.ui.source_dir` or any frontend code. Requires: (1) compile check (`project.commands.compile`), (2) production build (`project.commands.build`), (3) autonomous verification with behavioral traces (the verifier MUST attempt full autonomous resolution before considering deferral).
 - **protocol**: Phase modifies `.md` files in `protocols/`, project instructions, or agent definitions. Requires: (1) cross-reference check (no broken links between protocol files), (2) contract verification (schemas match what orchestrator expects).
 - **data**: Phase modifies JSON data files or similar structured data. Requires: (1) JSON validity check, (2) schema compliance check.
 - **mixed**: Combination of above. Apply ALL relevant requirements.
 
-For **ui** phases: If the plan has 0 `checkpoint:human-verify` tasks, the orchestrator MUST add this to the spawn prompt:
-> **INJECTED REQUIREMENT: This is a UI phase. You MUST include a checkpoint:human-verify task at the end of your plan for visual confirmation. Return status as "needs_human_verification" after completing auto tasks.**
+For **ui** phases: The orchestrator MUST add this to the spawn prompt:
+> **AUTONOMOUS VERIFICATION REQUIRED: This is a UI phase. The verifier MUST attempt autonomous resolution using build checks, behavioral traces, and code analysis before considering any deferral. Deferral is only permitted when the verifier's autonomous_confidence is below 6 AND specific deferral_evidence documents what cannot be verified and why. Generic visual confirmation is NOT a valid deferral reason -- the verifier must trace handler chains, verify build output, and run all acceptance criteria autonomously. Return status as "completed" unless autonomous verification is genuinely insufficient.**
 
 ---
 
@@ -1105,11 +1105,11 @@ Before applying gate logic, validate the phase-runner's return:
     - If `human_verify_justification` is missing, null, or has an empty `checkpoint_task_id`: REJECT. Log: "needs_human_verification returned without structured justification. Re-spawning."
     - The justification must identify the specific checkpoint task that triggered the human-verify status, not a generic reason like "it's a UI phase."
 
-14. **Unnecessary deferral warning (STAT-03):** If `status` is `"needs_human_verification"` AND `human_verify_justification.auto_tasks_passed` equals `human_verify_justification.auto_tasks_total` (all auto tasks passed) AND the `human_verify_justification.task_description` matches a generic visual confirmation pattern (contains "visual", "screenshot", "look", "appearance", "UI review", or "manual check" without specifying a concrete user workflow):
-    - Log warning: "Phase deferred to human with no auto-task failures -- consider if human verification is necessary."
+14. **Unnecessary deferral rejection (STAT-03, upgraded from warning):** If `status` is `"needs_human_verification"` AND `human_verify_justification.auto_tasks_passed` equals `human_verify_justification.auto_tasks_total` (all auto tasks passed) AND the `human_verify_justification.task_description` matches a generic visual confirmation pattern (contains "visual", "screenshot", "look", "appearance", "UI review", or "manual check" without specifying a concrete user workflow):
+    - REJECT the deferral. Log: "Phase deferred to human with generic visual confirmation but all auto tasks passed. Rejecting deferral -- re-spawning phase-runner to return 'completed' instead."
     - Append an `unnecessary_deferral_warning` event to the event_log with the phase ID and checkpoint task description.
-    - This is a WARNING, not a rejection -- the phase still proceeds as `needs_human_verification`. The warning is surfaced in the completion report to help users identify phases that could be made fully autonomous.
-    - If the task description references a specific user workflow (e.g., "verify payment flow processes a real transaction"), do NOT warn -- substantive human checkpoints are valid.
+    - Re-spawn the phase-runner with `remediation_feedback: ["Return status as 'completed' instead of 'needs_human_verification'. All auto tasks passed. The generic visual confirmation checkpoint does not justify human deferral -- the verifier's autonomous verification (build checks, behavioral traces, code analysis) is sufficient."]` and `remediation_cycle: 1`.
+    - If the task description references a specific user workflow (e.g., "verify payment flow processes a real transaction"), do NOT reject -- substantive human checkpoints with concrete workflows remain valid deferral reasons.
 
 ---
 
