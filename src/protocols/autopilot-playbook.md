@@ -106,9 +106,67 @@ After each step agent completes, the phase-runner performs trace aggregation:
 
 This is a SHOULD-level responsibility. If trace aggregation fails (e.g., file write error), log the failure and continue the pipeline -- tracing must not block execution.
 
+### Progress Emission
+
+The phase-runner emits structured progress messages at each pipeline step boundary so that the orchestrator (and user) can see what is happening during execution. These messages replace the "invoke and wait with no feedback" experience.
+
+**Step-level progress:** Before each pipeline step, emit:
+```
+[Phase {N}] Step: {STEP_NAME} ({step_number}/{total_steps})
+```
+After each step completes, emit:
+```
+[Phase {N}] Step: {STEP_NAME} complete.
+```
+
+The step names and their numbers are:
+1. PREFLIGHT
+2. TRIAGE
+3. RESEARCH (skipped if verify_only or skip_research)
+4. PLAN (skipped if verify_only or existing_plan)
+5. PLAN-CHECK (skipped if verify_only)
+6. EXECUTE (skipped if verify_only)
+7. VERIFY
+8. JUDGE
+9. RATE
+
+When steps are skipped, emit:
+```
+[Phase {N}] Step: {STEP_NAME} skipped ({reason}).
+```
+
+**Task-level progress (during EXECUTE step):** During per-task execution, emit:
+```
+[Phase {N}] Task {task_id} ({M}/{total}): {task_description}
+[Phase {N}] Task {task_id}: modifying {file_path}
+[Phase {N}] Task {task_id}: compile PASS
+[Phase {N}] Task {task_id}: compile FAIL -- {error_summary}
+[Phase {N}] Task {task_id}: VERIFIED
+[Phase {N}] Task {task_id}: FAILED -- {failure_reason}
+```
+
+**Compilation gate streaming:** When the executor reports compile/lint results per task, the phase-runner emits the result immediately:
+```
+[Phase {N}] Task {task_id}: compile PASS
+[Phase {N}] Task {task_id}: lint PASS
+```
+Or on failure:
+```
+[Phase {N}] Task {task_id}: compile FAIL -- {first error message}
+[Phase {N}] Task {task_id}: lint FAIL -- {error count} errors
+```
+
+**Format rules:**
+- All progress messages are plain text (no markdown, no emojis)
+- Step-level messages use `[Phase {N}] Step:` prefix
+- Task-level messages use `[Phase {N}] Task {task_id}:` prefix
+- Use `PASS`/`FAIL` keywords for compile/lint results
+
 ---
 
 ### STEP 0: PRE-FLIGHT
+
+**Progress:** Emit `[Phase {N}] Step: PREFLIGHT (1/9)` before starting. Emit `[Phase {N}] Step: PREFLIGHT complete.` after.
 
 **Purpose:** Verify the environment is ready for this phase.
 
@@ -160,6 +218,8 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 ---
 
 ### STEP 0.5: TRIAGE
+
+**Progress:** Emit `[Phase {N}] Step: TRIAGE (2/9)` before starting. Emit `[Phase {N}] Step: TRIAGE complete. Routing: {full_pipeline|verify_only}` after.
 
 **Purpose:** Fast codebase scan to detect already-implemented phases before spending tokens on research, planning, and execution. Prevents the system from running the full pipeline on phases where the code already exists.
 
@@ -255,6 +315,8 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 ### STEP 1: RESEARCH
 
+**Progress:** Emit `[Phase {N}] Step: RESEARCH (3/9)` before starting. If skipped, emit `[Phase {N}] Step: RESEARCH skipped ({reason}).` instead. Emit `[Phase {N}] Step: RESEARCH complete.` after.
+
 **Purpose:** Investigate the phase domain before planning.
 
 **Skip condition:** If `existing_plan` is true OR `skip_research` is true, skip this step entirely.
@@ -324,6 +386,8 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 ---
 
 ### STEP 2: PLAN
+
+**Progress:** Emit `[Phase {N}] Step: PLAN (4/9)` before starting. If skipped, emit `[Phase {N}] Step: PLAN skipped ({reason}).` instead. Emit `[Phase {N}] Step: PLAN complete.` after.
 
 **Purpose:** Create executable plan(s) for the phase.
 
@@ -422,6 +486,8 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 
 ### STEP 2.5: PLAN CHECK
 
+**Progress:** Emit `[Phase {N}] Step: PLAN-CHECK (5/9)` before starting. Emit `[Phase {N}] Step: PLAN-CHECK complete. Confidence: {confidence}/10` after.
+
 **Purpose:** Verify plans will achieve the phase goal before execution burns context.
 
 **Action:** Spawn `gsd-plan-checker` agent via Task tool, run_in_background=false.
@@ -508,9 +574,32 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 ### STEP 3: EXECUTE
 
+**Progress:** Emit `[Phase {N}] Step: EXECUTE (6/9) -- {total_tasks} tasks` before starting. For each task, emit task-level progress (see Per-Task Progress below). Emit `[Phase {N}] Step: EXECUTE complete. {completed}/{total} tasks.` after.
+
 **Purpose:** Implement the plan -- write code, make commits that compile and pass lint. Each task is independently verified before proceeding to the next.
 
 **Pre-launch check:** Compare file lists across all tasks in the current wave. If any file appears in multiple tasks of the same wave, split into sequential sub-waves to avoid merge conflicts.
+
+#### Per-Task Progress
+
+For each task in the execution loop, the phase-runner emits real-time progress:
+```
+[Phase {N}] Task {task_id} ({M}/{total}): {task_description}
+```
+When the executor reports modifying a file:
+```
+[Phase {N}] Task {task_id}: modifying {file_path}
+```
+When the executor reports compile/lint results:
+```
+[Phase {N}] Task {task_id}: compile PASS
+[Phase {N}] Task {task_id}: compile FAIL -- {error_summary}
+```
+After mini-verification:
+```
+[Phase {N}] Task {task_id}: VERIFIED
+[Phase {N}] Task {task_id}: FAILED -- {failure_reason}
+```
 
 #### Per-Task Execution Loop (PVRF-01)
 
@@ -703,6 +792,8 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 ---
 
 ### STEP 4: VERIFY -- MANDATORY INDEPENDENT AGENT
+
+**Progress:** Emit `[Phase {N}] Step: VERIFY (7/9)` before starting. Emit `[Phase {N}] Step: VERIFY complete. Result: {pass|fail}` after.
 
 **Rules (unchanged):**
 1. You MUST spawn a verifier subagent
@@ -1080,6 +1171,8 @@ Execution-based verification preserves the blind verification principle (VRFY-01
 
 ### STEP 4.5: LLM JUDGE -- MANDATORY INDEPENDENT AGENT
 
+**Progress:** Emit `[Phase {N}] Step: JUDGE (8/9)` before starting. Emit `[Phase {N}] Step: JUDGE complete. Recommendation: {recommendation}` after.
+
 The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier's conclusions first.
 
 **Rules:**
@@ -1163,6 +1256,8 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 ---
 
 ### STEP 4.6: RATE -- MANDATORY INDEPENDENT AGENT
+
+**Progress:** Emit `[Phase {N}] Step: RATE (9/9)` before starting. Emit `[Phase {N}] Step: RATE complete. Score: {alignment_score}/10` after.
 
 The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but evaluate work quality and produce the alignment score. It replaces the previous inline scoring that was done by the verifier and judge as a side-task.
 
