@@ -635,6 +635,23 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > # Record: PASS (0 errors) or FAIL (N errors)
 > ```
 >
+> **Step 1.5: Execution-Based Verification (ALL phase types):**
+> For each acceptance criterion that specifies an execution command (not grep/test-f/wc -- look for commands like `{project.commands.test}`, `npm run ...`, `node ...`, or any command with `EXIT:$?`):
+> 1. Run the command using the Bash tool with a 60-second timeout
+> 2. Capture stdout, stderr, and exit code
+> 3. Assess the result: exit code 0 with expected output = VERIFIED; non-zero exit code = FAILED with runtime error details; timeout = FAILED with timeout indication
+> 4. If a command crashes, throws an unhandled exception, or times out, record it as a verification failure. Include the error output (first 500 chars of stderr) in the failure report. Classify runtime failures using the failure taxonomy: `compilation_failure`, `build_failure`, `lint_failure`, or `tool_failure` as appropriate.
+> 5. Record all results in VERIFICATION.md under a "Sandbox Execution Results" section:
+> ```markdown
+> ## Sandbox Execution Results
+>
+> | Criterion | Command | Exit Code | Output (truncated) | Assessment |
+> |-----------|---------|-----------|-------------------|------------|
+> | Tests pass | npm test 2>&1 | 0 | All 42 tests passed | VERIFIED |
+> | Build succeeds | npm run build 2>&1 | 1 | Error: Module not found | FAILED |
+> ```
+> 6. For criteria with execution-based verification commands, run the actual command (not just grep for the command text) and use the runtime output to assess the criterion. Execution-based verification is STRONGER than grep -- when both are available, execution takes precedence.
+>
 > **Step 2: Phase-type-specific checks:**
 >
 > **If UI phase:**
@@ -710,7 +727,10 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 >   "commands_run": ["command -> result"],
 >   "failures": ["description"],
 >   "failure_categories": [{"failure": "description", "category": "taxonomy_value"}],
->   "scope_creep": ["anything built that was not in spec"]
+>   "scope_creep": ["anything built that was not in spec"],
+>   "execution_results": [
+>     {"criterion": "text", "command": "cmd", "exit_code": 0, "output": "first 200 chars", "assessment": "pass|fail|timeout"}
+>   ]
 > }
 > ```
 
@@ -872,6 +892,7 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 >    - Run the verification command specified in the criterion
 >    - Read the actual file(s) to confirm the criterion is truly met (not just pattern-matched)
 >    - Record: criterion text, verification command, command output, manual confirmation result, and any concerns
+>    - **Execution-based criteria:** When a criterion specifies an execution command (compile, test, lint, build, script execution -- not grep), run the actual command using the Bash tool with a 60-second timeout and use the runtime output to evaluate the criterion. Do NOT substitute grep for an available execution command. Record command output, exit code, and runtime assessment in the scorecard. If a command crashes, throws an unhandled exception, or times out, classify it as a verification failure using the failure taxonomy (`compilation_failure`, `build_failure`, `lint_failure`, or `tool_failure`).
 > 3. **Behavioral criteria scoring (UI/mixed phases):** For criteria marked as behavioral (those requiring code tracing rather than grep), verification MUST involve reading the handler code and tracing the logic chain. Scoring rules for behavioral criteria:
 >    - Score < 7.0 if the terminal behavior (the final action the handler performs) cannot be confirmed from code reading alone (e.g., handler calls an opaque function with no visible definition)
 >    - Score < 5.0 if the traced logic CONTRADICTS the criterion (e.g., criterion says "opens event URL" but handler actually opens a hardcoded URL or different resource)
@@ -939,7 +960,8 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 >       "verification_command": "the command run",
 >       "command_output": "first 200 chars of output",
 >       "evidence": "file:line -- what was found",
->       "justification": "why this score"
+>       "justification": "why this score",
+>       "execution_result": {"command": "cmd", "exit_code": 0, "output": "first 200 chars"} | null
 >     }
 >   ],
 >   "aggregate_justification": "explanation of how aggregate was computed and what deductions were made",
