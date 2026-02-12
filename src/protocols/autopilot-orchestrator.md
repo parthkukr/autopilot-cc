@@ -639,6 +639,67 @@ before spawning phase-runner for phase N:
 
 **Passing the map to phase-runners:** The repo-map path is passed explicitly to each phase-runner via the `repo_map_path` field in the spawn template (Section 3). The phase-runner playbook instructs research and executor agents to read this file for structural codebase queries.
 
+### Progress Streaming Protocol
+
+During phase execution, the orchestrator and phase-runner emit structured progress messages so the user has real-time visibility into what the pipeline is doing. Without these messages, the user invokes `/autopilot` and waits 20-60 minutes with no feedback.
+
+**Tier 1 (Orchestrator) -- user-visible progress:**
+
+The orchestrator emits progress messages that the user sees directly in the CLI. These are the PRIMARY progress indicators.
+
+Before spawning each phase-runner, emit:
+```
+--- [PHASE {N}/{total}] {phase_name} ---
+```
+
+After receiving the phase-runner's return JSON, emit:
+```
+  Step: PREFLIGHT ... pass
+  Step: TRIAGE ... {routing_decision}
+  Step: RESEARCH ... {completed|skipped}
+  Step: PLAN ... {completed|skipped}
+  Step: PLAN-CHECK ... {pass|fail|skipped}
+  Step: EXECUTE ... {tasks_completed}/{tasks_total} tasks
+  Step: VERIFY ... {pass|fail}
+  Step: JUDGE ... {recommendation}
+  Step: RATE ... {alignment_score}/10
+--- [PHASE {N}/{total}] Complete: {alignment_score}/10 | {duration}s ---
+```
+
+The orchestrator reconstructs step-level progress from the phase-runner's return JSON `pipeline_steps` field. Each step entry has a `status` value that maps to the progress line. This does NOT require real-time streaming from the phase-runner -- the orchestrator emits all step progress lines at once after the phase-runner completes, giving the user a clear summary of what happened during the phase.
+
+**Tier 2 (Phase-Runner) -- captured by orchestrator:**
+
+The phase-runner emits progress messages between step agent spawns. These are captured in the phase-runner's output and visible to the orchestrator (and to the user in the orchestrator's output after the phase completes):
+
+```
+[Phase {N}] Step: RESEARCH (1/6)
+[Phase {N}] Step: RESEARCH complete.
+[Phase {N}] Step: PLAN (2/6)
+[Phase {N}] Step: PLAN complete.
+[Phase {N}] Step: EXECUTE (4/6) -- {total_tasks} tasks
+[Phase {N}] Task {task_id} (1/{total}): {description}
+[Phase {N}] Task {task_id}: modifying {file_path}
+[Phase {N}] Task {task_id}: compile PASS
+[Phase {N}] Task {task_id}: VERIFIED
+[Phase {N}] Task {task_id} (2/{total}): {description}
+...
+[Phase {N}] Step: VERIFY (5/6)
+[Phase {N}] Step: JUDGE (6/6)
+[Phase {N}] Step: RATE (7/7)
+```
+
+**Tier 3 (Step Agents) -- captured by phase-runner:**
+
+Step agents (executor, verifier, etc.) emit their own progress within their output. The phase-runner reads only the JSON summary, but the progress text provides debugging context if needed.
+
+**Format rules:**
+- All progress messages are plain text (no markdown, no emojis)
+- Phase-level messages use `--- [PHASE ...] ---` delimiters
+- Step-level messages use `[Phase {N}] Step: ...` prefix
+- Task-level messages use `[Phase {N}] Task {task_id}: ...` prefix
+- Compile/lint results use `PASS` or `FAIL` keywords for machine parseability
+
 ### Human-Defer Rate Tracking (STAT-04)
 
 The orchestrator maintains two counters across the loop: `human_deferred_count` (phases returning `needs_human_verification`) and `total_phases_processed` (all phases that received a return, regardless of status). Both start at 0 at run start.
@@ -738,12 +799,14 @@ Before spawning the phase-runner, estimate the token cost for this phase:
 ### Phase Execution
 
 1. **Check for existing plan**: Glob `.planning/phases/*{phase_id}*/PLAN.md`. Pass `existing_plan: true` or `existing_plan: false`. Phases without plans run the full pipeline from step 1 (research). No need to ask -- that is what the pipeline is for.
-2. Spawn **phase-runner** (Section 3). Wait for completion (`run_in_background: false`).
-3. Parse the **return JSON** from the phase-runner's response (last lines).
-4. **Handle human verification**: If the phase-runner returns `status: "needs_human_verification"`, log it with `human_verify_justification` details, skip to next phase, and continue. Come back to these at the end of the run.
-5. **Gate decision** (Section 5).
-6. **Update state** (Section 7).
-7. Log: `Phase {N} complete. Alignment: {score}/10. Progress: {done}/{total}.`
+2. **Emit phase progress header** (Progress Streaming Protocol): Output `--- [PHASE {N}/{total}] {phase_name} ---` so the user knows which phase is starting.
+3. Spawn **phase-runner** (Section 3). Wait for completion (`run_in_background: false`).
+4. Parse the **return JSON** from the phase-runner's response (last lines).
+5. **Emit step-level progress summary** (Progress Streaming Protocol): Using the `pipeline_steps` field from the return JSON, emit one line per step showing its status. Format: `  Step: {STEP_NAME} ... {status}`. This gives the user a clear breakdown of what happened inside the phase-runner. Include task completion counts from the execute step and the alignment score from the rate step.
+6. **Handle human verification**: If the phase-runner returns `status: "needs_human_verification"`, log it with `human_verify_justification` details, skip to next phase, and continue. Come back to these at the end of the run.
+7. **Gate decision** (Section 5).
+8. **Update state** (Section 7).
+9. **Emit phase completion footer** (Progress Streaming Protocol): Output `--- [PHASE {N}/{total}] Complete: {score}/10 | {duration}s ---` so the user sees the final result.
 
 ### End-of-Run Human Verification (STAT-05)
 
