@@ -359,7 +359,19 @@ Requirements for this phase (if provided):
    Grep-based criteria remain valid for structural checks (file existence, import presence, config values). But each interactive task MUST also have a behavioral criterion that a verifier can trace through the code.
 5. Include a traceability table mapping requirements to tasks
 6. Every task MUST have a `complexity` attribute (simple, medium, or complex) for cost prediction
-7. Return structured JSON at the END of your response (see Return JSON below)
+7. **Generate test specification files:** For each task, generate a test specification file at `.planning/phases/{phase}/tests/task-{id}.sh`. The test file is a bash script that verifies the task's acceptance criteria. Each test file MUST: (a) contain at least one assertion per acceptance criterion, (b) output structured results in the format `PASS: {criterion}` or `FAIL: {criterion}` per assertion, (c) exit with code 0 if all assertions pass, non-zero if any fail. The planner writes skeleton assertions based on the verification commands from the acceptance criteria. The executor fills in implementation-specific details during execution. Reference the test file in the task's verify section.
+   Good example test file (`.planning/phases/{phase}/tests/task-01-01.sh`):
+   ```bash
+   #!/bin/bash
+   PASS=0; FAIL=0
+   # Criterion: Config file exists
+   if test -f .planning/config.json; then echo "PASS: Config file exists"; ((PASS++)); else echo "FAIL: Config file exists"; ((FAIL++)); fi
+   # Criterion: Compile command defined
+   if grep -q 'compile' .planning/config.json; then echo "PASS: Compile command defined"; ((PASS++)); else echo "FAIL: Compile command defined"; ((FAIL++)); fi
+   echo "RESULTS: $PASS passed, $FAIL failed"
+   [ $FAIL -eq 0 ] && exit 0 || exit 1
+   ```
+8. Return structured JSON at the END of your response (see Return JSON below)
 </must>
 
 <should>
