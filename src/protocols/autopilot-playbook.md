@@ -1022,6 +1022,62 @@ Execution-based verification preserves the blind verification principle (VRFY-01
 
 ---
 
+### Visual Regression Loop Protocol
+
+**Purpose:** Define the automated loop for detecting, reporting, and confirming resolution of visual bugs. This protocol enables the system to re-run visual tests after fixes to confirm issues are resolved.
+
+**When triggered:** The visual regression loop activates when:
+- The verifier's visual testing step (Step 2.5) finds visual issues (issues_found > 0)
+- The phase type is `ui` or `mixed`
+- `project.visual_testing.enabled` is true in config.json (or `visual_testing_enabled: true` from `--visual` flag)
+
+**Loop mechanics:**
+
+1. **Initial capture:** Verifier captures baseline screenshots and analyzes them (Step 2.5 during normal verification)
+
+2. **Bug report generation:** When issues are found, generate a structured visual bug report at `.planning/phases/{phase}/VISUAL-BUGS.md`:
+   ```markdown
+   # Visual Bug Report -- Phase {N}
+
+   **Generated:** {timestamp}
+   **Routes tested:** {N}
+   **Issues found:** {N}
+
+   ## Issues
+
+   ### Issue 1: {description}
+   - **Route:** {path}
+   - **Screenshot:** {screenshot_path}
+   - **Type:** layout|rendering|regression|accessibility
+   - **Severity:** critical|major|minor
+   - **Location:** {approximate location in screenshot}
+   - **Suggested fix:** {actionable suggestion with target file/component}
+   - **Status:** open
+
+   ## Resolution Tracking
+   | Issue | Fix Applied | Re-test Result | Status |
+   |-------|------------|----------------|--------|
+   | Issue 1 | {commit SHA or description} | {pass/fail} | resolved/open |
+   ```
+
+3. **Fix integration:** Visual bug reports are passed to the debugger (Step 5a) as additional issues when the phase enters a debug loop. The debugger addresses visual issues alongside functional issues.
+
+4. **Re-test after fix:** After the debugger commits fixes, the verifier re-runs visual testing (Step 2.5) on the same routes. Screenshots are captured again and compared against the issues list.
+
+5. **Resolution confirmation:** For each issue in VISUAL-BUGS.md, update the Resolution Tracking table with the re-test result. An issue is marked `resolved` only when the re-test screenshot no longer shows the reported problem.
+
+6. **Loop termination:** The visual regression loop terminates when:
+   - All critical/major issues are resolved, OR
+   - The debug attempt limit is reached (max 3 attempts), OR
+   - No visual issues were found in the initial capture
+
+**Baseline management:**
+- After all visual issues are resolved (or on first successful visual test with no issues), save the current screenshots as baselines to `{screenshot_dir}/baseline/`
+- On subsequent runs, the verifier compares new screenshots against baselines to detect regressions
+- Baseline screenshots are NOT committed to git (they are ephemeral verification artifacts)
+
+---
+
 ### STEP 4.5: LLM JUDGE -- MANDATORY INDEPENDENT AGENT
 
 The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier's conclusions first.
