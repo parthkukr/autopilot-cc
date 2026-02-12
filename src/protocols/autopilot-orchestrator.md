@@ -563,6 +563,7 @@ For each phase in the target range:
 ```
 for each phase in target_phases:
   pre-spawn check (auto-skip if already verified)
+  generate/refresh repo-map (Section 2.2)
   spawn phase-runner(phase) → wait for JSON return
   if return.status == "completed": log, next phase
   if return.status == "needs_human_verification": log, skip to next phase (come back later)
@@ -610,6 +611,33 @@ on split_request(phase_N, split_details):
 The exact threshold is at the phase-runner's discretion. The priority order is **Quality > Time > Tokens** -- spawning many sub-agents is preferred over trying to squeeze everything into fewer agents.
 
 **Sub-phase verification:** Each sub-phase goes through its own independent verification cycle (verify + judge + rate). Sub-phase results are NOT shared between sub-phases. This ensures each piece of work meets the quality bar independently.
+
+### Repository Map Generation (Section 2.2)
+
+Before spawning each phase-runner, the orchestrator generates or refreshes the semantic repository map at `.autopilot/repo-map.json`. This map provides structural codebase understanding (exports, imports, functions, classes) to all agents.
+
+**Generation logic:**
+
+```
+before spawning phase-runner for phase N:
+  if .autopilot/repo-map.json does not exist:
+    spawn general-purpose agent to generate the map (see schema in autopilot-schemas.md Section 14)
+    agent scans source files (excluding node_modules, dist, .git, build, coverage, .next, __pycache__, .venv, vendor)
+    agent reads each file, extracts exports/imports/functions/classes, writes to .autopilot/repo-map.json
+    if map exceeds 500 lines: apply size cap (see schema Section 14)
+    log: "Repo-map generated: {total_files} files across {language_count} languages."
+  else:
+    check if any commits have been made since the map was last generated (compare repo-map generated_at with latest commit timestamp)
+    if no new commits: skip regeneration. log: "Repo-map up to date, skipping refresh."
+    if new commits exist:
+      identify files changed since generated_at (git diff --name-only {generated_at_timestamp}..HEAD)
+      spawn general-purpose agent to update ONLY the changed file entries (incremental update)
+      log: "Repo-map refreshed: {changed_file_count} files updated."
+```
+
+**Cost consideration:** Map generation adds approximately 10000-30000 tokens per phase depending on project size. For projects with no source code files (protocol-only projects), the map will be minimal. The map is cached between phases (only incremental updates after the first generation), so the cost is amortized across the run.
+
+**Passing the map to phase-runners:** The repo-map path (`.autopilot/repo-map.json`) is implicitly available to all agents through the `.autopilot/` directory. The phase-runner playbook instructs research and executor agents to check for and read this file. No explicit path parameter is needed in the spawn template.
 
 ### Human-Defer Rate Tracking (STAT-04)
 
