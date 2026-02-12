@@ -338,12 +338,56 @@ project-root/
 }
 ```
 
+### Mini-Verifier Return Schema (PVRF-01)
+
+The mini-verifier is spawned after each task execution as part of the per-task verification loop. It independently verifies a single task's acceptance criteria. The final phase-level verification (STEP 4) still runs after all tasks pass mini-verification -- this is a belt-and-suspenders approach where per-task verification catches issues early and phase-level verification provides the final safety net.
+
+```jsonc
+{
+  "task_id": "XX-YY",                    // Task identifier being verified
+  "pass": true,                          // Overall pass/fail for this task
+  "criteria_results": [                  // Per-criterion verification
+    {
+      "criterion": "criterion text",     // The acceptance criterion being checked
+      "status": "pass|fail",             // Individual criterion result
+      "evidence": "file:line -- output", // Concrete evidence
+      "command": "the verification command run",
+      "command_output": "first 200 chars of command output"
+    }
+  ],
+  "concerns": ["string"],               // Concerns even if passing
+  "commands_run": ["command -> result"]  // All commands executed (MUST NOT be empty)
+}
+```
+
+### EXECUTION-LOG.md Mini-Verification Extension (PVRF-01)
+
+Each task entry in EXECUTION-LOG.md includes a `mini_verification` section after the executor's self-reported results. This captures the independent verification result per task.
+
+```markdown
+### Task {id}: {description}
+- **Status:** COMPLETED|FAILED|NEEDS_REVIEW
+- **Commit SHA:** {sha}
+- **Files modified:** {list}
+- **Evidence:** {executor's self-test results}
+- **Confidence:** {1-10}
+- **Mini-Verification:**
+  - **Result:** PASS|FAIL
+  - **Criteria checked:** {N}
+  - **Criteria passed:** {N}
+  - **Failures:** {list of failed criteria, or "None"}
+  - **Debug attempts:** {0-2}
+```
+
+**Note:** The phase-level verification still runs after all tasks pass mini-verification. Per-task verification catches failures early (at minute 5 instead of minute 30); phase-level verification provides the comprehensive safety net.
+
 ### Existing Step Agent Return Schemas
 
 The following agents already used JSON returns before this handoff protocol was formalized. Their schemas are defined in the playbook prompt templates:
 
 - **Preflight**: `all_clear`, `spec_hash_match`, `working_tree_clean`, `dependencies_met`, `unresolved_debug`, `issues`
 - **Plan-checker**: `pass`, `issues`, `confidence`, `blocker_count`, `warning_count`
+- **Mini-Verifier** (PVRF-01): `task_id`, `pass`, `criteria_results` (array), `concerns`, `commands_run`
 - **Verifier**: `pass`, `automated_checks`, `criteria_results`, `verification_duration_seconds`, `commands_run`, `failures`, `failure_categories`, `scope_creep`
 - **Judge**: `recommendation`, `concerns`, `independent_evidence`, `verifier_agreement`, `verifier_missed`, `scope_creep`, `missing_requirements`, `notes`
 - **Rating Agent**: `alignment_score` (decimal x.x format), `scorecard` (array of per-criterion entries), `aggregate_justification`, `side_effects`, `commands_run`, `score_band`
