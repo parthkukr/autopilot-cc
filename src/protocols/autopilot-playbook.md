@@ -854,6 +854,72 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 >
 > **IMPORTANT:** Behavioral traces are in ADDITION to the standard grep-based acceptance criteria checks, not a replacement. Both must pass.
 >
+> **Step 2.5: Visual Testing (UI/mixed phases with visual_testing config only):**
+> If the phase type is `ui` or `mixed` AND `.planning/config.json` contains `project.visual_testing` with `enabled: true` (or `visual_testing_enabled: true` was passed in the spawn prompt via `--visual` flag):
+>
+> 1. **Launch the application:**
+>    ```bash
+>    # Start the app server in background
+>    {project.visual_testing.launch_command} &
+>    APP_PID=$!
+>    # Wait for app to be ready
+>    sleep $(( {project.visual_testing.launch_wait_ms} / 1000 ))
+>    # Verify app is running
+>    curl -s -o /dev/null -w "%{http_code}" {project.visual_testing.base_url}
+>    ```
+>    If the app fails to start (curl returns non-200 or connection refused), log: "Visual testing skipped: app failed to launch." and continue verification without visual tests.
+>
+> 2. **Capture screenshots for each route:**
+>    ```bash
+>    mkdir -p {project.visual_testing.screenshot_dir}
+>    # For each route in project.visual_testing.routes:
+>    npx playwright screenshot \
+>      --viewport-size="{viewport.width},{viewport.height}" \
+>      "{base_url}{route.path}" \
+>      "{screenshot_dir}/{route.name}-$(date +%Y%m%dT%H%M%SZ).png"
+>    # Wait route.wait_ms before capturing to allow rendering
+>    ```
+>    Use the Bash tool with a 60-second timeout per screenshot command.
+>
+> 3. **Analyze screenshots for visual issues:**
+>    Read each captured screenshot using the Read tool (Claude's multimodal capability analyzes images).
+>    For each screenshot, evaluate:
+>    - **Layout issues:** Overlapping elements, broken grids, misaligned text, overflow/clipping
+>    - **Rendering errors:** Blank/white screens, missing images, broken icons, unstyled elements
+>    - **Visual regressions:** If baseline screenshots exist in `{screenshot_dir}/baseline/`, compare current screenshots against baselines for visual changes
+>    - **Accessibility concerns:** Text too small, insufficient contrast, missing visual indicators
+>
+> 4. **Record results in VERIFICATION.md** under a "Visual Testing Results" section:
+>    ```markdown
+>    ## Visual Testing Results
+>
+>    | Route | Screenshot | Issues | Severity | Status |
+>    |-------|-----------|--------|----------|--------|
+>    | / (home) | screenshots/home-20260212.png | 0 | - | PASS |
+>    | /dashboard | screenshots/dashboard-20260212.png | 2 | major | ISSUES_FOUND |
+>    ```
+>    For each issue found, record: type (layout/rendering/regression/accessibility), severity (critical/major/minor), description, approximate location in screenshot, and suggested fix.
+>
+> 5. **Generate visual bug report:** If any issues are found, write a structured bug report to `.planning/phases/{phase}/VISUAL-BUGS.md` containing: each issue with route, screenshot path, type, severity, description, location, and suggested fix (with target file/component). Include a Resolution Tracking table for use by the debug loop.
+>
+> 6. **Cleanup:** Kill the app server process after all screenshots are captured.
+>    ```bash
+>    kill $APP_PID 2>/dev/null || true
+>    ```
+>
+> 7. **If visual testing infrastructure is not available** (Playwright not installed, app fails to launch, port already in use), log the issue and continue verification without visual tests. Do NOT fail the verification because visual testing infrastructure is unavailable -- it is an enhancement, not a gate. Record `infrastructure_available: false` in the return JSON `visual_test_results`.
+>
+> 8. **Add visual test results to return JSON:** Include `visual_test_results` in the verifier return JSON:
+>    ```json
+>    "visual_test_results": {
+>      "routes_tested": 5,
+>      "routes_passed": 3,
+>      "issues_found": [{"route": "/dashboard", "type": "layout", "severity": "major", "description": "..."}],
+>      "screenshots": ["path1.png", "path2.png"],
+>      "infrastructure_available": true
+>    }
+>    ```
+>
 > **If PROTOCOL phase:**
 > ```bash
 > # Cross-reference validation: extract file path references and verify they exist
@@ -1122,6 +1188,14 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 > - **5.0-6.9 (Significant gaps):** Multiple criteria partially unmet. The work is incomplete or has meaningful quality issues. Not a failure, but clearly needs more work.
 > - **3.0-4.9 (Major failures):** Multiple criteria unmet. The work has fundamental issues that prevent it from achieving the phase goal.
 > - **0.0-2.9 (Not implemented):** The work does not address the phase goal in any meaningful way.
+>
+> **VISUAL QUALITY ASSESSMENT (UI phases with visual_testing config only):**
+> When `project.visual_testing` is configured and the phase is a UI phase, check if visual testing screenshots exist in `{project.visual_testing.screenshot_dir}`. If they exist:
+> - Read the screenshots using the Read tool (multimodal analysis)
+> - Incorporate visual quality assessment into per-criterion scores
+> - Visual issues reduce criterion scores by severity: minor (-0.5), major (-1.0), critical (-2.0)
+> - If no screenshots exist, note "visual testing not performed" in the scorecard
+> - Visual test results are supplementary evidence -- they enhance scoring precision but do not replace acceptance criteria verification
 >
 > **ANTI-INFLATION RULES:**
 > - You MUST NOT default to 8.x or 9.x. Start from 5.0 (baseline) and ADD points based on evidence of criteria being met.
