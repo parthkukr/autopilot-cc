@@ -1,0 +1,12 @@
+{
+  "phase_id": "24",
+  "timestamp": "2026-02-12T00:00:00Z",
+  "criteria_source": "roadmap",
+  "criteria_checked": [],
+  "total_criteria": 4,
+  "passed_criteria": 0,
+  "pass_ratio": 0.0,
+  "routing_decision": "full_pipeline",
+  "skipped_steps": [],
+  "note": "No verifiable criteria for triage -- success criteria are prose-only without verification commands. Routing to full pipeline."
+}
