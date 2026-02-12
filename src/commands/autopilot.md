@@ -1,7 +1,7 @@
 ---
 name: autopilot
 description: Autonomous multi-phase execution — runs development phases without human intervention
-argument-hint: <phases|resume|status|update|--complete|--map|--lenient|--force|--quality|--gaps|--discuss>
+argument-hint: <phases|resume|status|update|--complete|--map|--lenient|--force|--quality|--gaps|--discuss|--visual>
 allowed-tools:
   - Read
   - Write
@@ -30,6 +30,7 @@ Run 1-N development phases autonomously using the 3-tier orchestrator pattern. Y
 - `--quality [phase]` — execute with 9.5/10 alignment threshold; for unexecuted phases, runs the standard pipeline with the elevated threshold then enters remediation if needed; for completed phases below 9.5, enters remediation loops directly; max 3 remediation cycles; cannot combine with `--force`
 - `--gaps [phase]` — analyze and resolve the specific deficiencies preventing a completed phase from reaching 10/10; produces ordered list of remaining issues, then executes micro-targeted fixes one deficiency at a time, working toward 9.5+/10; max 5 gap-fix iterations; can combine with `--quality` (quality runs first to 9.5, then gaps pushes higher)
 - `--discuss [phases]` — run an interactive discussion session per phase before execution begins; the orchestrator asks targeted, phase-specific questions about expected results, edge cases, and preferences; answers are recorded and injected into the phase-runner's context; combines with any other flag (always runs first)
+- `--visual [phases]` -- run visual testing during verification for UI phases; requires `project.visual_testing` configuration in `.planning/config.json` with at least `launch_command`, `base_url`, and `routes`; when used without a phase range, applies to all UI phases in the current run; enables Step 2.5 (Visual Testing) in the verifier even if `visual_testing.enabled` is false in config (allowing one-off visual test runs); can combine with any other flag
 - `--sequential` — force all phases sequential
 - `--checkpoint-every N` — pause for human review every N phases
 </objective>
@@ -141,6 +142,14 @@ Tier 3: Step Agents — spawned by phase-runners (researcher, planner, executor,
 - User answers are recorded to `.autopilot/discuss-context.json` and injected into phase-runner context
 - Combines with any other flag -- always runs first before execution/quality/gaps/force
 - Questions are specific to each phase's content (not generic)
+
+### If `--visual`:
+- Sets `visual_testing_enabled: true` in the phase-runner spawn prompt for all target UI/mixed phases
+- Requires `project.visual_testing` section in `.planning/config.json` (with `launch_command`, `base_url`, `routes`)
+- If `project.visual_testing` section is missing, halt with: "Visual testing requires `project.visual_testing` in `.planning/config.json`. See autopilot-schemas.md Section 16 for the configuration schema."
+- Enables Step 2.5 (Visual Testing) in the verifier methodology even if `visual_testing.enabled` is false
+- Combinable with any other flag: `--visual --quality`, `--visual --discuss`, etc.
+- Visual testing is a non-blocking enhancement: if Playwright is not installed or the app fails to launch, verification continues without visual tests
 
 ### If `--map`:
 - Follow orchestrator guide Section 1.2 (Context Mapping Mode)
