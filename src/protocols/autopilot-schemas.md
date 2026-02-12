@@ -50,7 +50,10 @@ This is the single source of truth for a run. If the orchestrator crashes and re
     "orchestrator_context_pct": 35,
     "human_deferred_count": 0,        // STAT-04: phases returning needs_human_verification
     "total_phases_processed": 0,      // STAT-04: total phases processed (for defer-rate calc)
-    "pass_threshold": 9               // CENF-01: alignment pass threshold (9 default, 7 with --lenient)
+    "pass_threshold": 9,              // CENF-01: alignment pass threshold (9 default, 7 with --lenient)
+    "autonomous_resolution_rate": 0.0, // Computed: phases autonomously resolved / total phases attempted
+    "deferral_threshold": 0.05,       // Target deferral rate (5% default, auto-adjusted based on history)
+    "deferral_history": []            // Array of {phase_id, reason, autonomous_confidence, human_verdict, timestamp}
   },
 
   // ─── Spec Lock ────────────────────────────────────────────────────────
@@ -222,7 +225,9 @@ All events are appended to the `event_log` array in `state.json`. Events are the
 | `rollback_completed` | Recovery | Rollback finishes |
 | `human_verdict_recorded` | Phase | User provides pass/fail/issues_found verdict on a needs_human_verification phase |
 | `unnecessary_deferral_warning` | Phase | Phase deferred to human with all auto tasks passing |
-| `high_defer_rate_warning` | Run | More than 50% of processed phases deferred to human |
+| `high_defer_rate_warning` | Run | More than 5% of processed phases deferred to human |
+| `autonomous_resolution_success` | Phase | Phase with checkpoint:human-verify tasks was resolved autonomously (autonomous_confidence >= 6) |
+| `deferral_threshold_adjusted` | Run | Deferral confidence threshold auto-adjusted based on historical human verdicts |
 | `self_audit_started` | Run | Self-audit agent spawned during completion protocol |
 | `self_audit_completed` | Run | Self-audit finished (includes aggregate pass/gap counts) |
 | `self_audit_gap_found` | Run | Self-audit identified a requirement gap (one event per gap) |

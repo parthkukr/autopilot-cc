@@ -651,6 +651,42 @@ After each phase return:
 
 These counters persist in `state.json` (see Section 7) so they survive resume operations.
 
+5. If `status` is `"completed"` AND the phase had `checkpoint:human-verify` tasks in its plan AND the verifier's `autonomous_confidence >= 6`: Append an `autonomous_resolution_success` event to the event_log. Log: "Phase {N}: autonomous resolution succeeded (confidence: {autonomous_confidence}/10). Human deferral avoided."
+6. Append a deferral history entry to `_meta.deferral_history`: `{phase_id, reason: "completed|deferred", autonomous_confidence, human_verdict: null, timestamp}`.
+7. Update `_meta.autonomous_resolution_rate`: compute `(total_phases_processed - human_deferred_count) / total_phases_processed`.
+
+### Deferral Threshold Auto-Adjustment
+
+At the end of each run (during the completion protocol), the orchestrator auto-adjusts the deferral confidence threshold based on historical human verdicts from `_meta.deferral_history`:
+
+```
+deferred_phases = deferral_history entries where reason == "deferred" AND human_verdict is not null
+if deferred_phases.length >= 3:
+  pass_rate = count(human_verdict == "pass") / deferred_phases.length
+  if pass_rate > 0.80:
+    // Humans consistently pass deferred phases -- autonomous verification was being too conservative
+    new_threshold = max(3, current_deferral_threshold_confidence - 0.5)
+    log: "Deferral threshold auto-adjusted: confidence threshold lowered from {old} to {new}. Reason: {pass_rate*100}% of deferred phases passed human review."
+    append deferral_threshold_adjusted event
+  else if pass_rate < 0.70:
+    // Humans consistently find issues -- autonomous verification should be more conservative
+    new_threshold = min(8, current_deferral_threshold_confidence + 0.5)
+    log: "Deferral threshold auto-adjusted: confidence threshold raised from {old} to {new}. Reason: only {pass_rate*100}% of deferred phases passed human review."
+    append deferral_threshold_adjusted event
+  store new_threshold in _meta.deferral_threshold
+```
+
+The threshold starts at 6 (autonomous_confidence >= 6 means no deferral) and adjusts based on whether human reviewers are finding real issues that autonomous verification missed.
+
+### Deferral Statistics in Run-End Summary
+
+At the end of each run, include deferral statistics in the completion summary:
+- Total phases processed: {total_phases_processed}
+- Phases deferred to human: {human_deferred_count} ({defer_rate*100}%)
+- Autonomous resolutions: {total_phases_processed - human_deferred_count}
+- Autonomous resolution rate: {autonomous_resolution_rate*100}%
+- Current deferral confidence threshold: {deferral_threshold}
+
 ### Pre-Spawn Checks (Automatic, No User Input)
 
 Before spawning the phase-runner for phase N:
