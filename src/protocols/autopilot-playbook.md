@@ -508,11 +508,120 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 ### STEP 3: EXECUTE
 
-**Purpose:** Implement the plan -- write code, make commits that compile and pass lint.
+**Purpose:** Implement the plan -- write code, make commits that compile and pass lint. Each task is independently verified before proceeding to the next.
 
 **Pre-launch check:** Compare file lists across all tasks in the current wave. If any file appears in multiple tasks of the same wave, split into sequential sub-waves to avoid merge conflicts.
 
-**Action:** Spawn `gsd-executor` agent via Task tool, run_in_background=true.
+#### Per-Task Execution Loop (PVRF-01)
+
+Instead of spawning a single executor for all tasks, the phase-runner orchestrates per-task execution with incremental verification. This catches failures at minute 5 (after the first task) instead of minute 30+ (after all tasks complete).
+
+**Loop structure:**
+```
+tasks = extract ordered task list from PLAN.md
+for each task in tasks:
+  1. EXECUTOR SPAWN: Spawn gsd-executor for this single task (run_in_background=true)
+     - Pass: task definition, PLAN.md path, cumulative EXECUTION-LOG.md (so executor has context from prior tasks)
+     - Executor completes the task, writes EXECUTION-LOG.md entry, makes atomic commit, returns JSON
+  2. MINI-VERIFY: Spawn mini-verifier (general-purpose, run_in_background=false)
+     - Pass: task's acceptance criteria from PLAN.md, files modified (from executor return), EXECUTION-LOG.md entry
+     - Mini-verifier runs each verification command independently, returns structured JSON
+  3. PROCESS RESULT:
+     - If mini-verifier returns pass: log "Task {id} VERIFIED. Proceeding to next task." Continue loop.
+     - If mini-verifier returns fail: spawn gsd-debugger targeting the specific failures.
+       - Debugger fixes issues, re-commits.
+       - Re-run mini-verifier (max 2 debug attempts per task).
+       - If still failing after 2 attempts: log failure, mark task as FAILED in EXECUTION-LOG.md, continue to next task (do not halt entire phase for one task failure).
+  4. LOG: Update EXECUTION-LOG.md with mini_verification results (see schema below).
+```
+
+**Executor spawn for single task -- prompt additions:**
+
+When spawning the executor for a single task, append this to the standard executor prompt:
+
+> **INCREMENTAL EXECUTION MODE:** You are executing a SINGLE task ({task_id}: {task_description}). Complete ONLY this task. Do NOT proceed to other tasks. After completing this task, write your EXECUTION-LOG.md entry and return immediately. The phase-runner will verify this task independently before dispatching the next task.
+>
+> **Prior task context:** {summary of EXECUTION-LOG.md entries from previously completed tasks, or "This is the first task."}
+
+**Mini-Verifier Prompt Template:**
+
+```
+You are a mini-verifier for task {task_id} of phase {N}: {phase_name}.
+
+Your ONLY job is to independently verify this single task's acceptance criteria. You did NOT write this code.
+
+Task: {task_id} -- {task_description}
+Files modified: {files_from_executor_return}
+Acceptance criteria from PLAN.md:
+{task_acceptance_criteria_with_verification_commands}
+
+<must>
+1. For EACH acceptance criterion, run the verification command specified in the criterion.
+2. Compare the command output against the expected result.
+3. Record PASS or FAIL per criterion with evidence (file:line, command output).
+4. Return structured JSON (see Return JSON below).
+5. Do NOT trust the executor's self-reported results. Run every command yourself.
+</must>
+
+<should>
+1. If a criterion passes via grep but the surrounding context looks wrong (e.g., pattern found but in a comment or dead code block), flag it as a concern.
+2. Check that the executor's commit is atomic (only touches files listed in the task).
+</should>
+
+Return JSON:
+{
+  "task_id": "{task_id}",
+  "pass": true|false,
+  "criteria_results": [
+    {"criterion": "text", "status": "pass|fail", "evidence": "file:line -- output", "command": "the command run", "command_output": "first 200 chars"}
+  ],
+  "concerns": ["any concerns even if passing"],
+  "commands_run": ["command -> result"]
+}
+```
+
+**Mini-verification failure handling:**
+
+When the mini-verifier reports `pass: false`:
+1. Extract the failed criteria from `criteria_results`.
+2. Spawn `gsd-debugger` with the failed criteria as the issue list.
+3. After the debugger returns, re-spawn the mini-verifier to confirm the fix.
+4. Max 2 debug attempts per task. If the task still fails after 2 attempts, mark it as FAILED in EXECUTION-LOG.md and proceed to the next task.
+5. At the end of the per-task loop, if ANY task has status FAILED, the phase proceeds to final verification (STEP 4) but the phase-runner notes the failures in its return JSON `issues` array.
+
+**EXECUTION-LOG.md per-task entry extension:**
+
+Each task entry in EXECUTION-LOG.md MUST include a `mini_verification` section after the executor's self-reported results:
+
+```markdown
+### Task {id}: {description}
+- **Status:** COMPLETED|FAILED|NEEDS_REVIEW
+- **Commit SHA:** {sha}
+- **Files modified:** {list}
+- **Evidence:** {executor's self-test results}
+- **Confidence:** {1-10}
+- **Mini-Verification:**
+  - **Result:** PASS|FAIL
+  - **Criteria checked:** {N}
+  - **Criteria passed:** {N}
+  - **Failures:** {list of failed criteria with evidence, or "None"}
+  - **Debug attempts:** {0-2}
+```
+
+**Context budget for mini-verifiers:**
+
+| Component | Budget |
+|-----------|--------|
+| Mini-verifier response | max 30 lines |
+| Mini-verifier summary | max 5 lines (JSON return only) |
+| Phase-runner ingestion per task | max 5 lines (JSON return block) |
+| Total for 5-task phase | ~25 lines (5 tasks x 5 lines per mini-verifier JSON) |
+
+**Fallback to batch execution:**
+
+If the plan contains more than 8 tasks, the phase-runner MAY fall back to batch execution (single executor spawn for all tasks) to avoid excessive agent spawns. In this case, per-task mini-verification runs AFTER the executor returns (one mini-verifier per EXECUTION-LOG.md entry) rather than between task executions. This trades early failure detection for reduced agent spawn overhead.
+
+**Action:** Spawn `gsd-executor` agent via Task tool, run_in_background=true. When in per-task execution mode, spawn once per task. When in batch fallback mode, spawn once for all tasks.
 
 **Prompt template:**
 
