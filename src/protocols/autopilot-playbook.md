@@ -749,6 +749,31 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > 2. Note potential edge cases not covered by acceptance criteria
 > </may>
 >
+> **AUTONOMOUS RESOLUTION (all phase types -- attempt BEFORE any deferral consideration):**
+>
+> The verifier MUST attempt autonomous resolution of ALL acceptance criteria before considering human deferral. This applies to every phase type, including UI phases.
+>
+> **Autonomous Resolution Steps:**
+> 1. Run all automated checks (compile, lint, build) and record results
+> 2. For UI/mixed phases: Execute behavioral traces for ALL interactive handlers found in the git diff (trace from trigger to terminal action)
+> 3. For each acceptance criterion: run the verification command, read the target file, confirm the criterion is met with file:line evidence
+> 4. Compute `autonomous_confidence` (1-10): How confident is the verifier that ALL criteria are met based on code analysis and command execution alone?
+>    - 9-10: All criteria verified with commands and code reading, no ambiguity
+>    - 7-8: Most criteria verified, minor gaps that code analysis cannot resolve (e.g., visual rendering)
+>    - 5-6: Significant criteria that code analysis alone cannot confirm
+>    - 1-4: Multiple criteria require runtime or visual inspection
+>
+> **Deferral Evidence Threshold:**
+> Deferral to human review is ONLY permitted when ALL of the following conditions are met:
+> 1. `autonomous_confidence` is below 6 (the verifier genuinely cannot confirm criteria through code analysis)
+> 2. The verifier documents specific `deferral_evidence` for each criterion it cannot verify:
+>    - Which criterion cannot be verified autonomously
+>    - What verification methods were attempted (commands run, files read, traces performed)
+>    - Why each method was insufficient (specific reason, not "I'm not sure" or "visual confirmation needed")
+> 3. The deferral reason is NOT a generic visual confirmation -- specific untraceable behavior must be identified
+>
+> If the verifier's `autonomous_confidence` is 6 or above, it MUST return pass/fail without deferral, even for UI phases. The behavioral trace methodology (below) combined with build verification is sufficient for autonomous UI validation in most cases.
+>
 > **VERIFICATION METHODOLOGY:**
 >
 > **Step 1: Automated checks (ALL phase types):**
@@ -876,9 +901,17 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 >   "scope_creep": ["anything built that was not in spec"],
 >   "execution_results": [
 >     {"criterion": "text", "command": "cmd", "exit_code": 0, "output": "first 200 chars", "assessment": "pass|fail|timeout"}
->   ]
+>   ],
+>   "autonomous_resolution_attempted": true,
+>   "autonomous_confidence": 8,
+>   "deferral_evidence": []
 > }
 > ```
+>
+> **Autonomous resolution fields:**
+> - `autonomous_resolution_attempted`: Always `true` -- the verifier MUST attempt autonomous resolution before any deferral
+> - `autonomous_confidence`: 1-10 score of how confidently the verifier verified all criteria through code analysis and command execution alone. If >= 6, deferral is NOT permitted.
+> - `deferral_evidence`: Empty array if no deferral needed. If populated, each entry must have: `{"criterion": "text", "methods_attempted": ["what was tried"], "why_insufficient": "specific reason"}`
 
 **Read back:** ONLY the JSON result.
 
@@ -1439,11 +1472,13 @@ Return immediately with: `status: "failed"`, `alignment_score: null`, `recommend
 
 ### Human-Verify Checkpoint
 
-**Case 1 -- Mixed plan (auto + human-verify tasks):** Execute auto tasks, run verify/judge/rate, then return with: `status: "needs_human_verification"`, populated `alignment_score` (decimal, from rating agent), `automated_checks`, and `commit_shas` from the auto tasks. Include `human_verify_justification` describing what needs human approval.
+**Autonomous resolution first (MUST):** Before returning `needs_human_verification`, the phase-runner MUST instruct the verifier to attempt autonomous resolution of checkpoint:human-verify task criteria through code analysis, build verification, and behavioral traces. The verifier reports its `autonomous_confidence` score. If `autonomous_confidence >= 6`, the phase-runner MUST return `status: "completed"` even if the plan had checkpoint:human-verify tasks -- the autonomous verification was sufficient.
 
-**Case 2 -- Pure human-verify plan (zero auto tasks):** Skip execute/verify/judge/rate. Return with: `status: "needs_human_verification"`, `alignment_score: null`, empty `automated_checks` and `commit_shas`. Set execute/verify/judge/rate pipeline_steps to `"skipped"`.
+**Case 1 -- Mixed plan (auto + human-verify tasks) where autonomous resolution FAILS (autonomous_confidence < 6):** Execute auto tasks, run verify/judge/rate, then return with: `status: "needs_human_verification"`, populated `alignment_score` (decimal, from rating agent), `automated_checks`, and `commit_shas` from the auto tasks. Include `human_verify_justification` describing what needs human approval AND `deferral_evidence` documenting what the verifier could not resolve autonomously.
 
-**REQUIRED for both cases:** When returning `status: "needs_human_verification"`, the phase-runner MUST populate the `human_verify_justification` field in the return JSON. This field identifies the specific checkpoint task that triggered the human-verify status:
+**Case 2 -- Pure human-verify plan (zero auto tasks):** The phase-runner still attempts autonomous resolution through the verifier. If `autonomous_confidence >= 6`, return `status: "completed"`. If `autonomous_confidence < 6`, return `status: "needs_human_verification"` with `alignment_score: null`, empty `automated_checks` and `commit_shas`. Set execute pipeline_steps to `"skipped"`.
+
+**REQUIRED when returning `needs_human_verification`:** The phase-runner MUST populate the `human_verify_justification` field in the return JSON. This field identifies the specific checkpoint task that triggered the human-verify status:
 ```json
 "human_verify_justification": {
   "checkpoint_task_id": "XX-YY",
@@ -1452,7 +1487,7 @@ Return immediately with: `status: "failed"`, `alignment_score: null`, `recommend
   "auto_tasks_total": M
 }
 ```
-The orchestrator rejects any `needs_human_verification` return that lacks this field (see orchestrator Section 5, Check 13). Do NOT use generic justifications like "it's a UI phase" -- the justification must reference the specific task ID from the plan.
+The orchestrator rejects any `needs_human_verification` return that lacks this field (see orchestrator Section 5, Check 13). Do NOT use generic justifications like "it's a UI phase" -- the justification must reference the specific task ID from the plan AND include the specific criteria the verifier could not resolve autonomously.
 
 ### Pipeline Failures
 
