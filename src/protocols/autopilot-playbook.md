@@ -927,6 +927,7 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 >    - Read the actual file(s) to confirm the criterion is truly met (not just pattern-matched)
 >    - Record: criterion text, verification command, command output, manual confirmation result, and any concerns
 >    - **Execution-based criteria:** When a criterion specifies an execution command (compile, test, lint, build, script execution -- not grep), run the actual command using the Bash tool with a 60-second timeout and use the runtime output to evaluate the criterion. Do NOT substitute grep for an available execution command. Record command output, exit code, and runtime assessment in the scorecard. If a command crashes, throws an unhandled exception, or times out, classify it as a verification failure using the failure taxonomy (`compilation_failure`, `build_failure`, `lint_failure`, or `tool_failure`).
+>    - **Test specification execution:** For each task, also run the generated test specification file (`.planning/phases/{phase}/tests/task-{id}.sh`) and use the test output as PRIMARY evidence for scoring. Test results carry more weight than grep output: a passing test gives higher confidence than a matching grep pattern. When test results and grep results disagree, test results determine the score. If no test specification file exists for a task, note it as a coverage gap in the scorecard.
 > 3. **Behavioral criteria scoring (UI/mixed phases):** For criteria marked as behavioral (those requiring code tracing rather than grep), verification MUST involve reading the handler code and tracing the logic chain. Scoring rules for behavioral criteria:
 >    - Score < 7.0 if the terminal behavior (the final action the handler performs) cannot be confirmed from code reading alone (e.g., handler calls an opaque function with no visible definition)
 >    - Score < 5.0 if the traced logic CONTRADICTS the criterion (e.g., criterion says "opens event URL" but handler actually opens a hardcoded URL or different resource)
@@ -949,7 +950,8 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 >    - The aggregate is the arithmetic mean of per-criterion scores, rounded to one decimal place
 >    - Provide explicit justification for each point deducted from 10.0
 > 8. Write a detailed scorecard to `.planning/phases/{phase}/SCORECARD.md` containing:
->    - Per-criterion scores with evidence and justifications
+>    - Per-criterion scores with evidence and justifications (include Test Results column showing test specification output when available)
+>    - Test Coverage section showing: tasks with test specifications vs tasks total, assertions passed vs assertions total, and which tasks had only grep-based evidence
 >    - Side effects analysis
 >    - Aggregate score with deduction justifications
 >    - Score calibration note (which band the score falls in and why)
@@ -1001,6 +1003,7 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 >   "aggregate_justification": "explanation of how aggregate was computed and what deductions were made",
 >   "side_effects": ["any side effects found"],
 >   "commands_run": ["command -> result"],
+>   "test_coverage": {"tasks_with_tests": 0, "tasks_total": 0, "assertions_passed": 0, "assertions_total": 0},
 >   "score_band": "excellence|good|acceptable|significant_gaps|major_failures|not_implemented"
 > }
 > ```
