@@ -5,33 +5,61 @@
 See: .planning/PROJECT.md (updated 2026-02-10)
 
 **Core value:** Phases that complete autonomously must actually work -- code compiles, requirements are met, nothing is broken.
-**Current focus:** Phase 1: Prompt Architecture
+**Current focus:** Phase 17: Sandboxed Code Execution
 
 ## Current Position
 
-Phase: 1 of 7 (Prompt Architecture)
+Phase: 17 of 26 (Sandboxed Code Execution)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-02-10 -- Roadmap created with 7 phases covering 27 requirements
+Last activity: 2026-02-12 -- Added 10 new phases (17-26) based on competitive analysis research.
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████░░░░] 61%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total phases completed: 19 (16 integer phases + 3 decimal phases)
+- Average duration: ~1-2 sessions per phase (approximate)
+- Total execution time: ~30+ hours (approximate)
 
 **By Phase:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
+| Phase | Name | Status | Version |
+|-------|------|--------|---------|
+| 1 | Prompt Architecture | Completed | v1.1.0 |
+| 2 | Executor Quality Enforcement | Completed | v1.1.0 |
+| 2.1 | Post-Creation Integration Check | Completed | v1.1.1 |
+| 3 | Plan Quality Gates | Completed | v1.1.0 |
+| 3.1 | Pre-Execution Triage | Completed | v1.1.2 |
+| 4 | Verification Pipeline Hardening | Completed | v1.2.0 |
+| 4.1 | Status Decision Governance | Completed | v1.2.0 |
+| 5 | Execution Trace and Observability | Completed | v1.3.0 |
+| 6 | Post-Mortem and Cross-Phase Learning | Completed | v1.3.0 |
+| 7 | Metrics and Cost Tracking | Completed | v1.3.0 |
+| 8 | Batch Completion Mode | Completed | v1.5.0 |
+| 9 | Pre-Execution Context Mapping | Completed | v1.5.0 |
+| 10 | Confidence Enforcement | Completed | v1.5.0 |
+| 11 | Competitive Analysis & v3 Roadmap Research | Completed | v1.7.2 |
+| 12 | Post-Completion Self-Audit | Completed | v1.4.0 |
+| 13 | Auto-update | Completed | v1.4.0 |
+| 14 | CLI Quality Flags | Completed | v1.6.1 |
+| 15 | Rating System Overhaul | Completed | v1.6.0 |
+| 16 | Context Exhaustion Prevention | Completed | v1.7.0 |
+| 17 | Sandboxed Code Execution | Pending | - |
+| 18 | Test-Driven Acceptance Criteria | Pending | - |
+| 19 | Semantic Repository Map | Pending | - |
+| 20 | Incremental Per-Task Verification | Pending | - |
+| 21 | Human Deferral Elimination | Pending | - |
+| 22 | Visual Testing with Screenshot Automation | Pending | - |
+| 23 | Integrated Debug System | Pending | - |
+| 24 | Progress Streaming | Pending | - |
+| 25 | Native Autopilot CLI Commands | Pending | - |
+| 26 | Bug Fixes and QoL Polish | Pending | - |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 phases: 12, 13, 14, 15, 16
+- Trend: Steady completion cadence
 
 *Updated after each plan completion*
 
@@ -45,6 +73,7 @@ Recent decisions affecting current work:
 - [Roadmap]: Prompt architecture first -- every subsequent phase adds prompt content, and without delimiter/budget system, additions will degrade existing behavior through instruction dilution
 - [Roadmap]: Executor guards before verification hardening -- preventing bad output is cheaper than detecting it
 - [Roadmap]: Phases 3 and 4 both depend on Phase 2 but not each other -- plan quality and verification hardening are independent improvements to the pipeline
+- [Roadmap]: Phases 17-26 derived from competitive analysis research (Phase 11) -- prioritized by impact and feasibility
 
 ### Roadmap Evolution
 
@@ -59,18 +88,30 @@ Recent decisions affecting current work:
 - Phase 14 updated: Renamed to "CLI Quality Flags" — added `--gaps` flag (resolve deficiencies to 10/10), `--discuss` flag (interactive Q&A per phase before execution), redefined `--force` (redo completed phase from scratch regardless of score), redefined `--quality` (remediation loops until 9/10 instead of audit-only)
 - Phase 15 added: Rating System Overhaul — dedicated isolated rating agent replacing inline scoring to fix inflated 8-9 rubber-stamping
 - Phase 16 added: Context Exhaustion Prevention — hard context gates, scope-capped remediation, handoff-on-failure, pre-run cost estimation. Triggered by real --quality run failure where orchestrator + all 6 phase-runners hit context limit
+- Phase 17 added: Sandboxed Code Execution -- run generated code in isolated sandbox for verification
+- Phase 18 added: Test-Driven Acceptance Criteria -- replace grep patterns with executable tests
+- Phase 19 added: Semantic Repository Map -- tree-sitter code understanding for agents
+- Phase 20 added: Incremental Per-Task Verification -- verify per task not per phase
+- Phase 21 added: Human Deferral Elimination -- automated validation for near-zero deferral
+- Phase 22 added: Visual Testing with Screenshot Automation -- Puppeteer/Playwright for automated visual testing
+- Phase 23 added: Integrated Debug System -- native debug command replacing /gsd:debug
+- Phase 24 added: Progress Streaming -- real-time CLI feedback during execution
+- Phase 25 added: Native Autopilot CLI Commands -- own add-phase, map-codebase (GSD decoupling)
+- Phase 26 added: Bug Fixes and QoL Polish -- pending todos and minor improvements
+- Version fix: Reverted v1.8.0 to v1.7.2 -- research phase doesn't warrant minor version bump
 
 ### Pending Todos
 
-None yet.
+- Redesign --discuss flag UX to be more like /gsd:discuss (protocols) -- now tracked in Phase 26
+- Auto-route --quality flag to standard execution for unexecuted phases (protocols) -- now tracked in Phase 26
 
 ### Blockers/Concerns
 
-- Windows 8191-char Task tool prompt limit may conflict with enriched executor prompts (guards + trace instructions). Mitigation: move detailed instructions to files that agents read, keep spawn prompts to file paths and return format only.
-- Guard compliance rate is unknown -- LLMs do not guarantee instruction compliance. Need empirical data after Phase 2.
+- Puppeteer/Playwright integration (Phase 22) may require Docker for headless browser in CI environments
+- GSD decoupling (Phase 25) needs careful migration path to avoid breaking existing users
 
 ## Session Continuity
 
-Last session: 2026-02-10
-Stopped at: Roadmap created, ready to plan Phase 1
+Last session: 2026-02-12
+Stopped at: Added phases 17-26 and fixed version to v1.7.2. Ready to plan Phase 17.
 Resume file: None

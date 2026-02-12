@@ -1,14 +1,10 @@
 # Changelog
 
-## 1.8.0 (2026-02-12)
+## 1.7.2 (2026-02-12)
 
 ### Features
 
-- **Competitive Landscape Analysis:** Research covering 15 AI coding agent projects across 4 categories (direct competitors, adjacent tools, agent frameworks, quality/testing) with architecture summaries, differentiators, strengths/weaknesses, user sentiment, and source-attributed claims
-- **Gap Analysis:** Cross-reference of autopilot-cc v2 capabilities against competitive landscape identifying 8 competitive gaps and 5 leadership areas
-- **Vulnerability Assessment:** Comprehensive analysis of technical debt, architectural bottlenecks, dependency risks, UX pain points, and scaling concerns from v2 development
-- **v3 Feature Roadmap Draft:** 25 prioritized candidate features ranked by success rate impact, UX impact, implementation complexity, and competitive urgency with phased release plan
-- **User Insights Integration:** Evidence-based user questionnaire (15 questions) with answers incorporated into v3 roadmap prioritization
+- **Roadmapping new features:** Analyzed gaps in the current setup that can be amended with future development
 
 ## 1.7.1 (2026-02-12)
 

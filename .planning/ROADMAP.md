@@ -12,24 +12,34 @@ autopilot-cc v1.0 achieves 50% phase success rate. The root cause is unchecked e
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Prompt Architecture** - Structured delimiter system, context budgets, and JSON handoffs that prevent instruction dilution
-- [ ] **Phase 2: Executor Quality Enforcement** - Inline compile gates, self-testing, per-task commits, and confidence scoring inside the executor
-- [ ] **Phase 2.1: Post-Creation Integration Check** *(INSERTED)* - Automatic verification that new files are imported/wired into the codebase, preventing orphaned components that compile but are never reachable
-- [ ] **Phase 3: Plan Quality Gates** - Machine-verifiable acceptance criteria and complexity estimation before execution begins
-- [ ] **Phase 3.1: Pre-Execution Triage** *(INSERTED)* - Fast codebase scan before pipeline launch to detect already-implemented phases and skip to verify-only path
-- [ ] **Phase 4: Verification Pipeline Hardening** - Blind verification, structural judge enforcement, rubber-stamp detection, and failure taxonomy
-- [ ] **Phase 4.1: Status Decision Governance** *(INSERTED)* - Evidence validation for ALL status decisions, structured human-verify justifications, and defer-rate monitoring to prevent `needs_human_verification` from being an unchecked escape hatch
-- [ ] **Phase 5: Execution Trace and Observability** - Structured JSONL tracing from step agents through phase-level aggregation
-- [ ] **Phase 6: Post-Mortem and Cross-Phase Learning** - Structured failure analysis, prevention rules, and executor priming from accumulated learnings
-- [ ] **Phase 7: Metrics and Cost Tracking** - Run-level metrics, cost estimation, and cross-run trend analysis
-- [ ] **Phase 8: Batch Completion Mode** - `--complete` flag to run all outstanding phases without manual phase selection, with dependency-aware ordering and aggregated completion reporting
-- [ ] **Phase 9: Pre-Execution Context Mapping** - `--map` flag to audit phase context sufficiency before execution, spawn questioning agent for underspecified phases, and warn about low-confidence phases
-- [ ] **Phase 10: Confidence Enforcement** - `--force` flag to enforce 9/10 minimum completion standard with remediation loops, plus diagnostic debug files for every sub-9 phase
-- [ ] **Phase 12: Post-Completion Self-Audit** - Orchestrator automatically audits implementation against requirements after phases complete, identifies gaps, and fixes them before reporting to user
-- [ ] **Phase 11: Competitive Analysis & v3 Roadmap Research** - Deep research into competing/adjacent npm packages and open-source AI orchestration projects, producing a gap analysis and prioritized feature roadmap for the next version
-- [ ] **Phase 14: CLI Quality Flags** - `--force` to redo completed phases from scratch, `--quality` to enforce 9/10 minimum with remediation loops, `--gaps` to resolve remaining deficiencies targeting 10/10, `--discuss` to run interactive Q&A per phase before execution
-- [ ] **Phase 15: Rating System Overhaul** - Dedicated isolated rating agent with rigorous multi-step evaluation process, replacing the current lenient inline scoring that rubber-stamps 8-9s
-- [ ] **Phase 16: Context Exhaustion Prevention** - Hard context gates, scope-capped remediation cycles, handoff-on-failure for agents hitting limits, and pre-run context cost estimation
+- [x] **Phase 1: Prompt Architecture** - Structured delimiter system, context budgets, and JSON handoffs that prevent instruction dilution
+- [x] **Phase 2: Executor Quality Enforcement** - Inline compile gates, self-testing, per-task commits, and confidence scoring inside the executor
+- [x] **Phase 2.1: Post-Creation Integration Check** *(INSERTED)* - Automatic verification that new files are imported/wired into the codebase, preventing orphaned components that compile but are never reachable
+- [x] **Phase 3: Plan Quality Gates** - Machine-verifiable acceptance criteria and complexity estimation before execution begins
+- [x] **Phase 3.1: Pre-Execution Triage** *(INSERTED)* - Fast codebase scan before pipeline launch to detect already-implemented phases and skip to verify-only path
+- [x] **Phase 4: Verification Pipeline Hardening** - Blind verification, structural judge enforcement, rubber-stamp detection, and failure taxonomy
+- [x] **Phase 4.1: Status Decision Governance** *(INSERTED)* - Evidence validation for ALL status decisions, structured human-verify justifications, and defer-rate monitoring to prevent `needs_human_verification` from being an unchecked escape hatch
+- [x] **Phase 5: Execution Trace and Observability** - Structured JSONL tracing from step agents through phase-level aggregation
+- [x] **Phase 6: Post-Mortem and Cross-Phase Learning** - Structured failure analysis, prevention rules, and executor priming from accumulated learnings
+- [x] **Phase 7: Metrics and Cost Tracking** - Run-level metrics, cost estimation, and cross-run trend analysis
+- [x] **Phase 8: Batch Completion Mode** - `--complete` flag to run all outstanding phases without manual phase selection, with dependency-aware ordering and aggregated completion reporting
+- [x] **Phase 9: Pre-Execution Context Mapping** - `--map` flag to audit phase context sufficiency before execution, spawn questioning agent for underspecified phases, and warn about low-confidence phases
+- [x] **Phase 10: Confidence Enforcement** - `--force` flag to enforce 9/10 minimum completion standard with remediation loops, plus diagnostic debug files for every sub-9 phase
+- [x] **Phase 12: Post-Completion Self-Audit** - Orchestrator automatically audits implementation against requirements after phases complete, identifies gaps, and fixes them before reporting to user
+- [x] **Phase 11: Competitive Analysis & v3 Roadmap Research** - Deep research into competing/adjacent npm packages and open-source AI orchestration projects, producing a gap analysis and prioritized feature roadmap for the next version
+- [x] **Phase 14: CLI Quality Flags** - `--force` to redo completed phases from scratch, `--quality` to enforce 9/10 minimum with remediation loops, `--gaps` to resolve remaining deficiencies targeting 10/10, `--discuss` to run interactive Q&A per phase before execution
+- [x] **Phase 15: Rating System Overhaul** - Dedicated isolated rating agent with rigorous multi-step evaluation process, replacing the current lenient inline scoring that rubber-stamps 8-9s
+- [x] **Phase 16: Context Exhaustion Prevention** - Hard context gates, scope-capped remediation cycles, handoff-on-failure for agents hitting limits, and pre-run context cost estimation
+- [ ] **Phase 17: Sandboxed Code Execution** - Run generated code in isolated sandbox environment for verification instead of grep pattern matching
+- [ ] **Phase 18: Test-Driven Acceptance Criteria** - Replace grep-based acceptance criteria with executable test specifications that the verifier actually runs
+- [ ] **Phase 19: Semantic Repository Map** - Tree-sitter-based code structure understanding for all agents (functions, classes, imports, call graphs)
+- [ ] **Phase 20: Incremental Per-Task Verification** - Verify each task immediately after completion instead of waiting until entire phase finishes
+- [ ] **Phase 21: Human Deferral Elimination** - Automated validation improvements to achieve near-zero human verification rate
+- [ ] **Phase 22: Visual Testing with Screenshot Automation** - Puppeteer/Playwright integration to run apps, capture screenshots, and auto-detect visual bugs in the CLI pipeline
+- [ ] **Phase 23: Integrated Debug System** - Native autopilot debug command for systematic bug investigation, replacing /gsd:debug dependency
+- [ ] **Phase 24: Progress Streaming** - Real-time CLI progress updates and status indicators during phase execution
+- [ ] **Phase 25: Native Autopilot CLI Commands** - Built-in add-phase, map-codebase, and workflow commands reducing GSD dependency
+- [ ] **Phase 26: Bug Fixes and QoL Polish** - Address pending todos including --discuss UX redesign and --quality auto-routing
 
 ## Phase Details
 
@@ -236,29 +246,40 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 3.1 -> 4 -> 4.1 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 12 -> 11 -> 13 -> 14 -> 15 -> 16
+Phases 1-16: 1 -> 2 -> 2.1 -> 3 -> 3.1 -> 4 -> 4.1 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 12 -> 11 -> 13 -> 14 -> 15 -> 16 (ALL COMPLETED)
+Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Prompt Architecture | 0/TBD | Not started | - |
-| 2. Executor Quality Enforcement | 0/TBD | Not started | - |
-| 2.1. Post-Creation Integration Check *(INSERTED)* | 0/TBD | Not started | - |
-| 3. Plan Quality Gates | 0/TBD | Not started | - |
-| 3.1. Pre-Execution Triage *(INSERTED)* | 0/TBD | Not started | - |
-| 4. Verification Pipeline Hardening | 0/TBD | Not started | - |
-| 4.1. Status Decision Governance *(INSERTED)* | 0/TBD | Not started | - |
-| 5. Execution Trace and Observability | 0/TBD | Not started | - |
-| 6. Post-Mortem and Cross-Phase Learning | 0/TBD | Not started | - |
-| 7. Metrics and Cost Tracking | 0/TBD | Not started | - |
-| 8. Batch Completion Mode | 0/TBD | Not started | - |
-| 9. Pre-Execution Context Mapping | 0/TBD | Not started | - |
-| 10. Confidence Enforcement | 0/TBD | Not started | - |
-| 12. Post-Completion Self-Audit | 0/TBD | Not started | - |
-| 11. Competitive Analysis & v3 Roadmap Research | 0/TBD | Not started | - |
-| 13. Auto-update without confirmation | 0/TBD | Not started | - |
-| 14. CLI Quality Flags | 0/TBD | Not started | - |
-| 15. Rating System Overhaul | 0/TBD | Not started | - |
-| 16. Context Exhaustion Prevention | 0/TBD | Not started | - |
+| Phase | Status | Version |
+|-------|--------|---------|
+| 1. Prompt Architecture | Completed | v1.1.0 |
+| 2. Executor Quality Enforcement | Completed | v1.1.0 |
+| 2.1. Post-Creation Integration Check | Completed | v1.1.1 |
+| 3. Plan Quality Gates | Completed | v1.1.0 |
+| 3.1. Pre-Execution Triage | Completed | v1.1.2 |
+| 4. Verification Pipeline Hardening | Completed | v1.2.0 |
+| 4.1. Status Decision Governance | Completed | v1.2.0 |
+| 5. Execution Trace and Observability | Completed | v1.3.0 |
+| 6. Post-Mortem and Cross-Phase Learning | Completed | v1.3.0 |
+| 7. Metrics and Cost Tracking | Completed | v1.3.0 |
+| 8. Batch Completion Mode | Completed | v1.5.0 |
+| 9. Pre-Execution Context Mapping | Completed | v1.5.0 |
+| 10. Confidence Enforcement | Completed | v1.5.0 |
+| 12. Post-Completion Self-Audit | Completed | v1.4.0 |
+| 11. Competitive Analysis & v3 Roadmap Research | Completed | v1.7.2 |
+| 13. Auto-update without confirmation | Completed | v1.4.0 |
+| 14. CLI Quality Flags | Completed | v1.6.1 |
+| 15. Rating System Overhaul | Completed | v1.6.0 |
+| 16. Context Exhaustion Prevention | Completed | v1.7.0 |
+| 17. Sandboxed Code Execution | Not started | - |
+| 18. Test-Driven Acceptance Criteria | Not started | - |
+| 19. Semantic Repository Map | Not started | - |
+| 20. Incremental Per-Task Verification | Not started | - |
+| 21. Human Deferral Elimination | Not started | - |
+| 22. Visual Testing with Screenshot Automation | Not started | - |
+| 23. Integrated Debug System | Not started | - |
+| 24. Progress Streaming | Not started | - |
+| 25. Native Autopilot CLI Commands | Not started | - |
+| 26. Bug Fixes and QoL Polish | Not started | - |
 
 ### Phase 8: Batch Completion Mode
 **Goal**: The user can invoke `/autopilot --complete` to run all outstanding (incomplete) phases in dependency order without specifying a phase range -- the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
@@ -674,3 +695,137 @@ Real failure from a `--quality` run on the Assistant desktop app (2026-02-11). U
 Plans:
 - [ ] 16-01: TBD
 - [ ] 16-02: TBD
+
+### Phase 17: Sandboxed Code Execution
+**Goal**: Replace grep-based acceptance criteria verification with actual code execution in a sandboxed environment -- the verifier and rating agent run the code, execute test commands, and verify behavior through runtime output rather than pattern matching. Uses Claude Code's built-in terminal access and/or Docker containers for isolation.
+**Depends on**: Phase 16 (all v2 work complete before v2+ improvements begin)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. The verifier can execute shell commands (build, test, lint) against the codebase during verification and use the output to assess acceptance criteria
+  2. Execution happens in a sandboxed context that cannot modify the host system beyond the project directory
+  3. At least one acceptance criterion per task is verified by running actual code (not just grep)
+  4. Runtime errors (crashes, unhandled exceptions, test failures) are caught and reported as verification failures
+  5. The sandbox infrastructure integrates with the existing verification pipeline without breaking the blind verification principle
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 17 to break down)
+
+### Phase 18: Test-Driven Acceptance Criteria
+**Goal**: Evolve acceptance criteria from grep patterns to executable test specifications -- during planning, generate skeleton test files for each task; during execution, the executor implements code to pass these tests; during verification, the verifier runs the tests. Shifts verification from "does the text match?" to "does the code work?"
+**Depends on**: Phase 17 (needs sandbox infrastructure to execute tests)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. The planner generates at least one executable test specification per task (test file with assertions)
+  2. The executor's definition of "task complete" includes all generated tests passing
+  3. The verifier runs the test suite as part of verification and reports pass/fail per criterion
+  4. Test results replace grep output as the primary evidence in VERIFICATION.md and SCORECARD.md
+  5. The plan-checker rejects any plan where all criteria are still grep-only (at least one test per task required)
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 18 to break down)
+
+### Phase 19: Semantic Repository Map
+**Goal**: Build a tree-sitter-based repository map that understands code structure (functions, classes, imports, exports, call graphs) and provide it to research, planning, and execution agents so they understand the codebase at a structural level rather than relying on text search alone
+**Depends on**: Phase 16 (independent from sandbox work)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. A repo-map command generates a structured JSON representation of the codebase (files, exports, imports, function signatures, class hierarchies)
+  2. The research agent receives the repo-map as context, enabling structural queries ("which files import X?", "what calls function Y?")
+  3. The executor uses the repo-map to find existing implementations before creating new code (preventing duplicates like the oneRM.ts incident)
+  4. The repo-map updates incrementally after executor commits (not full regeneration)
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 19 to break down)
+
+### Phase 20: Incremental Per-Task Verification
+**Goal**: Instead of verifying all tasks after the full phase executes, verify each task immediately after completion -- catching failures at minute 5 instead of minute 30. The executor already writes EXECUTION-LOG.md per task; add a mini-verifier spawn after each task that runs acceptance criteria checks before proceeding to the next task
+**Depends on**: Phase 17 (sandbox execution enables meaningful per-task verification)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. After each task completes, a mini-verifier runs the task's acceptance criteria before the executor proceeds to the next task
+  2. If a task fails mini-verification, the executor gets immediate feedback and can fix it before context moves to the next task
+  3. The final phase-level verification still runs (belt and suspenders) but should find zero new issues
+  4. Per-task verification results are logged in EXECUTION-LOG.md per task entry
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 20 to break down)
+
+### Phase 21: Human Deferral Elimination
+**Goal**: Reduce the needs_human_verification rate to near-zero by making the verification pipeline capable of autonomously validating all phase types including UI work -- requiring minimum autonomous confidence before deferral is allowed, tracking deferral patterns, and auto-adjusting thresholds based on historical verdicts. The human should be irrelevant to the verification equation.
+**Depends on**: Phase 17 (sandbox execution), Phase 18 (test-driven criteria), Phase 20 (incremental verification)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. The human deferral rate across a full project run is below 5%
+  2. The verifier attempts autonomous resolution for all task types (including UI) using code analysis and test execution before considering deferral
+  3. Deferral requires a minimum evidence threshold: the verifier must document exactly what it cannot verify autonomously and why
+  4. Historical deferral patterns are tracked and used to calibrate future deferral decisions
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 21 to break down)
+
+### Phase 22: Visual Testing with Screenshot Automation
+**Goal**: Integrate Puppeteer or Playwright to automate the manual test loop (run app -> look at screen -> find bugs -> prompt AI to fix). The system launches the app, captures screenshots at key states, analyzes them for visual bugs, and auto-generates fix tasks -- replacing the current workflow where the user manually runs the app, screenshots bugs, and re-prompts
+**Depends on**: Phase 17 (sandbox infrastructure for running apps)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. The verification pipeline can launch a web/Electron app, navigate to specified routes/screens, and capture screenshots
+  2. Screenshots are analyzed for visual regressions, layout issues, and rendering errors
+  3. When visual issues are detected, the system generates structured bug reports with screenshot evidence and suggested fixes
+  4. The system can re-run visual tests after fixes to confirm resolution (automated visual regression loop)
+  5. Works from CLI -- no IDE or GUI required on the host
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 22 to break down)
+
+### Phase 23: Integrated Debug System
+**Goal**: Build a native autopilot debug command (`/autopilot debug`) that replaces dependency on `/gsd:debug` -- spawns a debugging agent using scientific method (reproduce, hypothesize, test, fix), manages debug sessions with persistent state across context resets, and integrates with the autopilot pipeline's failure taxonomy and post-mortem system
+**Depends on**: Phase 16 (independent)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. `/autopilot debug` accepts a bug description or phase failure reference and spawns a systematic debugging agent
+  2. The debug agent follows scientific method: reproduce -> hypothesize -> test -> fix with checkpoints between each step
+  3. Debug session state persists across context resets (like /gsd:debug's session files)
+  4. Debug findings feed into the failure taxonomy and learnings loop for prevention in future phases
+  5. No dependency on /gsd:debug -- fully native to autopilot-cc
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 23 to break down)
+
+### Phase 24: Progress Streaming
+**Goal**: Provide real-time CLI progress updates during phase execution -- show which task is executing, which file is being modified, compilation status, and current pipeline step. Replace the current "invoke and wait 20-60 minutes with no feedback" experience
+**Depends on**: Phase 16 (independent)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. During phase execution, the CLI displays the current pipeline step (research/plan/execute/verify/judge/rate)
+  2. During execution, the CLI shows which task number is active and what file is being modified
+  3. Compilation gate results (pass/fail) are streamed to the user in real-time
+  4. Progress indicators work within Claude Code's output constraints (no external UI)
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 24 to break down)
+
+### Phase 25: Native Autopilot CLI Commands
+**Goal**: Build native autopilot equivalents of the GSD commands used most frequently -- `/autopilot add-phase`, `/autopilot map-codebase`, and `/autopilot progress` -- reducing dependency on GSD systems for core workflow operations. These commands should work identically to or better than their GSD counterparts but be self-contained within autopilot-cc
+**Depends on**: Phase 16 (independent)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. `/autopilot add-phase <description>` creates a new phase with proper numbering, directory, and roadmap entry (replacing /gsd:add-phase)
+  2. `/autopilot map` analyzes the codebase and produces structured analysis documents (replacing /gsd:map-codebase)
+  3. `/autopilot progress` shows current phase, completion status, and next actions (replacing /gsd:progress)
+  4. All commands are defined in autopilot-cc's own command files with no GSD dependency at runtime
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 25 to break down)
+
+### Phase 26: Bug Fixes and QoL Polish
+**Goal**: Address accumulated bugs and quality-of-life improvements from the todo list -- redesign --discuss flag UX to be more conversational (like /gsd:discuss), auto-route --quality flag to standard execution for unexecuted phases, and fix any other issues identified during v2 usage
+**Depends on**: Phase 16 (independent, can be done anytime after v2 core)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. --discuss flag UX is redesigned to be more interactive and conversational (modeled on /gsd:discuss)
+  2. --quality flag automatically routes to standard execution when invoked on a phase that hasn't been executed yet (instead of trying to remediate nothing)
+  3. All known bugs from the pending todos list are resolved
+  4. No regression in existing functionality
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 26 to break down)

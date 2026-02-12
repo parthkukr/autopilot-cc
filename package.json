@@ -1,6 +1,6 @@
 {
   "name": "autopilot-cc",
-  "version": "1.8.0",
+  "version": "1.7.2",
   "description": "Autonomous multi-phase execution for Claude Code",
   "bin": {
     "autopilot-cc": "./bin/install.js"
