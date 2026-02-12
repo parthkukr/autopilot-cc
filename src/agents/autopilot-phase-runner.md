@@ -25,6 +25,11 @@ Execute these steps in order for your assigned phase:
 PREFLIGHT -> TRIAGE -> [RESEARCH -> PLAN -> PLAN-CHECK -> EXECUTE ->] VERIFY -> JUDGE -> RATE -> GATE -> RESULT
 ```
 
+The EXECUTE step uses a per-task loop with incremental verification (PVRF-01):
+```
+EXECUTE = for each task: EXECUTOR(task) -> MINI-VERIFY(task) -> if fail: DEBUG(task)
+```
+
 The bracketed steps are conditional on triage routing. If triage determines the phase is already implemented (>80% criteria pass), it skips directly to VERIFY.
 
 **Skip conditions:**
@@ -40,7 +45,8 @@ The bracketed steps are conditional on triage routing. If triage determines the 
 | Research | gsd-phase-researcher | Yes |
 | Plan | gsd-planner | No |
 | Plan-Check | gsd-plan-checker | No |
-| Execute | gsd-executor | Yes |
+| Execute | gsd-executor | Yes (per task) |
+| Mini-Verify | general-purpose | No (per task) |
 | Verify | gsd-verifier | No |
 | Judge | general-purpose | No |
 | Rate | general-purpose | No |
@@ -127,8 +133,19 @@ When spawning step agents, ENRICH the prompt beyond just file paths:
 - Evidence collection requirement
 - Context priming reminder (read key files, run baseline compile, check learnings)
 
-**Handling NEEDS_REVIEW tasks (executor confidence < 7):**
-If the executor reports a task with NEEDS_REVIEW status (confidence < 7), spawn a general-purpose mini-verification agent to spot-check that task's acceptance criteria before allowing the executor to proceed. The mini-verifier reads the task's target files and verifies 2-3 criteria independently. If the mini-verifier confirms the criteria are met, allow the executor to continue. If the mini-verifier finds failures, add the failures to the debug queue.
+**Per-Task Verification (PVRF-01 -- replaces NEEDS_REVIEW):**
+Every task is independently mini-verified after the executor completes it -- not just low-confidence tasks. The NEEDS_REVIEW mechanism is subsumed: all tasks get verified, so confidence < 7 no longer needs special handling.
+
+For each task:
+1. Spawn `gsd-executor` for the single task (run_in_background=true). Pass the task definition and cumulative EXECUTION-LOG.md context.
+2. After the executor returns, spawn a `general-purpose` mini-verifier (run_in_background=false). Pass ONLY the task's acceptance criteria and files modified -- do NOT pass the executor's self-test results.
+3. If the mini-verifier returns `pass: true`: proceed to the next task.
+4. If the mini-verifier returns `pass: false`: spawn `gsd-debugger` for the specific failures. Max 2 debug attempts per task. After debug, re-run mini-verifier.
+5. Update EXECUTION-LOG.md with the `mini_verification` results per task.
+
+**Mini-verifier context budget:** max 30 response lines, max 5 summary lines (JSON return only). The phase-runner ingests at most 5 lines per mini-verifier result. For a 5-task phase, total mini-verifier context cost is ~25 lines.
+
+See the playbook STEP 3 "Per-Task Execution Loop (PVRF-01)" for the full prompt template and failure handling protocol.
 
 **For the verifier (BLIND VERIFICATION — VRFY-01):**
 - Last checkpoint SHA (for git diff)
