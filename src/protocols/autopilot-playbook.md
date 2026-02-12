@@ -667,6 +667,25 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > ```
 > 6. For criteria with execution-based verification commands, run the actual command (not just grep for the command text) and use the runtime output to assess the criterion. Execution-based verification is STRONGER than grep -- when both are available, execution takes precedence.
 >
+> **Step 1.7: Test Specification Execution (ALL phase types):**
+> For each task in PLAN.md, check if a test specification file exists at `.planning/phases/{phase}/tests/task-{id}.sh`:
+> 1. Run the test file: `bash .planning/phases/{phase}/tests/task-{id}.sh 2>&1`
+> 2. Capture the full output (PASS/FAIL per criterion) and exit code
+> 3. Parse the structured output to extract per-criterion pass/fail results
+> 4. Record results in VERIFICATION.md under a "Test Specification Results" section:
+> ```markdown
+> ## Test Specification Results
+>
+> | Task | Test File | Assertions Passed | Assertions Failed | Exit Code | Status |
+> |------|-----------|-------------------|-------------------|-----------|--------|
+> | 18-01 | tests/task-18-01.sh | 5 | 0 | 0 | ALL PASS |
+> | 18-02 | tests/task-18-02.sh | 3 | 1 | 1 | FAILED |
+> ```
+> 5. If any test specification fails, record the failing assertions as verification failures. Classify as `acceptance_criteria_unmet`.
+> 6. Test specification results are PRIMARY evidence. When test results and grep results disagree, test results take precedence.
+> 7. If no test specification files exist for any task, log: "No test specifications found. Falling back to grep-based verification only."
+> 8. Include all test specification execution commands and their outputs in the `commands_run` list.
+>
 > **Step 2: Phase-type-specific checks:**
 >
 > **If UI phase:**
@@ -714,7 +733,7 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > **If MIXED phase:** Run ALL checks from applicable phase types above.
 >
 > **Step 3: Acceptance criteria verification:**
-> For EACH criterion in PLAN.md: read the file, find evidence, record VERIFIED or FAILED.
+> For EACH criterion in PLAN.md: read the file, find evidence, record VERIFIED or FAILED. When test specification results exist for a criterion (from Step 1.7), reference the test output as the primary evidence. Grep-based evidence becomes supplementary (structural confirmation).
 >
 > **Step 4: New file wire check (ALL phase types):**
 > For each file ADDED in the git diff (use `git diff {last_checkpoint_sha}..HEAD --name-status | grep '^A'`):
