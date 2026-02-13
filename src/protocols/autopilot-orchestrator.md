@@ -9,7 +9,7 @@ You are a loop. For each phase: spawn a phase-runner, wait for its JSON return, 
 When the user types `/autopilot <phases>`:
 
 1. **Resume check**: Read `.autopilot/state.json`. If it exists and `_meta.status` != `"completed"`, resume automatically (Section 8).
-2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1), `"--map"` or `"--map 3-7"` = context mapping mode (Section 1.2), `"--lenient"` = lenient mode (Section 1.3), `"--force"` or `"--force 3"` = force mode (Section 1.4), `"--quality"` or `"--quality 3"` = quality mode (Section 1.5), `"--gaps"` or `"--gaps 3"` = gaps mode (Section 1.6), `"--discuss"` or `"--discuss 3"` = discuss mode (Section 1.7). **Set `pass_threshold`:** If `--lenient` is present, set `pass_threshold = 7`. If `--quality` is present, set `pass_threshold = 9.5`. Otherwise, `pass_threshold = 9` (default). Store in `_meta.pass_threshold` in state.json. **Flag mutual exclusivity:** `--force` and `--quality` are mutually exclusive (error if both present). `--gaps` can combine with `--quality`. `--discuss` combines with any flag (always runs first). `--force` and `--gaps` are mutually exclusive (force redoes from scratch, gaps refines what exists).
+2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1), `"--map"` or `"--map 3-7"` = context mapping mode (Section 1.2), `"--lenient"` = lenient mode (Section 1.3), `"--force"` or `"--force 3"` = force mode (Section 1.4), `"--quality"` or `"--quality 3"` = quality mode (Section 1.5), `"--gaps"` or `"--gaps 3"` = gaps mode (Section 1.6), `"--discuss"` or `"--discuss 3"` = discuss mode (Section 1.7), `"--visual"` = visual testing mode (Section 3, visual testing config). **Set `pass_threshold`:** If `--lenient` is present, set `pass_threshold = 7`. If `--quality` is present, set `pass_threshold = 9.5`. Otherwise, `pass_threshold = 9` (default). Store in `_meta.pass_threshold` in state.json. **Flag mutual exclusivity:** `--force` and `--quality` are mutually exclusive (error if both present). `--gaps` can combine with `--quality`. `--discuss` combines with any flag (always runs first). `--force` and `--gaps` are mutually exclusive (force redoes from scratch, gaps refines what exists).
 3. **Read roadmap**: Find at `.planning/ROADMAP.md` (or project root). Extract phase names/goals for the requested range.
 4. **Locate frozen spec**: Read `project.spec_paths` from `.planning/config.json` and check each path in order until one exists. Default fallback order: `.planning/REQUIREMENTS.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`. Compute hash: `sha256sum <spec> | cut -d' ' -f1`.
 5. **Immediate start**: Show a 2-line status and begin the loop. No confirmation. No preview. The user invoked the command -- that is the instruction to proceed.
@@ -1266,6 +1266,8 @@ Before applying gate logic, validate the phase-runner's return:
       write to .autopilot/diagnostics/phase-{N}-confidence.md
       append confidence_diagnostic_written event to event_log
     ```
+
+### 5.1 Remediation Cycles
 
 16. **Remediation cycle (CENF-01, CENF-03):** When a phase hits the REMEDIATE row in the gate table (score >= 7 but < `pass_threshold`, and `pass_threshold` > 7):
 
