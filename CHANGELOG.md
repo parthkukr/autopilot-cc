@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.5 (2026-02-13)
+
+### Features
+
+- **Streamlined Quick Start:** Replaced manual `.planning/` directory setup with GSD-driven workflow -- users run `/gsd:new-project` then `/autopilot --complete`
+
 ## 1.8.4 (2026-02-13)
 
 ### Features

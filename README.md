@@ -26,39 +26,20 @@ After installing, **restart Claude Code** so it discovers the new command.
 
 ## Quick Start
 
-### 1. Set up your project
+### 1. Set up your project with GSD
 
-Create a `.planning/` directory in your project root with two files:
+autopilot executes work that [GSD](https://www.npmjs.com/package/get-shit-done-cc) plans. Use GSD to set up your project and create a roadmap:
 
-**`.planning/ROADMAP.md`** -- describes the work you want done, broken into phases:
-
-```markdown
-# Roadmap
-
-## Phases
-
-- [ ] **Phase 1: User Authentication** - Add login/signup with JWT tokens
-- [ ] **Phase 2: Dashboard** - Build the main dashboard with charts and stats
-- [ ] **Phase 3: API Integration** - Connect to the payment provider API
-
-## Phase Details
-
-### Phase 1: User Authentication
-**Goal**: Users can sign up, log in, and stay authenticated across sessions
-**Success Criteria**:
-  1. Signup endpoint creates a user and returns a JWT
-  2. Login endpoint validates credentials and returns a JWT
-  3. Protected routes reject unauthenticated requests with 401
+```
+/gsd:new-project
 ```
 
-**`.planning/REQUIREMENTS.md`** -- the spec or requirements document for your project. Can be as detailed or as brief as you like. autopilot uses this as the frozen reference for verification.
+GSD walks you through defining your project, gathering requirements, and breaking the work into phases. It produces the `.planning/` directory with your roadmap, requirements, and phase structure -- everything autopilot needs to run.
 
 ### 2. Run autopilot
 
-Open Claude Code in your project and run:
-
 ```
-/autopilot 1-3
+/autopilot --complete
 ```
 
 That's it. autopilot reads your roadmap, researches your codebase, plans the work, executes it, and verifies the results -- all autonomously.
@@ -173,7 +154,7 @@ autopilot looks for optional configuration at `.planning/config.json`. If the fi
 
 autopilot works best when you treat it as a capable junior developer who needs clear direction but handles the tedious work autonomously.
 
-**Write a good roadmap.** The single biggest factor in autopilot's success is the quality of your roadmap. Each phase should have a clear goal, concrete success criteria, and enough context for someone unfamiliar with the codebase to understand what "done" looks like. You don't need to specify implementation details -- autopilot will research the codebase and figure those out -- but the *what* and *why* should be unambiguous.
+**Let GSD build your roadmap.** The single biggest factor in autopilot's success is the quality of your roadmap. Use `/gsd:new-project` to create one -- it walks you through requirements gathering and produces phases with clear goals, success criteria, and enough context for autopilot to execute well. You can also add or adjust phases later with `/gsd:add-phase` or `/autopilot:add-phase`.
 
 **Start with `--discuss`.** For complex or ambiguous phases, run `--discuss` first. autopilot will identify gray areas in your spec and ask you targeted questions. Your answers get saved and used during execution, which dramatically improves first-pass success rates.
 

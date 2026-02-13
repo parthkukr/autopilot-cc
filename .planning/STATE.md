@@ -104,6 +104,7 @@ Recent decisions affecting current work:
 
 - Redesign --discuss flag UX to be more like /gsd:discuss (protocols) -- now tracked in Phase 26
 - Auto-route --quality flag to standard execution for unexecuted phases (protocols) -- now tracked in Phase 26
+- Auto-read required files on startup instead of announcing reads (protocols) -- now tracked in Phase 26
 
 ### Blockers/Concerns
 
