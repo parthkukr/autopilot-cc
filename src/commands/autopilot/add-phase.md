@@ -1,5 +1,5 @@
 ---
-name: autopilot-add-phase
+name: autopilot:add-phase
 description: Add a new phase to the roadmap with proper numbering, directory creation, and roadmap entry
 argument-hint: <phase description>
 allowed-tools:

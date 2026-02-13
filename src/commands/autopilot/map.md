@@ -1,5 +1,5 @@
 ---
-name: autopilot-map
+name: autopilot:map
 description: Analyze the codebase and produce a structured analysis document with project structure, technology stack, and architecture patterns
 argument-hint: [scope or focus area]
 allowed-tools:
@@ -68,7 +68,7 @@ Analyze the current codebase and produce a structured codebase analysis document
    - **Entry points:** main.*, index.*, app.*, src/index.*, src/main.*
    - **Configuration:** *.config.*, tsconfig.json, .eslintrc*, .prettierrc*
    - **Documentation:** README.md, CHANGELOG.md, docs/
-   - **Scripts:** package.json scripts, bin/, scripts/
+   - **Scripts:** package.json scripts, bin/*, scripts/*
    - **Types/interfaces:** *.d.ts, types/, interfaces/
 
 5. **Architecture Pattern Analysis:**

@@ -1,5 +1,5 @@
 ---
-name: autopilot-progress
+name: autopilot:progress
 description: Show current phase status, completion percentage, and recommended next actions
 argument-hint: [--verbose]
 allowed-tools:
@@ -86,7 +86,7 @@ Display the current progress of the autopilot project -- which phases are comple
    Based on the current state:
    - If a phase is in progress: "Resume with `/autopilot resume`"
    - If no phase is in progress and next phase is identified: "Run `/autopilot {N}` to execute Phase {N}: {name}"
-   - If a failed phase exists: "Debug Phase {N} failure with `/autopilot debug phase {N} failure`"
+   - If a failed phase exists: "Debug Phase {N} failure with `/autopilot:debug phase {N} failure`"
    - If all phases are complete: "All phases complete. Project is done."
    - If multiple phases are ready: "Run `/autopilot --complete` to execute all remaining phases"
 
@@ -121,7 +121,7 @@ Display the current progress of the autopilot project -- which phases are comple
 8. **Handle edge cases:**
 
    - No ROADMAP.md: "No roadmap found at .planning/ROADMAP.md. Initialize a project first."
-   - Empty roadmap (no phases): "Roadmap has no phases defined. Add phases with `/autopilot add-phase`."
+   - Empty roadmap (no phases): "Roadmap has no phases defined. Add phases with `/autopilot:add-phase`."
    - All phases complete: Show 100% completion with congratulatory message
 
 </execution>

@@ -1,5 +1,5 @@
 ---
-name: autopilot-debug
+name: autopilot:debug
 description: Systematic debugging with persistent state -- spawns autopilot-debugger agent using scientific method
 argument-hint: [issue description | phase N failure | resume]
 allowed-tools:
@@ -57,7 +57,7 @@ Tier 2: autopilot-debugger agent -- performs the actual investigation
    Claude Code discovers agent types at session startup. This means you
    installed or updated autopilot-cc after this session started.
 
-   Fix: Exit Claude Code and start a new session, then re-run /autopilot debug.
+   Fix: Exit Claude Code and start a new session, then re-run /autopilot:debug.
    ```
 
 ## If `resume` (no arguments, or explicit `resume`)
