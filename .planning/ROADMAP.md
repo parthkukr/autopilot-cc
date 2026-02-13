@@ -40,6 +40,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 24: Progress Streaming** - Real-time CLI progress updates and status indicators during phase execution
 - [x] **Phase 25: Native Autopilot CLI Commands** - Built-in add-phase, map-codebase, and workflow commands reducing GSD dependency
 - [x] **Phase 26: Bug Fixes and QoL Polish** - Address pending todos including --discuss UX redesign and --quality auto-routing
+- [x] **Phase 26.1: Subcommand Restructure and Help** *(INSERTED)* - Rename commands from `autopilot-X` to `autopilot:X` colon syntax and add `/autopilot:help` listing all commands, flags, and usage examples
+- [x] **Phase 26.2: Update Notification System** *(INSERTED)* - Wire the existing SessionStart hook cache into a passive update banner shown on every `/autopilot:*` command invocation
+- [x] **Phase 26.3: README Rewrite** *(INSERTED)* - Complete README overhaul with user-facing documentation: installation, quick start, command reference, intended usage guide, and future ideas
+- [x] **Phase 26.4: Context-Aware Session Restart Guidance** *(INSERTED)* - When the orchestrator detects high context usage and needs to stop, tell the user to run `/clear` then `/autopilot <remaining phases>` instead of a vague "context exhausted" message
 
 ## Phase Details
 
@@ -247,7 +251,7 @@ Plans:
 
 **Execution Order:**
 Phases 1-16: 1 -> 2 -> 2.1 -> 3 -> 3.1 -> 4 -> 4.1 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 12 -> 11 -> 13 -> 14 -> 15 -> 16 (ALL COMPLETED)
-Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26
+Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26 -> 26.1 -> 26.2 -> 26.3 -> 26.4
 
 | Phase | Status | Version |
 |-------|--------|---------|
@@ -280,6 +284,10 @@ Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26
 | 24. Progress Streaming | Completed | v1.8.0 |
 | 25. Native Autopilot CLI Commands | Completed | v1.8.0 |
 | 26. Bug Fixes and QoL Polish | Completed | v1.8.0 |
+| 26.1. Subcommand Restructure and Help | Completed | v1.8.1 |
+| 26.2. Update Notification System | Completed | v1.8.2 |
+| 26.3. README Rewrite | Completed | v1.8.3 |
+| 26.4. Context-Aware Session Restart Guidance | Completed | v1.8.4 |
 
 ### Phase 8: Batch Completion Mode
 **Goal**: The user can invoke `/autopilot --complete` to run all outstanding (incomplete) phases in dependency order without specifying a phase range -- the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
@@ -829,3 +837,58 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 26 to break down)
+
+### Phase 26.1: Subcommand Restructure and Help *(INSERTED)*
+**Goal**: Rename all autopilot commands from dash syntax (`autopilot-debug`) to colon syntax (`autopilot:debug`) matching the GSD pattern, and add a `/autopilot:help` command that lists all available commands, flags, and usage examples so users can discover functionality
+**Depends on**: Phase 26 (builds on the commands added in Phase 25-26)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. All autopilot commands use colon syntax: `/autopilot:debug`, `/autopilot:add-phase`, `/autopilot:map`, `/autopilot:progress`, `/autopilot:help`
+  2. The installer (`bin/install.js`) registers the renamed command files correctly
+  3. `/autopilot:help` displays a formatted list of all commands with descriptions, all flags with explanations, and 2-3 usage examples
+  4. The main `/autopilot` command still works as the primary phase runner (no rename needed)
+  5. Old command names are removed (no backward compatibility shim needed — this is pre-1.9)
+
+Plans:
+- [ ] TBD (run /autopilot 26.1 to execute)
+
+### Phase 26.2: Update Notification System *(INSERTED)*
+**Goal**: Wire the existing SessionStart hook (which already checks npm for updates and writes to cache) into a passive update banner that displays on every `/autopilot:*` command invocation — users should know when a new version is available without having to run `/autopilot update` manually
+**Depends on**: Phase 26.1 (commands must be restructured first so the notification targets the right command files)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. When any `/autopilot:*` command runs and an update is available, a one-line banner appears: `Update available: v1.8.x -> v1.9.x — run /autopilot:update`
+  2. The banner reads from the existing cache file written by the SessionStart hook (`~/.claude/cache/autopilot-update-check.json`)
+  3. The banner is non-blocking — it displays at the top and the command continues normally
+  4. If no update is available or the cache is missing/stale, no banner appears (silent)
+  5. `/autopilot:update` (renamed from `update` argument) handles the actual update process
+
+Plans:
+- [ ] TBD (run /autopilot 26.2 to execute)
+
+### Phase 26.3: README Rewrite *(INSERTED)*
+**Goal**: Complete overhaul of README.md for the 1200+ real users — replace developer-focused content with user-facing documentation including installation guide, quick start, full command reference, intended usage philosophy (from the author), and future ideas/roadmap
+**Depends on**: Phase 26.1 (command names must be finalized before documenting them), Phase 26.2 (update system must be finalized before documenting it)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. README includes: installation (npx), quick start (first project setup), command reference (all `/autopilot:*` commands with flags), configuration, and troubleshooting
+  2. README includes author's intended usage philosophy and workflow recommendations
+  3. README includes a "Future Ideas" or "Roadmap" section for transparency with users
+  4. All command examples use the new colon syntax
+  5. No internal implementation details (phase numbers, protocol files) leak into user-facing docs
+
+Plans:
+- [ ] TBD (run /autopilot 26.3 to execute)
+
+### Phase 26.4: Context-Aware Session Restart Guidance *(INSERTED)*
+**Goal**: When the orchestrator detects high context usage mid-run and needs to stop execution, provide the user with an actionable restart command instead of a vague error — specifically, tell them to run `/clear` then `/autopilot <remaining phases>` so they can seamlessly continue from where they left off
+**Depends on**: Phase 26.1 (commands must use new colon syntax for the guidance message)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. When the orchestrator hits the context threshold (40% or higher) and needs to stop, it outputs a clear message: "Context getting full. Run `/clear` then `/autopilot <remaining phases>` to continue."
+  2. The remaining phases list is computed dynamically from the current run state (completed phases excluded)
+  3. The guidance message appears in ALL context-exhaustion scenarios: orchestrator threshold, phase-runner handoff-on-failure, and remediation cycle caps
+  4. The message uses the correct command syntax (colon-style after Phase 26.1)
+
+Plans:
+- [ ] TBD (run /autopilot 26.4 to execute)

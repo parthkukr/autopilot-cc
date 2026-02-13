@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.8.4 (2026-02-13)
+
+### Features
+
+- **Colon-Syntax Subcommands:** Renamed all autopilot subcommands from dash syntax to colon syntax (`/autopilot:debug`, `/autopilot:help`, etc.) matching the GSD convention
+- **Help Command:** New `/autopilot:help` displays all commands, flags, and usage examples for discoverability
+- **Update Notifications:** Passive update banner on every `/autopilot:*` command invocation when a newer version is available
+- **Update Command:** New `/autopilot:update` subcommand for streamlined version management
+- **README Overhaul:** Complete user-facing documentation rewrite with installation, quick start, command reference, intended usage philosophy, and troubleshooting
+- **Context-Aware Restart Guidance:** When the orchestrator or phase-runner hits context limits, outputs actionable `/clear` + `/autopilot <remaining phases>` restart instructions instead of vague errors
+
 ## 1.8.0 (2026-02-12)
 
 ### Features
