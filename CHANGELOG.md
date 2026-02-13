@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.8.0 (2026-02-12)
+
+### Features
+
+- **Sandboxed Code Execution:** Verifier and rating agent run actual shell commands (build, test, lint) in a sandboxed environment during verification instead of relying solely on grep pattern matching
+- **Test-Driven Acceptance Criteria:** Planner generates executable test specification files per task; executor must pass them before marking tasks complete; verifier runs test suite as primary evidence
+- **Semantic Repository Map:** Structured JSON codebase map (files, exports, imports, functions, call graphs) provided to research and execution agents for structural code understanding
+- **Incremental Per-Task Verification:** Mini-verifier runs after each task completes, catching failures at minute 5 instead of minute 30; immediate feedback loop with per-task debug capability
+- **Human Deferral Elimination:** Autonomous-first verification for all phase types including UI; deferral requires autonomous_confidence < 6 with documented evidence; target below 5% deferral rate
+- **Visual Testing with Screenshot Automation:** Playwright-based screenshot capture and multimodal analysis for visual regression detection; automated bug reports with fix suggestions and re-test loops
+- **Integrated Debug System:** Native `/autopilot debug` command with scientific method investigation (reproduce, hypothesize, test, fix), persistent sessions, and failure taxonomy integration
+- **Progress Streaming:** Real-time CLI progress updates showing current pipeline step, active task, file modifications, and compile gate results during phase execution
+- **Native CLI Commands:** Built-in `/autopilot add-phase`, `/autopilot map`, and `/autopilot progress` commands replacing GSD dependency for core workflow operations
+- **Conversational Discussion Mode:** Redesigned `--discuss` flag with gray-area probing pattern -- identifies domain-specific ambiguities, user-selectable areas, per-area deep-dive with CONTEXT.md output
+
 ## 1.7.2 (2026-02-12)
 
 ### Features

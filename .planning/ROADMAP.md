@@ -30,16 +30,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 14: CLI Quality Flags** - `--force` to redo completed phases from scratch, `--quality` to enforce 9/10 minimum with remediation loops, `--gaps` to resolve remaining deficiencies targeting 10/10, `--discuss` to run interactive Q&A per phase before execution
 - [x] **Phase 15: Rating System Overhaul** - Dedicated isolated rating agent with rigorous multi-step evaluation process, replacing the current lenient inline scoring that rubber-stamps 8-9s
 - [x] **Phase 16: Context Exhaustion Prevention** - Hard context gates, scope-capped remediation cycles, handoff-on-failure for agents hitting limits, and pre-run context cost estimation
-- [ ] **Phase 17: Sandboxed Code Execution** - Run generated code in isolated sandbox environment for verification instead of grep pattern matching
-- [ ] **Phase 18: Test-Driven Acceptance Criteria** - Replace grep-based acceptance criteria with executable test specifications that the verifier actually runs
-- [ ] **Phase 19: Semantic Repository Map** - Tree-sitter-based code structure understanding for all agents (functions, classes, imports, call graphs)
-- [ ] **Phase 20: Incremental Per-Task Verification** - Verify each task immediately after completion instead of waiting until entire phase finishes
-- [ ] **Phase 21: Human Deferral Elimination** - Automated validation improvements to achieve near-zero human verification rate
-- [ ] **Phase 22: Visual Testing with Screenshot Automation** - Puppeteer/Playwright integration to run apps, capture screenshots, and auto-detect visual bugs in the CLI pipeline
-- [ ] **Phase 23: Integrated Debug System** - Native autopilot debug command for systematic bug investigation, replacing /gsd:debug dependency
-- [ ] **Phase 24: Progress Streaming** - Real-time CLI progress updates and status indicators during phase execution
-- [ ] **Phase 25: Native Autopilot CLI Commands** - Built-in add-phase, map-codebase, and workflow commands reducing GSD dependency
-- [ ] **Phase 26: Bug Fixes and QoL Polish** - Address pending todos including --discuss UX redesign and --quality auto-routing
+- [x] **Phase 17: Sandboxed Code Execution** - Run generated code in isolated sandbox environment for verification instead of grep pattern matching
+- [x] **Phase 18: Test-Driven Acceptance Criteria** - Replace grep-based acceptance criteria with executable test specifications that the verifier actually runs
+- [x] **Phase 19: Semantic Repository Map** - Tree-sitter-based code structure understanding for all agents (functions, classes, imports, call graphs)
+- [x] **Phase 20: Incremental Per-Task Verification** - Verify each task immediately after completion instead of waiting until entire phase finishes
+- [x] **Phase 21: Human Deferral Elimination** - Automated validation improvements to achieve near-zero human verification rate
+- [x] **Phase 22: Visual Testing with Screenshot Automation** - Puppeteer/Playwright integration to run apps, capture screenshots, and auto-detect visual bugs in the CLI pipeline
+- [x] **Phase 23: Integrated Debug System** - Native autopilot debug command for systematic bug investigation, replacing /gsd:debug dependency
+- [x] **Phase 24: Progress Streaming** - Real-time CLI progress updates and status indicators during phase execution
+- [x] **Phase 25: Native Autopilot CLI Commands** - Built-in add-phase, map-codebase, and workflow commands reducing GSD dependency
+- [x] **Phase 26: Bug Fixes and QoL Polish** - Address pending todos including --discuss UX redesign and --quality auto-routing
 
 ## Phase Details
 
@@ -270,16 +270,16 @@ Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26
 | 14. CLI Quality Flags | Completed | v1.6.1 |
 | 15. Rating System Overhaul | Completed | v1.6.0 |
 | 16. Context Exhaustion Prevention | Completed | v1.7.0 |
-| 17. Sandboxed Code Execution | Not started | - |
-| 18. Test-Driven Acceptance Criteria | Not started | - |
-| 19. Semantic Repository Map | Not started | - |
-| 20. Incremental Per-Task Verification | Not started | - |
-| 21. Human Deferral Elimination | Not started | - |
-| 22. Visual Testing with Screenshot Automation | Not started | - |
-| 23. Integrated Debug System | Not started | - |
-| 24. Progress Streaming | Not started | - |
-| 25. Native Autopilot CLI Commands | Not started | - |
-| 26. Bug Fixes and QoL Polish | Not started | - |
+| 17. Sandboxed Code Execution | Completed | v1.8.0 |
+| 18. Test-Driven Acceptance Criteria | Completed | v1.8.0 |
+| 19. Semantic Repository Map | Completed | v1.8.0 |
+| 20. Incremental Per-Task Verification | Completed | v1.8.0 |
+| 21. Human Deferral Elimination | Completed | v1.8.0 |
+| 22. Visual Testing with Screenshot Automation | Completed | v1.8.0 |
+| 23. Integrated Debug System | Completed | v1.8.0 |
+| 24. Progress Streaming | Completed | v1.8.0 |
+| 25. Native Autopilot CLI Commands | Completed | v1.8.0 |
+| 26. Bug Fixes and QoL Polish | Completed | v1.8.0 |
 
 ### Phase 8: Batch Completion Mode
 **Goal**: The user can invoke `/autopilot --complete` to run all outstanding (incomplete) phases in dependency order without specifying a phase range -- the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
