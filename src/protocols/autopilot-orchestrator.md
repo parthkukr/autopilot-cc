@@ -963,8 +963,13 @@ Spawn via **Task tool**: `subagent_type: "autopilot-phase-runner"`, `run_in_back
 
 **CRITICAL: If the Task tool returns "Agent type 'autopilot-phase-runner' not found":**
 - Do NOT fall back to `general-purpose` or any other agent type.
-- HALT the run immediately and output: "autopilot-phase-runner agent not found. Restart Claude Code (agent types are discovered at session startup)."
-- Save state so the user can `/autopilot resume` after restarting.
+- HALT the run immediately. Save state with current position. Compute remaining phases and output:
+
+```
+autopilot-phase-runner agent not found. Agent types are discovered at session startup. To continue, run:
+  /clear
+  /autopilot {remaining_phases}
+```
 
 **Model**: Read `.planning/config.json` `model_profile` -- `"quality"` = opus, `"balanced"` = sonnet, `"speed"` = haiku. Default: sonnet. Note: Claude Code's Task tool accepts a `model` parameter (enum: sonnet, opus, haiku). Pass the resolved model name.
 
@@ -1115,7 +1120,7 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 | `status=="needs_human_verification"` | **SKIP** -- log human_verify_justification, continue to next phase, revisit at end of run |
 | `status=="split_request"` | **SPLIT** -- handle scope split per Section 2.1, spawn sub-phase-runners in parallel, aggregate results |
 | `status=="failed"` AND phase is independent (no later phases depend on it) | **LOG + CONTINUE** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, move to next phase |
-| `status=="failed"` AND later phases depend on it | **HALT** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, notify user, suggest `/autopilot resume` |
+| `status=="failed"` AND later phases depend on it | **HALT** -- note `.autopilot/diagnostics/phase-{N}-postmortem.json` for inspection, notify user with restart guidance (see below) |
 | `recommendation=="rollback"` | **ROLLBACK** -- `git revert` to last checkpoint, diagnostic, halt |
 
 **Pass threshold:** The `pass_threshold` is 9.0 by default. When `--lenient` is passed, it is set to 7.0. When `--quality` is passed, it is set to 9.5. This variable is stored in `_meta.pass_threshold` in state.json and used throughout the gate logic. When `--lenient` is active, the REMEDIATE row never triggers (because `pass_threshold` equals 7.0, so any score >= 7.0 hits the PASS row). When `--quality` is active, phases must score 9.5+ to pass without remediation. Note: `alignment_score` from the rating agent uses decimal precision (x.x format), so comparisons use decimal thresholds.
@@ -1124,7 +1129,15 @@ The orchestrator's gate logic is deliberately simple. The phase-runner handles A
 
 **NOTE: The orchestrator DOES re-spawn for remediation cycles (Section 5.1).** This is distinct from failure re-spawning. Remediation applies to phases that PASSED (score >= 7) but did not meet the `pass_threshold` (default 9). The phase-runner is re-spawned with targeted feedback to address specific deficiencies, not to retry from scratch.
 
-On HALT/ROLLBACK: set state `status:"failed"`, note that the phase-runner has written a structured post-mortem to `.autopilot/diagnostics/phase-{N}-postmortem.json` (OBSV-04), tell user `/autopilot resume`.
+On HALT/ROLLBACK: set state `status:"failed"`, note that the phase-runner has written a structured post-mortem to `.autopilot/diagnostics/phase-{N}-postmortem.json` (OBSV-04). Compute remaining phases from the execution queue and tell the user:
+
+```
+Phase {N} failed. To continue from where you left off, run:
+  /clear
+  /autopilot {remaining_phases}
+```
+
+Where `{remaining_phases}` is the space-separated list of incomplete phase IDs (excluding the failed phase and any phases blocked by it). If the failed phase can be retried independently, also mention: `"To retry the failed phase: /clear then /autopilot {failed_phase_id}"`.
 
 ### Return JSON Integrity Check
 
@@ -1367,7 +1380,15 @@ There is no phase cap per session. The orchestrator's context stays minimal beca
 
 These warnings are advisory. Execution continues regardless. The orchestrator should self-check against the Manager-Not-Worker rules (Section 6.1) when warnings trigger.
 
-**Handoff file (safety net, should be rare):** If the orchestrator ever needs to stop (e.g., approaching absolute limit), write `.autopilot/handoff-{timestamp}.md` with completed phases, next phase, and scores. Save state with current position. Tell user: `"Context approaching limit. {N} done. Run /autopilot resume for Phase {next}."` This should be extremely rare if the manager-not-worker principle is followed.
+**Handoff file (safety net, should be rare):** If the orchestrator ever needs to stop (e.g., approaching absolute limit), write `.autopilot/handoff-{timestamp}.md` with completed phases, next phase, and scores. Save state with current position. Compute the remaining (incomplete) phases from the execution queue and tell the user:
+
+```
+Context getting full. {N} phases completed so far. To continue, run:
+  /clear
+  /autopilot {remaining_phases}
+```
+
+Where `{remaining_phases}` is the space-separated list of incomplete phase IDs from the current run (e.g., `"7 8 9.1 10"`). This should be extremely rare if the manager-not-worker principle is followed.
 
 ### 6.3 Pre-Run Context Cost Estimation
 
@@ -1378,7 +1399,7 @@ estimated_session_cost = sum(per_phase_estimated_tokens from MTRC-02) + orchestr
 estimated_session_budget = 180000 tokens (conservative estimate for orchestrator session)
 
 if estimated_session_cost > 0.80 * estimated_session_budget:
-  log warning: "Estimated cost ({estimated_session_cost} tokens) exceeds 80% of session budget. Consider splitting into smaller batches: /autopilot --quality {first_half} then /autopilot --quality {second_half}."
+  log warning: "Estimated cost ({estimated_session_cost} tokens) exceeds 80% of session budget. Consider splitting into smaller batches. If context runs out mid-session, run /clear then /autopilot {second_half}."
 ```
 
 This is a WARNING only. Execution proceeds regardless. The warning helps users avoid sessions that are likely to approach context limits.
