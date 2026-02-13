@@ -84,7 +84,7 @@ mkdir -p .planning/phases/{N}-{slug}
      1. [To be defined]
 
    Plans:
-   - [ ] TBD (run /autopilot {N} to execute)
+   - [ ] TBD (run /clear then /autopilot {N} to execute)
    ```
 
 8. **Update the Progress table:**
@@ -102,7 +102,7 @@ mkdir -p .planning/phases/{N}-{slug}
    Roadmap: Updated with phase entry and detail section
    Status: Not started
 
-   Next: Define success criteria in ROADMAP.md, then run /autopilot {N}
+   Next: Define success criteria in ROADMAP.md, then /clear and /autopilot {N}
    ```
 
 ## Error Handling

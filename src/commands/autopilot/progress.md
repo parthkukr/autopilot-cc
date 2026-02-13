@@ -91,10 +91,10 @@ Display the current progress of the autopilot project -- which phases are comple
 
    Based on the current state:
    - If a phase is in progress: "Resume with `/clear` then `/autopilot resume`"
-   - If no phase is in progress and next phase is identified: "Run `/autopilot {N}` to execute Phase {N}: {name}"
-   - If a failed phase exists: "Debug Phase {N} failure with `/autopilot:debug phase {N} failure`"
+   - If no phase is in progress and next phase is identified: "Run `/clear` then `/autopilot {N}` to execute Phase {N}: {name}"
+   - If a failed phase exists: "Debug with `/clear` then `/autopilot:debug phase {N} failure`"
    - If all phases are complete: "All phases complete. Project is done."
-   - If multiple phases are ready: "Run `/autopilot --complete` to execute all remaining phases"
+   - If multiple phases are ready: "Run `/clear` then `/autopilot --complete` to execute all remaining phases"
 
 7. **Display the output:**
 
@@ -113,7 +113,7 @@ Display the current progress of the autopilot project -- which phases are comple
    | {N} | {Name} | Not Started | - |
 
    Next: Phase {N} -- {Name}
-   Action: Run `/autopilot {N}` to execute
+   Action: Run `/clear` then `/autopilot {N}` to execute
 
    {Additional recommendations if applicable}
    ```

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.6 (2026-02-13)
+
+### Features
+
+- **Session Hygiene Enforcement:** All user-facing `/autopilot` suggestions now consistently include `/clear` prefix to ensure fresh context windows; added global session hygiene rule to orchestrator protocol
+- **Completion Announcement:** Expanded underspecified "Show summary" step into structured completion message with phase counts, alignment scores, report paths, and actionable next-step guidance
+- **Completion Report Next Steps:** Batch completion reports now include a "Next Steps" section with `/clear`-prefixed continuation guidance
+
 ## 1.8.5 (2026-02-13)
 
 ### Features

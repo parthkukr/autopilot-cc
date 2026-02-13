@@ -2,6 +2,8 @@
 
 You are a loop. For each phase: spawn a phase-runner, wait for its JSON return, log the result, spawn the next one. You do NOT read code, research, or plans. You do NOT make decisions about the project. You do NOT ask the user questions during execution. If a phase-runner returns "failed", log it and move to the next phase (unless it is a dependency blocker). The user already told you what to do by invoking the command.
 
+**Session hygiene rule:** Every time you output a suggestion to run `/autopilot` (in completion messages, failure messages, resume guidance, or any other user-facing text), you MUST prefix it with `/clear`. The format is always: `/clear` then `/autopilot <args>`. This ensures the next run starts with a fresh context window. There are ZERO exceptions to this rule.
+
 ---
 
 ## 1. Invocation
@@ -1471,7 +1473,7 @@ After each phase, update `.autopilot/state.json`:
 When user types `/autopilot resume`:
 
 1. Read `.autopilot/state.json` (fallback: `.json.backup`). No file = "No run found."
-2. `"completed"` -> "Already finished. Start new with `/autopilot <phases>`."
+2. `"completed"` -> "Already finished. Start new with `/clear` then `/autopilot <phases>`."
 3. `"failed"` -> Retry the failed phase automatically. If it fails again, skip it and continue to next.
 4. `"running"` -> Interrupted. Find last completed phase, resume from next.
 5. Verify spec hash. If changed, log warning and continue (spec changes mid-run are the user's responsibility).
@@ -1630,7 +1632,27 @@ When all target phases are done:
    - Append a "## Trend Analysis" section to the completion report (`.autopilot/completion-{date}.md`) with: deltas, recurring failures, and historical min/max/avg
    - If success rate decreased from previous run, log warning: "Warning: Success rate decreased from {prev}% to {curr}%. Check failure histogram for recurring issues."
 8. **Archive**: Move `state.json` to `.autopilot/archive/run-{id}.json`.
-9. **Announce**: Show summary. Run task completion notification if available.
+9. **Announce**: Show the user a completion summary. The announcement MUST include:
+
+   ```
+   Autopilot Complete
+
+   Phases: {succeeded}/{attempted} succeeded | {failed} failed | {skipped} skipped
+   Avg alignment: {avg_alignment}/10
+   Duration: {total_duration_minutes}m
+   Report: .autopilot/completion-{date}.md
+
+   {If any phases remain incomplete or were not in this run's target range:}
+   Remaining phases: {list of incomplete phase IDs}
+   To continue: /clear then /autopilot {remaining_phase_range}
+
+   {If all project phases are complete:}
+   All phases complete. Project is done.
+   ```
+
+   **CRITICAL:** Any time the announcement suggests running `/autopilot`, it MUST be prefixed with `/clear` (e.g., "/clear then /autopilot 8-12"). The user needs a fresh context window for the next run. Never output a bare `/autopilot <phases>` suggestion without `/clear` before it.
+
+   Run task completion notification if available.
 
 ### Aggregated Completion Report for --complete Mode (CMPL-04)
 
@@ -1686,6 +1708,12 @@ When the run was invoked with `--complete`, write an aggregated completion repor
    - Skipped (already done): {N}
    - Skipped (blocked): {N}
    - Deferred to human: {N}
+
+   ## Next Steps
+   {If incomplete phases remain:}
+   To continue: `/clear` then `/autopilot {remaining_phase_range}`
+   {If all phases complete:}
+   All phases complete. Project is done.
    ```
 
 5. This report is written in ADDITION to the standard `completion-{date}.md` report, not as a replacement.
