@@ -19,6 +19,9 @@ const packageRoot = path.resolve(__dirname, '..');
 const FILE_MAP = [
   { src: 'src/commands/autopilot.md',             dest: 'commands/autopilot.md' },
   { src: 'src/commands/autopilot-debug.md',       dest: 'commands/autopilot-debug.md' },
+  { src: 'src/commands/autopilot-add-phase.md',  dest: 'commands/autopilot-add-phase.md' },
+  { src: 'src/commands/autopilot-map.md',         dest: 'commands/autopilot-map.md' },
+  { src: 'src/commands/autopilot-progress.md',    dest: 'commands/autopilot-progress.md' },
   { src: 'src/agents/autopilot-phase-runner.md',  dest: 'agents/autopilot-phase-runner.md' },
   { src: 'src/agents/autopilot-debugger.md',      dest: 'agents/autopilot-debugger.md' },
   { src: 'src/protocols/autopilot-orchestrator.md', dest: 'autopilot/protocols/autopilot-orchestrator.md' },
