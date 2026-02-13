@@ -1,0 +1,37 @@
+{
+  "phase_id": "26.2",
+  "timestamp": "2026-02-13T06:00:00Z",
+  "criteria_source": "roadmap",
+  "criteria_checked": [
+    {
+      "criterion": "Banner appears on /autopilot:* commands when update available",
+      "command": "grep -r 'Update available' src/commands/autopilot/",
+      "result": "fail",
+      "output": "No matches found"
+    },
+    {
+      "criterion": "Banner reads from cache file written by SessionStart hook",
+      "command": "grep -r 'autopilot-update-check' src/commands/",
+      "result": "fail",
+      "output": "No matches found in command files"
+    },
+    {
+      "criterion": "Banner is non-blocking",
+      "command": "grep -r 'update.*banner\\|banner.*update' src/commands/autopilot/",
+      "result": "fail",
+      "output": "No matches found"
+    },
+    {
+      "criterion": "/autopilot:update subcommand exists",
+      "command": "ls src/commands/autopilot/update.md",
+      "result": "fail",
+      "output": "File not found"
+    }
+  ],
+  "total_criteria": 4,
+  "passed_criteria": 0,
+  "pass_ratio": 0.0,
+  "routing_decision": "full_pipeline",
+  "skipped_steps": [],
+  "note": "No update notification system exists yet. Full pipeline needed."
+}
