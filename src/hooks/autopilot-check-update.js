@@ -45,11 +45,14 @@ const child = spawn(process.execPath, ['-e', `
     latest = execSync('npm view autopilot-cc version', { encoding: 'utf8', timeout: 10000, windowsHide: true }).trim();
   } catch (e) {}
 
+  const checkedEpoch = Math.floor(Date.now() / 1000);
+  const expiresDate = new Date((checkedEpoch + 86400) * 1000).toISOString();
   const result = {
     update_available: latest && installed !== latest,
     installed,
     latest: latest || 'unknown',
-    checked: Math.floor(Date.now() / 1000)
+    checked: checkedEpoch,
+    expires: expiresDate
   };
 
   fs.writeFileSync(cacheFile, JSON.stringify(result));

@@ -10,12 +10,9 @@ allowed-tools:
 ---
 
 <update_check>
-**Before any output**, silently check for available updates:
-1. Read the file at `__INSTALL_BASE__/cache/autopilot-update-check.json` -- if missing or unreadable, skip silently
-2. Parse JSON. If `update_available` is `true` AND `checked` is within the last 86400 seconds of the current time, display this single line BEFORE all other output:
-   `Update available: v{installed} -> v{latest} -- run /autopilot:update`
-3. If the file is missing, malformed, stale (>24h), or `update_available` is false, display nothing -- proceed silently
-This check must never block or delay command execution.
+**Before any output**, check for updates using `__INSTALL_BASE__/cache/autopilot-update-check.json`.
+Full instructions: read `__INSTALL_BASE__/autopilot/protocols/update-check-banner.md`.
+If neither file is readable, skip silently. Banner format: `Update available: v{installed} -> v{latest} -- run /autopilot:update`
 </update_check>
 
 <objective>

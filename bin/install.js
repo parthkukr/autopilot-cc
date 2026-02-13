@@ -29,6 +29,7 @@ const FILE_MAP = [
   { src: 'src/protocols/autopilot-orchestrator.md', dest: 'autopilot/protocols/autopilot-orchestrator.md' },
   { src: 'src/protocols/autopilot-playbook.md',   dest: 'autopilot/protocols/autopilot-playbook.md' },
   { src: 'src/protocols/autopilot-schemas.md',    dest: 'autopilot/protocols/autopilot-schemas.md' },
+  { src: 'src/protocols/update-check-banner.md', dest: 'autopilot/protocols/update-check-banner.md' },
   { src: 'src/hooks/autopilot-check-update.js',   dest: 'hooks/autopilot-check-update.js' },
 ];
 
