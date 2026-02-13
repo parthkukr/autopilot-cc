@@ -447,18 +447,18 @@ When `--gaps` exhausts its 5-iteration budget without reaching 9.5+/10:
 
 ## 1.7 Discuss Mode
 
-When the user passes `--discuss` (e.g., `/autopilot --discuss 3`, `/autopilot --discuss 3-7`), the orchestrator runs an interactive discussion session per target phase BEFORE any execution begins. The intent is "let's talk first so the phase-runner has richer context."
+When the user passes `--discuss` (e.g., `/autopilot --discuss 3`, `/autopilot --discuss 3-7`), the orchestrator runs a conversational discussion session per target phase BEFORE any execution begins. The intent is "let's talk first so the phase-runner has richer context." The discussion follows a gray-area probing pattern: identify domain-specific ambiguities, let the user choose which areas to discuss, then deep-dive each selected area with focused questions.
 
 ### Phase Selection
 
 1. **If phase number/range specified** (`--discuss 3`, `--discuss 3-7`): Target those phases.
 2. **If no phase number** (`--discuss`): Target ALL phases in the current execution scope (phases about to be run).
 
-### Discussion Agent
+### Step 1: Gray Area Analysis Agent
 
-For each target phase, spawn a general-purpose subagent:
+For each target phase, spawn a general-purpose subagent to identify discussion-worthy gray areas:
 
-> You are a discussion agent for autopilot phase {N}: {phase_name}.
+> You are a gray area analysis agent for autopilot phase {N}: {phase_name}.
 >
 > Phase goal: {goal}
 > Requirements: {requirements_list}
@@ -469,80 +469,195 @@ For each target phase, spawn a general-purpose subagent:
 > <must>
 > 1. Read the phase's roadmap entry and requirements from the frozen spec at {spec_path}
 > 2. Read any existing research or plan files for this phase
-> 3. Generate 3-5 targeted questions that are SPECIFIC to this phase's content -- not generic questions like "What are your expectations?"
-> 4. Questions should cover: expected behavior for edge cases, implementation preferences, acceptance thresholds, trade-off decisions, and scope boundaries
-> 5. Each question must explain WHY the answer matters for this specific phase
+> 3. Determine the phase's domain by analyzing what kind of thing it builds:
+>    - Something users SEE (UI) -- layout, density, interactions, visual states matter
+>    - Something users CALL (API) -- interface contracts, responses, errors, auth matter
+>    - Something users RUN (CLI/tool) -- output format, flags, modes, error handling matter
+>    - Something users READ (docs/config) -- structure, tone, depth, flow matter
+>    - Something being ORGANIZED (system/architecture) -- criteria, grouping, naming, exceptions matter
+> 4. Generate 3-5 domain-specific gray areas -- concrete implementation decisions the user should weigh in on, NOT generic categories. Each gray area should represent a decision that would change the outcome.
+> 5. Each gray area should include 2-3 sample questions that would be asked during the deep-dive
 > 6. Return structured JSON (see Return JSON below)
 > </must>
 >
-> **Good questions (phase-specific):**
-> - "Phase 3 requires machine-verifiable criteria. When the plan-checker finds prose-only criteria, should it auto-convert them to grep-based checks or reject the plan outright?"
-> - "Phase 5 adds JSONL tracing. Should trace files be retained permanently or auto-pruned after N runs?"
+> **Good gray areas (domain-specific):**
+> - For a "Post Feed" phase: "Layout style -- cards vs timeline vs grid? Information density?"
+> - For a "CLI backup tool" phase: "Flag design -- short flags, long flags, or both? Required vs optional?"
+> - For a "Plan Quality Gates" phase: "Prose-only criteria handling -- auto-convert to grep checks or reject outright?"
 >
-> **Bad questions (generic):**
-> - "What do you expect from this phase?"
-> - "How should errors be handled?"
+> **Bad gray areas (generic):**
+> - "UI design" (too broad)
+> - "Error handling" (not phase-specific)
+> - "What should this phase do?" (that's the roadmap's job)
+>
+> **Scope guardrail:** Gray areas must clarify HOW to implement what's already scoped, never WHETHER to add new capabilities. If a gray area would expand the phase boundary, exclude it.
 >
 > Return JSON:
 > ```json
 > {
 >   "phase_id": "{N}",
->   "questions": [
+>   "domain": "SEE|CALL|RUN|READ|ORGANIZE",
+>   "domain_description": "1-sentence description of what this phase builds",
+>   "gray_areas": [
 >     {
->       "question": "specific question text",
->       "category": "edge_case|preference|threshold|trade_off|scope",
->       "why_it_matters": "1-sentence explanation of impact on phase execution"
+>       "area": "specific area name",
+>       "description": "1-sentence description of the ambiguity",
+>       "sample_questions": ["question 1", "question 2"]
 >     }
 >   ]
 > }
 > ```
 
-### Collecting Answers
+### Step 2: Present Gray Areas for User Selection
 
-1. **Batch all questions:** Present questions from all target phases in a single interactive session:
-   ```
-   Pre-Execution Discussion: {N} phases
+After the gray area analysis agent returns, present the results to the user for selection. The user chooses which areas to discuss -- they are not forced to answer everything.
 
-   ## Phase {id}: {name}
-   1. {question_1} [{category}]
-      Why: {why_it_matters}
-   2. {question_2} [{category}]
-      Why: {why_it_matters}
+For each target phase, present:
 
-   ## Phase {id}: {name}
-   ...
+```
+Pre-Execution Discussion: Phase {N} -- {phase_name}
 
-   Please answer all questions above. Type your answers inline (e.g., "Phase 3, Q1: ...").
-   ```
+Domain: {domain_description}
+We'll clarify HOW to implement this. (New capabilities belong in other phases.)
 
-2. **Record answers:** Write to `.autopilot/discuss-context.json`:
-   ```json
-   {
-     "version": "1.0",
-     "last_updated": "ISO-8601",
-     "phases": {
-       "{phase_id}": {
-         "phase_name": "string",
-         "questions": [
-           {
-             "question": "string",
-             "category": "string",
-             "answer": "user's answer text",
-             "answered_at": "ISO-8601"
-           }
-         ],
-         "discussed_at": "ISO-8601"
-       }
-     }
-   }
-   ```
+Which areas do you want to discuss?
 
-3. **Inject into phase-runner:** When spawning the phase-runner for a discussed phase, add to the spawn prompt:
-   > **Discussion context:** The user answered pre-execution questions for this phase. Answers are at `.autopilot/discuss-context.json`. The phase-runner MUST read this file during research and incorporate the user's answers into planning and execution decisions.
+1. {gray_area_1.area} -- {gray_area_1.description}
+2. {gray_area_2.area} -- {gray_area_2.description}
+3. {gray_area_3.area} -- {gray_area_3.description}
+[4. {gray_area_4.area} -- {gray_area_4.description}]
+
+(Enter numbers separated by commas, e.g., "1, 3" -- or "all" to discuss everything)
+```
+
+Wait for user response. Parse selected area numbers.
+
+### Step 3: Per-Area Conversational Probing
+
+For each selected area, conduct a focused conversational deep-dive. Present 3-4 questions per area, one area at a time.
+
+```
+for each selected_area:
+  1. Announce the area:
+     "Let's talk about {area.area}."
+
+  2. Present 3-4 focused questions for this area:
+     "## {area.area}
+      1. {question_1}
+      2. {question_2}
+      3. {question_3}
+      [4. {question_4}]
+
+      Answer inline (e.g., 'Q1: ..., Q2: ...')."
+
+  3. Record the user's answers.
+
+  4. After answers received, offer depth control:
+     "More questions about {area.area}, or move to next area?"
+
+     If "more": Generate 2-3 follow-up questions based on the user's answers.
+                 Present and record. Offer depth control again.
+     If "next": Proceed to next selected area.
+```
+
+After all selected areas are discussed:
+```
+"That covers {list of discussed areas}. Ready to create context?"
+```
+
+### Step 4: Write Discussion Output
+
+Write discussion output to TWO locations for backward compatibility:
+
+**4a. Write CONTEXT.md to phase directory:**
+
+Write to `.planning/phases/{phase}/CONTEXT.md`:
+
+```markdown
+# Phase {N}: {phase_name} - Context
+
+**Gathered:** {date}
+**Status:** Ready for planning
+
+## Phase Boundary
+
+{domain_description} -- the scope anchor from the roadmap.
+
+## Implementation Decisions
+
+### {Area 1 that was discussed}
+- {Decision or preference captured from user answers}
+- {Another decision if applicable}
+
+### {Area 2 that was discussed}
+- {Decision or preference captured}
+
+### Claude's Discretion
+{Areas where user said "you decide" or deferred to Claude -- note that Claude has flexibility here}
+
+## Specific Ideas
+
+{Any particular references, examples, or "I want it like X" moments from discussion}
+
+{If none: "No specific requirements -- open to standard approaches"}
+
+## Deferred Ideas
+
+{Ideas that came up during discussion but belong in other phases. Captured so they are not lost.}
+
+{If none: "None -- discussion stayed within phase scope"}
+```
+
+**4b. Write discuss-context.json (backward compatibility):**
+
+Also write to `.autopilot/discuss-context.json` (same schema as before, for backward compatibility with phase-runners that read this file):
+
+```json
+{
+  "version": "1.0",
+  "last_updated": "ISO-8601",
+  "phases": {
+    "{phase_id}": {
+      "phase_name": "string",
+      "gray_areas_discussed": ["area 1", "area 2"],
+      "questions": [
+        {
+          "question": "string",
+          "area": "which gray area this belongs to",
+          "category": "string",
+          "answer": "user's answer text",
+          "answered_at": "ISO-8601"
+        }
+      ],
+      "context_md_path": ".planning/phases/{phase}/CONTEXT.md",
+      "discussed_at": "ISO-8601"
+    }
+  }
+}
+```
+
+### Step 5: Inject into Phase-Runner
+
+When spawning the phase-runner for a discussed phase, add to the spawn prompt:
+
+> **Discussion context:** The user participated in a pre-execution discussion for this phase. Structured decisions are at `.planning/phases/{phase}/CONTEXT.md` (primary) and `.autopilot/discuss-context.json` (supplementary Q&A). The phase-runner MUST read CONTEXT.md during research and incorporate the user's decisions into planning and execution. CONTEXT.md decisions take priority over any conflicting assumptions.
+
+### Scope Guardrail
+
+During the conversational probing (Step 3), if the user suggests a new capability that is outside the phase boundary:
+
+```
+"{Feature} sounds like a new capability -- that belongs in its own phase.
+I'll note it in Deferred Ideas so it's not lost.
+
+Back to {current area}: {return to current question}"
+```
+
+Track deferred ideas internally and include them in the Deferred Ideas section of CONTEXT.md.
 
 ### Standalone --discuss (No Other Execution Flags)
 
-When `--discuss` is used WITHOUT `--force`, `--quality`, or `--gaps` (e.g., `/autopilot --discuss 3-7`), the orchestrator runs the discussion session for the specified phases and then proceeds with normal execution of those phases. The discussion context is injected into each phase-runner's spawn prompt. When no phase range is specified (e.g., `/autopilot --discuss`), it applies to all phases in the current execution scope (the phases about to be run, determined by the accompanying phase range argument or all outstanding phases if none given).
+When `--discuss` is used WITHOUT `--force`, `--quality`, or `--gaps` (e.g., `/autopilot --discuss 3-7`), the orchestrator runs the discussion session for the specified phases and then proceeds with normal execution of those phases. The discussion context (CONTEXT.md and discuss-context.json) is injected into each phase-runner's spawn prompt. When no phase range is specified (e.g., `/autopilot --discuss`), it applies to all phases in the current execution scope (the phases about to be run, determined by the accompanying phase range argument or all outstanding phases if none given).
 
 ### Combining --discuss with Other Flags
 
