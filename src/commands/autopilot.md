@@ -12,6 +12,15 @@ allowed-tools:
   - Grep
 ---
 
+<update_check>
+**Before any output**, silently check for available updates:
+1. Read the file at `__INSTALL_BASE__/cache/autopilot-update-check.json` -- if missing or unreadable, skip silently
+2. Parse JSON. If `update_available` is `true` AND `checked` is within the last 86400 seconds of the current time, display this single line BEFORE all other output:
+   `Update available: v{installed} -> v{latest} -- run /autopilot:update`
+3. If the file is missing, malformed, stale (>24h), or `update_available` is false, display nothing -- proceed silently
+This check must never block or delay command execution.
+</update_check>
+
 <objective>
 Run 1-N development phases autonomously using the 3-tier orchestrator pattern. You (the orchestrator) spawn phase-runner subagents and NEVER do heavy work yourself. You are a manager, not a worker — delegate all detailed analysis to sub-agents.
 **Quality bar:** Phases are verified with evidence. Compilation, lint, and build checks are mandatory. Scores of 9/10 on every phase are a red flag, not a success signal.
