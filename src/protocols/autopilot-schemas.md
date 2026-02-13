@@ -1622,7 +1622,7 @@ Agents can use the repo-map for structural queries:
 
 ## Section 15: Debug Session Schema
 
-**Created by:** `/autopilot debug` command and `autopilot-debugger` agent
+**Created by:** `/autopilot:debug` command and `autopilot-debugger` agent
 **Location:** `.planning/debug/{slug}.md` (active), `.planning/debug/resolved/{slug}.md` (resolved)
 **Purpose:** Persistent debug session state that survives context resets. The file IS the debugging brain -- it captures the full investigation state so a fresh agent can resume from any point.
 

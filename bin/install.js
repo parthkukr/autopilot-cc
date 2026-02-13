@@ -17,11 +17,12 @@ const packageRoot = path.resolve(__dirname, '..');
 
 // File mapping: package source → install destination (relative to target)
 const FILE_MAP = [
-  { src: 'src/commands/autopilot.md',             dest: 'commands/autopilot.md' },
-  { src: 'src/commands/autopilot-debug.md',       dest: 'commands/autopilot-debug.md' },
-  { src: 'src/commands/autopilot-add-phase.md',  dest: 'commands/autopilot-add-phase.md' },
-  { src: 'src/commands/autopilot-map.md',         dest: 'commands/autopilot-map.md' },
-  { src: 'src/commands/autopilot-progress.md',    dest: 'commands/autopilot-progress.md' },
+  { src: 'src/commands/autopilot.md',               dest: 'commands/autopilot.md' },
+  { src: 'src/commands/autopilot/debug.md',        dest: 'commands/autopilot/debug.md' },
+  { src: 'src/commands/autopilot/add-phase.md',   dest: 'commands/autopilot/add-phase.md' },
+  { src: 'src/commands/autopilot/map.md',          dest: 'commands/autopilot/map.md' },
+  { src: 'src/commands/autopilot/progress.md',    dest: 'commands/autopilot/progress.md' },
+  { src: 'src/commands/autopilot/help.md',         dest: 'commands/autopilot/help.md' },
   { src: 'src/agents/autopilot-phase-runner.md',  dest: 'agents/autopilot-phase-runner.md' },
   { src: 'src/agents/autopilot-debugger.md',      dest: 'agents/autopilot-debugger.md' },
   { src: 'src/protocols/autopilot-orchestrator.md', dest: 'autopilot/protocols/autopilot-orchestrator.md' },
@@ -155,6 +156,7 @@ function uninstall() {
 
   // Clean up empty directories
   const dirsToCheck = [
+    path.join(target, 'commands', 'autopilot'),
     path.join(target, 'autopilot', 'protocols'),
     path.join(target, 'autopilot'),
   ];
@@ -234,6 +236,7 @@ function install() {
 
   // Ensure target directories exist
   ensureDir(path.join(target, 'commands'));
+  ensureDir(path.join(target, 'commands', 'autopilot'));
   ensureDir(path.join(target, 'agents'));
   ensureDir(path.join(target, 'autopilot', 'protocols'));
   ensureDir(path.join(target, 'hooks'));
@@ -279,8 +282,10 @@ function install() {
 ✓ ${PACKAGE_NAME} v${version} installed successfully!
 
 Files installed to: ${target}
-  - /autopilot command
-  - autopilot-phase-runner agent
+  - /autopilot command (primary phase runner)
+  - /autopilot:debug, /autopilot:add-phase, /autopilot:map, /autopilot:progress
+  - /autopilot:help (command reference)
+  - autopilot-phase-runner + autopilot-debugger agents
   - 3 protocol files
   - SessionStart update hook
 
@@ -289,6 +294,7 @@ Files installed to: ${target}
    in an existing session, the phase-runner agent will not be found.
 
 Usage: Start Claude Code and run /autopilot <phases>
+Help:  /autopilot:help
 Update: /autopilot update
 Uninstall: npx ${PACKAGE_NAME}@latest --uninstall
 `);
