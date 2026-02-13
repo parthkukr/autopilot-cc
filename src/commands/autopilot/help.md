@@ -40,7 +40,10 @@ COMMANDS
         <phases>      Phase range to execute (e.g., 1-14, 3-7, 5)
         resume        Resume from last checkpoint
         status        Show current state without executing
-        update        Check for and install autopilot-cc updates
+
+  /autopilot:update
+      Check for and install autopilot-cc updates from npm. Reads installed
+      version, checks registry, and runs the installer if an update exists.
 
   /autopilot:debug [issue | phase N failure | resume]
       Systematic debugging with persistent state. Spawns an autopilot-debugger
@@ -114,7 +117,8 @@ QUICK START
   1. Install:    npx autopilot-cc@latest
   2. Run:        /autopilot <phase-range>
   3. Monitor:    /autopilot:progress
-  4. Debug:      /autopilot:debug <issue>
-  5. Help:       /autopilot:help
+  4. Update:     /autopilot:update
+  5. Debug:      /autopilot:debug <issue>
+  6. Help:       /autopilot:help
 ```
 </process>

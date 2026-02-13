@@ -23,6 +23,7 @@ const FILE_MAP = [
   { src: 'src/commands/autopilot/map.md',          dest: 'commands/autopilot/map.md' },
   { src: 'src/commands/autopilot/progress.md',    dest: 'commands/autopilot/progress.md' },
   { src: 'src/commands/autopilot/help.md',         dest: 'commands/autopilot/help.md' },
+  { src: 'src/commands/autopilot/update.md',       dest: 'commands/autopilot/update.md' },
   { src: 'src/agents/autopilot-phase-runner.md',  dest: 'agents/autopilot-phase-runner.md' },
   { src: 'src/agents/autopilot-debugger.md',      dest: 'agents/autopilot-debugger.md' },
   { src: 'src/protocols/autopilot-orchestrator.md', dest: 'autopilot/protocols/autopilot-orchestrator.md' },
