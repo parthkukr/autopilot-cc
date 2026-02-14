@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0 (2026-02-14)
+
+### Features
+
+- **Context Budget Investigation:** Comprehensive investigation of protocol file growth from v1.8.0 upgrades, identifying 35.7% growth in protocol text with root cause analysis and ranked fix strategies
+- **Playbook Deduplication:** Reduced autopilot-playbook.md from 1,856 to 1,700 lines (-8.4%) by condensing redundant sections and replacing inline schemas with references, preserving all quality enforcement
+
 ## 1.8.7 (2026-02-13)
 
 ### Features
