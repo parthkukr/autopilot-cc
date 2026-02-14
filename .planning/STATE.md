@@ -99,6 +99,9 @@ Recent decisions affecting current work:
 - Phase 25 added: Native Autopilot CLI Commands -- own add-phase, map-codebase (GSD decoupling)
 - Phase 26 added: Bug Fixes and QoL Polish -- pending todos and minor improvements
 - Version fix: Reverted v1.8.0 to v1.7.2 -- research phase doesn't warrant minor version bump
+- Phase 27 added: Phase Management Command Overhaul -- rewrite add-phase, add insert-phase and remove-phase commands
+- Phase 28 added: Context Budget Regression Investigation -- diagnose context exhaustion regression from v1.8.0 upgrades (Phases 17-26), rebalance quality vs. context consumption. Discussion-first phase.
+- Phase 29 added: Discuss Flag Overhaul -- rework --discuss to match GSD's interactive one-question-at-a-time flow, reverse-engineer /gsd:discuss-phase patterns
 
 ### Pending Todos
 
