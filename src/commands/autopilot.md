@@ -35,7 +35,7 @@ Run 1-N development phases autonomously using the 3-tier orchestrator pattern. Y
 - `--force [phase]` — re-execute a completed phase from scratch through the full pipeline (research, plan, execute, verify, judge, rate), regardless of its current score; existing commits are preserved, new work layers on top; targets specific phase (`--force 3`) or all completed phases (`--force`); cannot combine with `--quality`, `--gaps`, or `--complete` (force targets completed phases, complete targets incomplete phases)
 - `--quality [phase]` — execute with 9.5/10 alignment threshold; for unexecuted phases, runs the standard pipeline with the elevated threshold then enters remediation if needed; for completed phases below 9.5, enters remediation loops directly; max 3 remediation cycles; cannot combine with `--force`
 - `--gaps [phase]` — analyze and resolve the specific deficiencies preventing a completed phase from reaching 10/10; produces ordered list of remaining issues, then executes micro-targeted fixes one deficiency at a time, working toward 9.5+/10; max 5 gap-fix iterations; can combine with `--quality` (quality runs first to 9.5, then gaps pushes higher)
-- `--discuss [phases]` — run a conversational discussion session per phase before execution begins; the orchestrator identifies domain-specific gray areas (ambiguities the user should weigh in on), lets the user select which areas to discuss, then conducts a per-area deep-dive with focused questions and depth control; decisions are captured in a structured CONTEXT.md in the phase directory (plus discuss-context.json for backward compatibility); combines with any other flag (always runs first)
+- `--discuss [phases]` — run a one-question-at-a-time interactive discussion per phase before execution begins; the orchestrator identifies domain-specific gray areas with concrete choices, lets the user select which areas to discuss, then conducts a per-area deep-dive where each question is presented individually with concrete options (a/b/c/d) and adaptive follow-ups based on answers; decisions are captured in a structured CONTEXT.md in the phase directory (plus discuss-context.json for backward compatibility); combines with any other flag (always runs first)
 - `--visual [phases]` -- run visual testing during verification for UI phases; requires `project.visual_testing` configuration in `.planning/config.json` with at least `launch_command`, `base_url`, and `routes`; when used without a phase range, applies to all UI phases in the current run; enables Step 2.5 (Visual Testing) in the verifier even if `visual_testing.enabled` is false in config (allowing one-off visual test runs); can combine with any other flag
 - `--sequential` — force all phases sequential
 - `--checkpoint-every N` — pause for human review every N phases
@@ -139,9 +139,9 @@ Stop execution -- do not proceed to orchestrator setup.
 
 ### If `--discuss`:
 - Follow orchestrator guide Section 1.7 (Discuss Mode)
-- Step 1: Spawns gray area analysis agent per target phase that identifies 3-5 domain-specific discussion topics
+- Step 1: Spawns gray area analysis agent per target phase that identifies 3-5 domain-specific discussion topics with concrete options per question
 - Step 2: Presents gray areas to user for selection (user picks which areas to discuss)
-- Step 3: Conducts per-area conversational deep-dive with 3-4 focused questions per area and depth control ("more questions or next area?")
+- Step 3: Conducts per-area deep-dive using a one-question-at-a-time flow -- each question is presented individually with concrete choices (a/b/c/d options), the next question adapts based on the user's answer, and after every 4 questions offers depth control ("more questions or next area?")
 - Step 4: Writes structured CONTEXT.md to phase directory (decisions, Claude's discretion items, deferred ideas) and discuss-context.json for backward compatibility
 - Combines with any other flag -- always runs first before execution/quality/gaps/force
 - Gray areas are domain-specific (not generic) -- derived from analyzing what the phase builds (SEE/CALL/RUN/READ/ORGANIZE)
