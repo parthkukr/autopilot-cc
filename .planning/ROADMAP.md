@@ -45,8 +45,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 26.3: README Rewrite** *(INSERTED)* - Complete README overhaul with user-facing documentation: installation, quick start, command reference, intended usage guide, and future ideas
 - [x] **Phase 26.4: Context-Aware Session Restart Guidance** *(INSERTED)* - When the orchestrator detects high context usage and needs to stop, tell the user to run `/clear` then `/autopilot <remaining phases>` instead of a vague "context exhausted" message
 - [x] **Phase 27: Phase Management Command Overhaul** - Rewrite /autopilot:add-phase to match GSD quality, add /autopilot:insert-phase for decimal phase insertion, add /autopilot:remove-phase for phase removal with renumbering, and scaffold all detail sections with requirements/criteria placeholders
-- [ ] **Phase 28: Context Budget Regression Investigation** - Diagnose and fix context exhaustion regression from v1.8.0 upgrades, rebalance quality vs. context consumption
-- [ ] **Phase 29: Discuss Flag Overhaul** - Rework --discuss to use GSD-style one-question-at-a-time interactive flow, replacing the current wall-of-text approach
+- [x] **Phase 28: Context Budget Regression Investigation** - Diagnose and fix context exhaustion regression from v1.8.0 upgrades, rebalance quality vs. context consumption
+- [x] **Phase 29: Discuss Flag Overhaul** - Rework --discuss to use GSD-style one-question-at-a-time interactive flow, replacing the current wall-of-text approach
 
 ## Phase Details
 
@@ -292,8 +292,8 @@ Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26 -> 26.1 -> 
 | 26.3. README Rewrite | Completed | v1.8.3 |
 | 26.4. Context-Aware Session Restart Guidance | Completed | v1.8.4 |
 | 27. Phase Management Command Overhaul | Completed | v1.8.7 |
-| 28. Context Budget Regression Investigation | Not started | - |
-| 29. Discuss Flag Overhaul | Not started | - |
+| 28. Context Budget Regression Investigation | Completed | v1.8.8 |
+| 29. Discuss Flag Overhaul | Completed | v1.8.8 |
 
 ### Phase 8: Batch Completion Mode
 **Goal**: The user can invoke `/autopilot --complete` to run all outstanding (incomplete) phases in dependency order without specifying a phase range -- the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting

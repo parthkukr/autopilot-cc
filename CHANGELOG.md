@@ -1,17 +1,12 @@
 # Changelog
 
-## 1.10.0 (2026-02-14)
-
-### Features
-
-- **Interactive Discussion Overhaul:** Completely rewrote `--discuss` flag from a wall-of-text question block to a one-question-at-a-time interactive flow with concrete a/b/c/d options, context-aware follow-ups that adapt based on answers, 4-question depth control per area, and structured option generation in the gray area analysis agent
-
-## 1.9.0 (2026-02-14)
+## 1.8.8 (2026-02-14)
 
 ### Features
 
 - **Context Budget Investigation:** Comprehensive investigation of protocol file growth from v1.8.0 upgrades, identifying 35.7% growth in protocol text with root cause analysis and ranked fix strategies
 - **Playbook Deduplication:** Reduced autopilot-playbook.md from 1,856 to 1,700 lines (-8.4%) by condensing redundant sections and replacing inline schemas with references, preserving all quality enforcement
+- **Interactive Discussion Overhaul:** Completely rewrote `--discuss` flag from a wall-of-text question block to a one-question-at-a-time interactive flow with concrete a/b/c/d options, context-aware follow-ups that adapt based on answers, 4-question depth control per area, and structured option generation in the gray area analysis agent
 
 ## 1.8.7 (2026-02-13)
 
