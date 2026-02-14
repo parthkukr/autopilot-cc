@@ -44,6 +44,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 26.2: Update Notification System** *(INSERTED)* - Wire the existing SessionStart hook cache into a passive update banner shown on every `/autopilot:*` command invocation
 - [x] **Phase 26.3: README Rewrite** *(INSERTED)* - Complete README overhaul with user-facing documentation: installation, quick start, command reference, intended usage guide, and future ideas
 - [x] **Phase 26.4: Context-Aware Session Restart Guidance** *(INSERTED)* - When the orchestrator detects high context usage and needs to stop, tell the user to run `/clear` then `/autopilot <remaining phases>` instead of a vague "context exhausted" message
+- [x] **Phase 27: Phase Management Command Overhaul** - Rewrite /autopilot:add-phase to match GSD quality, add /autopilot:insert-phase for decimal phase insertion, add /autopilot:remove-phase for phase removal with renumbering, and scaffold all detail sections with requirements/criteria placeholders
+- [ ] **Phase 28: Context Budget Regression Investigation** - Diagnose and fix context exhaustion regression from v1.8.0 upgrades, rebalance quality vs. context consumption
+- [ ] **Phase 29: Discuss Flag Overhaul** - Rework --discuss to use GSD-style one-question-at-a-time interactive flow, replacing the current wall-of-text approach
 
 ## Phase Details
 
@@ -288,6 +291,9 @@ Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26 -> 26.1 -> 
 | 26.2. Update Notification System | Completed | v1.8.2 |
 | 26.3. README Rewrite | Completed | v1.8.3 |
 | 26.4. Context-Aware Session Restart Guidance | Completed | v1.8.4 |
+| 27. Phase Management Command Overhaul | Completed | v1.8.7 |
+| 28. Context Budget Regression Investigation | Not started | - |
+| 29. Discuss Flag Overhaul | Not started | - |
 
 ### Phase 8: Batch Completion Mode
 **Goal**: The user can invoke `/autopilot --complete` to run all outstanding (incomplete) phases in dependency order without specifying a phase range -- the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
@@ -892,3 +898,33 @@ Plans:
 
 Plans:
 - [ ] TBD (run /autopilot 26.4 to execute)
+
+### Phase 27: Phase Management Command Overhaul
+**Goal**: Rewrite /autopilot:add-phase to match GSD quality (deterministic parsing, STATE.md updates, progress table updates, execution order updates), add /autopilot:insert-phase for decimal phase insertion, add /autopilot:remove-phase for phase removal with renumbering, and scaffold all detail sections with requirements/criteria placeholders
+**Depends on**: Phase 26 (independent)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. [To be defined]
+
+Plans:
+- [ ] TBD (run /clear then /autopilot 27 to execute)
+
+### Phase 28: Context Budget Regression Investigation
+**Goal**: Diagnose and fix the context exhaustion regression introduced after the v1.8.0 wave of upgrades (Phases 17-26) -- identify which changes are consuming excessive context, determine the root causes (prompt bloat, new agent spawns, larger handoffs, expanded protocols), and rebalance the system to maintain quality enforcement while keeping context consumption within manageable bounds. Discussion-first: no changes until the investigation is reviewed with the user.
+**Depends on**: Phase 27 (independent -- can be prioritized earlier if needed)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. [To be defined -- pending discussion]
+
+Plans:
+- [ ] TBD (run /gsd:discuss-phase 28 first, then /gsd:plan-phase 28)
+
+### Phase 29: Discuss Flag Overhaul
+**Goal**: Completely rework the autopilot `--discuss` flag to match GSD's interactive discussion quality -- investigate how `/gsd:discuss-phase` works (adaptive one-question-at-a-time flow, context-aware follow-ups, structured output), reverse-engineer the patterns that make it effective, then rebuild autopilot's discuss feature from scratch using those patterns. The current implementation dumps a wall of questions as a single block of text, which is unusable. The new version should ask one question at a time, adapt based on answers, and produce structured context that enriches the phase-runner.
+**Depends on**: Phase 26 (builds on existing --discuss implementation)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. [To be defined during planning]
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 29 to break down)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.7 (2026-02-13)
+
+### Features
+
+- **Phase Management Commands:** Rewrote `/autopilot:add-phase` with deterministic regex-based parsing, STATE.md updates, progress table updates, and execution order updates
+- **Decimal Phase Insertion:** New `/autopilot:insert-phase` command for inserting decimal phases (e.g., 3.1) between existing phases with INSERTED markers and full roadmap integration
+- **Phase Removal:** New `/autopilot:remove-phase` command for removing phases from the roadmap with user confirmation, comprehensive section cleanup, and directory preservation
+- **Detail Section Scaffolding:** All phase management commands now scaffold complete detail sections with Goal, Requirements, Success Criteria, and Plans placeholders
+
 ## 1.8.6 (2026-02-13)
 
 ### Features
