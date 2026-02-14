@@ -48,8 +48,19 @@ COMMANDS
       failure analysis from post-mortems, and resuming active debug sessions.
 
   /autopilot:add-phase <description>
-      Add a new phase to the project roadmap. Automatically determines the next
-      phase number, creates the phase directory, and updates ROADMAP.md.
+      Add a new integer phase to the project roadmap. Determines the next phase
+      number, creates the directory, and updates ROADMAP.md, Progress table,
+      Execution Order, and STATE.md.
+
+  /autopilot:insert-phase <after-phase> <description>
+      Insert a decimal phase after an existing phase (e.g., 26.1 after 26).
+      Computes the next available decimal number, marks it as INSERTED, and
+      updates all roadmap sections in the correct position.
+
+  /autopilot:remove-phase <phase-number>
+      Remove a phase from the roadmap. Removes the phase entry, detail section,
+      progress table row, and execution order reference. Phase directory is
+      preserved for manual cleanup. Does not renumber other phases.
 
   /autopilot:map [scope]
       Analyze the codebase and produce a structured analysis document covering
@@ -107,6 +118,9 @@ USAGE EXAMPLES
   /autopilot:progress        Show current project progress
   /autopilot:add-phase "API rate limiting"
                               Add a new phase to the roadmap
+  /autopilot:insert-phase 26 "Bug Fix Rollup"
+                              Insert Phase 26.1 after Phase 26
+  /autopilot:remove-phase 27  Remove Phase 27 from the roadmap
 
 QUICK START
 -----------
