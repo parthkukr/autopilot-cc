@@ -478,7 +478,7 @@ For each target phase, spawn a general-purpose subagent to identify discussion-w
 >    - Something users READ (docs/config) -- structure, tone, depth, flow matter
 >    - Something being ORGANIZED (system/architecture) -- criteria, grouping, naming, exceptions matter
 > 4. Generate 3-5 domain-specific gray areas -- concrete implementation decisions the user should weigh in on, NOT generic categories. Each gray area should represent a decision that would change the outcome.
-> 5. Each gray area should include 2-3 sample questions that would be asked during the deep-dive
+> 5. Each gray area MUST include 3-4 questions with concrete options per question. Options should be concrete, not abstract ("Cards layout" not "Option A"). Include 2-4 options per question. Options should represent genuinely different implementation paths that would change the result.
 > 6. Return structured JSON (see Return JSON below)
 > </must>
 >
@@ -492,6 +492,14 @@ For each target phase, spawn a general-purpose subagent to identify discussion-w
 > - "Error handling" (not phase-specific)
 > - "What should this phase do?" (that's the roadmap's job)
 >
+> **Option generation guidance:**
+> - Options should be concrete, not abstract ("Cards layout" not "Option A")
+> - Include 2-4 options per question representing genuinely different implementation paths
+> - One option can be "You decide" for deferring to Claude's discretion
+> - Options should be short (1-5 words) and self-explanatory
+> - Good options: "Infinite scroll", "Paginated with page numbers", "Load more button"
+> - Bad options: "Option 1", "The first approach", "Something standard"
+>
 > **Scope guardrail:** Gray areas must clarify HOW to implement what's already scoped, never WHETHER to add new capabilities. If a gray area would expand the phase boundary, exclude it.
 >
 > Return JSON:
@@ -504,7 +512,12 @@ For each target phase, spawn a general-purpose subagent to identify discussion-w
 >     {
 >       "area": "specific area name",
 >       "description": "1-sentence description of the ambiguity",
->       "sample_questions": ["question 1", "question 2"]
+>       "questions": [
+>         {
+>           "question": "question text",
+>           "options": ["concrete choice 1", "concrete choice 2", "concrete choice 3"]
+>         }
+>       ]
 >     }
 >   ]
 > }
@@ -534,37 +547,80 @@ Which areas do you want to discuss?
 
 Wait for user response. Parse selected area numbers.
 
-### Step 3: Per-Area Conversational Probing
+### Step 3: Per-Area One-Question-at-a-Time Probing
 
-For each selected area, conduct a focused conversational deep-dive. Present 3-4 questions per area, one area at a time.
+For each selected area, conduct a focused conversational deep-dive using a **one-question-at-a-time** interactive flow. Present ONE question with concrete options, wait for the answer, then adapt the next question based on the response. This replaces the old block-of-questions approach.
+
+**Question presentation format (per question):**
+
+```
+{area.area}: Question {N}
+
+{question_text}
+
+Options:
+a) {concrete choice 1}
+b) {concrete choice 2}
+c) {concrete choice 3}
+d) You decide (Claude's discretion)
+
+(Enter a letter, or type a custom answer)
+```
+
+**Flow:**
 
 ```
 for each selected_area:
+  question_count = 0
+
   1. Announce the area:
      "Let's talk about {area.area}."
 
-  2. Present 3-4 focused questions for this area:
-     "## {area.area}
-      1. {question_1}
-      2. {question_2}
-      3. {question_3}
-      [4. {question_4}]
+  2. Present ONE question at a time from the gray area analysis agent's
+     pre-generated questions (with their concrete options).
+     Wait for the user's answer before presenting the next question.
 
-      Answer inline (e.g., 'Q1: ..., Q2: ...')."
+  3. After the user answers, record the answer and adapt:
+     - Use the user's answer to inform the NEXT question.
+       For example, if the user chose "Cards layout" for a display question,
+       the next question might ask about card density or information shown per card.
+     - Generate the next question with options based on what was answered so far.
 
-  3. Record the user's answers.
+  4. Repeat steps 2-3, presenting ONE question at a time.
 
-  4. After answers received, offer depth control:
-     "More questions about {area.area}, or move to next area?"
+  5. After every 4 questions in this area, offer depth control:
+     "{area.area}: We've covered 4 questions.
+      More questions about {area.area}, or move to next area?
 
-     If "more": Generate 2-3 follow-up questions based on the user's answers.
-                 Present and record. Offer depth control again.
-     If "next": Proceed to next selected area.
+      a) More questions
+      b) Next area"
+
+     If "more" (a): Generate 2-3 context-aware follow-up questions based on
+                     answers so far. Present them one at a time (same format).
+                     After those, offer depth control again.
+     If "next" (b): Proceed to next selected area.
 ```
 
 After all selected areas are discussed:
 ```
-"That covers {list of discussed areas}. Ready to create context?"
+"That covers {list of discussed areas}. Ready to create context?
+
+a) Create context
+b) Revisit an area"
+```
+
+**Key principles for question adaptation:**
+- Each answer narrows the decision space for the next question. Use the user's concrete choice to make the next question more specific.
+- If the user types a custom answer instead of selecting an option, reflect it back: "Got it: {user's answer}. That means..." then ask the next question informed by that answer.
+- If the user selects "You decide" (Claude's discretion), note it for the CONTEXT.md Claude's Discretion section and move to the next question without further probing on that topic.
+
+**Scope guardrail during probing:**
+If the user's answer suggests a capability outside the phase boundary:
+```
+"{Feature} sounds like a new capability -- that belongs in its own phase.
+I'll note it in Deferred Ideas so it's not lost.
+
+Back to {current area}: {next question}"
 ```
 
 ### Step 4: Write Discussion Output
