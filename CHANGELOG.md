@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.0 (2026-02-14)
+
+### Features
+
+- **Interactive Discussion Overhaul:** Completely rewrote `--discuss` flag from a wall-of-text question block to a one-question-at-a-time interactive flow with concrete a/b/c/d options, context-aware follow-ups that adapt based on answers, 4-question depth control per area, and structured option generation in the gray area analysis agent
+
 ## 1.9.0 (2026-02-14)
 
 ### Features
