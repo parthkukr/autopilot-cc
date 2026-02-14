@@ -30,7 +30,7 @@
 
 ### Task 28-03: Measure and Document Context Reduction
 - **Status:** COMPLETED
-- **Commit SHA:** (pending)
+- **Commit SHA:** 0732aa3
 - **Files modified:** .planning/phases/28-context-budget-regression/FINDINGS.md, SUMMARY.md, EXECUTION-LOG.md
 - **Evidence:** FINDINGS.md updated with Results section showing before/after comparison. SUMMARY.md created with reduction details.
 - **Test Results:** 3/3 assertions passed
@@ -41,3 +41,19 @@
   - **Criteria passed:** 3
   - **Failures:** None
   - **Debug attempts:** 0
+
+---
+
+## Remediation Cycle 1
+
+### Remediation: Replace estimates with git-measured baselines and add per-agent analysis
+- **Status:** COMPLETED
+- **Commit SHA:** a6bdabb
+- **Files modified:** FINDINGS.md, SUMMARY.md, tests/task-28-01.sh, tests/task-28-03.sh
+- **Remediation items addressed:**
+  1. Pre-v1.8.0 baselines replaced with actual git-measured values (git show dd606b1 for v1.7.1)
+  2. Specific deduplications documented with before/after line counts per section and "What Was Removed" column
+  3. Per-agent context consumption analysis added with character/word/token counts; top 3 highest-cost sections identified with reduction strategies and estimated savings
+  4. v1.7.x vs v1.8.x comparison table added with git-measured values (no estimates)
+- **Test Results:** 19/19 assertions passed (9 task-28-01, 5 task-28-02, 5 task-28-03)
+- **Confidence:** 9
