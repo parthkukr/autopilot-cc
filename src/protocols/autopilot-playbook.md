@@ -91,76 +91,15 @@ Every step agent has a declared line budget. The phase-runner reads ONLY the JSO
 
 ### Trace Aggregation (OBSV-02)
 
-After each step agent completes, the phase-runner performs trace aggregation:
-
-1. **Check for step trace file:** Look for `{step}-trace.jsonl` in the phase directory (e.g., `research-trace.jsonl`, `execute-trace.jsonl`).
-2. **If found:** Append its contents to `TRACE.jsonl` in the phase directory.
-3. **If not found:** Write a minimal trace entry to `TRACE.jsonl` noting the step completed without a trace file:
-   ```json
-   {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "{step_name}", "action": "decision", "input_summary": "Step completed without trace file", "output_summary": "Step {step_name} returned JSON result", "duration_ms": 0, "status": "success"}
-   ```
-4. **Phase-runner spans:** Additionally, write a phase-runner-level span to `TRACE.jsonl` for each step agent spawn/completion:
-   ```json
-   {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "phase_runner", "action": "agent_spawn", "input_summary": "Spawning {agent_type} for step {step_name}", "output_summary": "Agent returned: {summary of JSON result}", "duration_ms": {wall_clock_ms}, "status": "success|failure"}
-   ```
-
-This is a SHOULD-level responsibility. If trace aggregation fails (e.g., file write error), log the failure and continue the pipeline -- tracing must not block execution.
+After each step agent completes, append `{step}-trace.jsonl` (if found) to `TRACE.jsonl` in the phase directory. If no trace file exists, write a minimal entry. Also write a phase-runner-level spawn/completion span. Schema: see autopilot-schemas.md Section 6. SHOULD-level: trace failures must not block execution.
 
 ### Progress Emission
 
-The phase-runner emits structured progress messages at each pipeline step boundary so that the orchestrator (and user) can see what is happening during execution. These messages replace the "invoke and wait with no feedback" experience.
+Emit structured progress messages at pipeline step boundaries. Format:
 
-**Step-level progress:** Before each pipeline step, emit:
-```
-[Phase {N}] Step: {STEP_NAME} ({step_number}/{total_steps})
-```
-After each step completes, emit:
-```
-[Phase {N}] Step: {STEP_NAME} complete.
-```
+**Step-level:** `[Phase {N}] Step: {STEP_NAME} ({step_number}/9)` before, `[Phase {N}] Step: {STEP_NAME} complete.` after. Steps: 1-PREFLIGHT, 2-TRIAGE, 3-RESEARCH, 4-PLAN, 5-PLAN-CHECK, 6-EXECUTE, 7-VERIFY, 8-JUDGE, 9-RATE. Skipped steps: `[Phase {N}] Step: {STEP_NAME} skipped ({reason}).`
 
-The step names and their numbers are:
-1. PREFLIGHT
-2. TRIAGE
-3. RESEARCH (skipped if verify_only or skip_research)
-4. PLAN (skipped if verify_only or existing_plan)
-5. PLAN-CHECK (skipped if verify_only)
-6. EXECUTE (skipped if verify_only)
-7. VERIFY
-8. JUDGE
-9. RATE
-
-When steps are skipped, emit:
-```
-[Phase {N}] Step: {STEP_NAME} skipped ({reason}).
-```
-
-**Task-level progress (during EXECUTE step):** During per-task execution, emit:
-```
-[Phase {N}] Task {task_id} ({M}/{total}): {task_description}
-[Phase {N}] Task {task_id}: modifying {file_path}
-[Phase {N}] Task {task_id}: compile PASS
-[Phase {N}] Task {task_id}: compile FAIL -- {error_summary}
-[Phase {N}] Task {task_id}: VERIFIED
-[Phase {N}] Task {task_id}: FAILED -- {failure_reason}
-```
-
-**Compilation gate streaming:** When the executor reports compile/lint results per task, the phase-runner emits the result immediately:
-```
-[Phase {N}] Task {task_id}: compile PASS
-[Phase {N}] Task {task_id}: lint PASS
-```
-Or on failure:
-```
-[Phase {N}] Task {task_id}: compile FAIL -- {first error message}
-[Phase {N}] Task {task_id}: lint FAIL -- {error count} errors
-```
-
-**Format rules:**
-- All progress messages are plain text (no markdown, no emojis)
-- Step-level messages use `[Phase {N}] Step:` prefix
-- Task-level messages use `[Phase {N}] Task {task_id}:` prefix
-- Use `PASS`/`FAIL` keywords for compile/lint results
+**Task-level (during EXECUTE):** `[Phase {N}] Task {task_id} ({M}/{total}): {description}`, then `modifying {file}`, `compile PASS|FAIL`, `VERIFIED|FAILED`. All plain text, no markdown/emojis.
 
 ---
 
@@ -361,7 +300,7 @@ Requirements for this phase (if provided):
 </may>
 
 <should>
-5. Write a trace file to .planning/phases/{phase}/research-trace.jsonl with one JSONL line per significant action (file read, command run, decision made). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "research", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+5. Write trace file to .planning/phases/{phase}/research-trace.jsonl (JSONL, schema: autopilot-schemas.md Section 6)
 </should>
 
 Return JSON:
@@ -453,7 +392,7 @@ Requirements for this phase (if provided):
 </may>
 
 <should>
-6. Write a trace file to .planning/phases/{phase}/plan-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan", "action": "file_read|file_write|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+6. Write trace file to .planning/phases/{phase}/plan-trace.jsonl (JSONL, schema: autopilot-schemas.md Section 6)
 </should>
 
 **AUTOPILOT CONTEXT (you are in autopilot mode):**
@@ -535,7 +474,7 @@ Plans are in: .planning/phases/{phase}/
 </may>
 
 <should>
-6. Write a trace file to .planning/phases/{phase}/plan_check-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "plan_check", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+6. Write trace file to .planning/phases/{phase}/plan_check-trace.jsonl (JSONL, schema: autopilot-schemas.md Section 6)
 </should>
 
 Return JSON:
@@ -678,37 +617,9 @@ When the mini-verifier reports `pass: false`:
 4. Max 2 debug attempts per task. If the task still fails after 2 attempts, mark it as FAILED in EXECUTION-LOG.md and proceed to the next task.
 5. At the end of the per-task loop, if ANY task has status FAILED, the phase proceeds to final verification (STEP 4) but the phase-runner notes the failures in its return JSON `issues` array.
 
-**EXECUTION-LOG.md per-task entry extension:**
+**EXECUTION-LOG.md per-task entry:** Each entry MUST include a `mini_verification` section (Result, Criteria checked/passed, Failures, Debug attempts) after the executor's self-reported results. Schema: see autopilot-schemas.md Section 5 (PVRF-01).
 
-Each task entry in EXECUTION-LOG.md MUST include a `mini_verification` section after the executor's self-reported results:
-
-```markdown
-### Task {id}: {description}
-- **Status:** COMPLETED|FAILED|NEEDS_REVIEW
-- **Commit SHA:** {sha}
-- **Files modified:** {list}
-- **Evidence:** {executor's self-test results}
-- **Confidence:** {1-10}
-- **Mini-Verification:**
-  - **Result:** PASS|FAIL
-  - **Criteria checked:** {N}
-  - **Criteria passed:** {N}
-  - **Failures:** {list of failed criteria with evidence, or "None"}
-  - **Debug attempts:** {0-2}
-```
-
-**Context budget for mini-verifiers:**
-
-| Component | Budget |
-|-----------|--------|
-| Mini-verifier response | max 30 lines |
-| Mini-verifier summary | max 5 lines (JSON return only) |
-| Phase-runner ingestion per task | max 5 lines (JSON return block) |
-| Total for 5-task phase | ~25 lines (5 tasks x 5 lines per mini-verifier JSON) |
-
-**Fallback to batch execution:**
-
-If the plan contains more than 8 tasks, the phase-runner MAY fall back to batch execution (single executor spawn for all tasks) to avoid excessive agent spawns. In this case, per-task mini-verification runs AFTER the executor returns (one mini-verifier per EXECUTION-LOG.md entry) rather than between task executions. This trades early failure detection for reduced agent spawn overhead.
+**Mini-verifier context budget:** max 30 response lines, 5 summary lines (JSON only), ~5 lines ingested per task. If plan has >8 tasks, fall back to batch execution (single executor spawn, mini-verify per EXECUTION-LOG.md entry after).
 
 **Action:** Spawn `gsd-executor` agent via Task tool, run_in_background=true. When in per-task execution mode, spawn once per task. When in batch fallback mode, spawn once for all tasks.
 
@@ -750,7 +661,7 @@ If the plan contains more than 8 tasks, the phase-runner MAY fall back to batch 
 > </should>
 >
 > <should>
-> 5. Write a trace file to .planning/phases/{phase}/execute-trace.jsonl with one JSONL line per significant action (file write, compile run, lint run, git commit, criterion check). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "execute", "action": "file_read|file_write|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+> 5. Write trace file to .planning/phases/{phase}/execute-trace.jsonl (JSONL, schema: autopilot-schemas.md Section 6)
 > </should>
 >
 > <may>
@@ -832,7 +743,7 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > </should>
 >
 > <should>
-> 4. Write a trace file to .planning/phases/{phase}/verify-trace.jsonl with one JSONL line per significant action (file read, command run, criterion check). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "verify", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+> 4. Write trace file to .planning/phases/{phase}/verify-trace.jsonl (JSONL, schema: autopilot-schemas.md Section 6)
 > </should>
 >
 > <may>
@@ -1086,86 +997,19 @@ enforcement: JSON return only -- phase-runner reads the JSON block
 
 ### Sandbox Execution Policy
 
-**Purpose:** Define the boundaries and rules for executing code during verification. The verifier, rating agent, and plan-checker reference this policy when running execution-based verification commands.
-
-**What is the sandbox?**
-The sandbox is Claude Code's built-in runtime environment (Bash tool) scoped to the project directory. There is no separate container or VM. The sandbox boundary is enforced by instruction, not by infrastructure.
-
-**Sandbox boundaries (MUST enforce):**
-1. Commands MUST NOT modify files outside the project directory. If a command writes to a path outside the project root, flag it as a sandbox violation in the verification report.
-2. Commands MUST NOT install global packages (no `npm install -g`, `pip install --user`, `sudo apt install`, etc.).
-3. Commands MUST NOT access network resources not required by the project's own configuration. Build/test commands that fetch dependencies (e.g., `npm install`) are permitted if they are the project's configured commands.
-4. Commands MUST use the Bash tool's timeout parameter, set to 60 seconds maximum for any single execution command. Timeouts are reported as verification failures, not retried.
-
-**Error handling:**
-- Non-zero exit codes: Record the exit code and stderr output (first 500 chars). Classify as verification failure.
-- Unhandled exceptions / crashes: Record the error output. Classify using failure taxonomy: `compilation_failure`, `build_failure`, `lint_failure`, or `tool_failure` as appropriate.
-- Timeouts (>60 seconds): Record as `tool_failure` with note "execution timeout exceeded 60s."
-- Sandbox violations: Record as `scope_creep` with note "command attempted to modify files outside project directory."
-
-**When to use execution-based verification:**
-- ALWAYS for compile, lint, and build checks (Step 1 of verification methodology) -- these are already execution-based.
-- For any acceptance criterion that specifies an execution command (e.g., `{project.commands.test}`, `npm run validate`, `node scripts/check.js`).
-- Execution-based verification is STRONGER than grep-based verification. When both are available for a criterion, execution takes precedence.
-
-**Blind verification compatibility:**
-Execution-based verification preserves the blind verification principle (VRFY-01). The verifier runs commands from the acceptance criteria, not from the executor's evidence. The commands to run come from the PLAN.md criteria, not from the executor's EXECUTION-LOG.md. The output is assessed independently by the verifier.
+**Sandbox boundaries:** Commands MUST NOT: (1) modify files outside the project directory, (2) install global packages, (3) access non-project network resources. Timeout: 60 seconds max per command. Error handling: record exit codes and stderr (first 500 chars), classify failures using taxonomy (compilation_failure, build_failure, lint_failure, tool_failure, scope_creep). Execution-based verification is STRONGER than grep and takes precedence when both are available. Preserves blind verification (VRFY-01): commands come from PLAN.md criteria, not executor evidence.
 
 ---
 
 ### Visual Regression Loop Protocol
 
-**Purpose:** Define the automated loop for detecting, reporting, and confirming resolution of visual bugs. This protocol enables the system to re-run visual tests after fixes to confirm issues are resolved.
+**Applies to:** UI/mixed phases with `project.visual_testing.enabled` only.
 
-**When triggered:** The visual regression loop activates when:
-- The verifier's visual testing step (Step 2.5) finds visual issues (issues_found > 0)
-- The phase type is `ui` or `mixed`
-- `project.visual_testing.enabled` is true in config.json (or `visual_testing_enabled: true` from `--visual` flag)
+**Triggered when:** Verifier Step 2.5 finds visual issues (issues_found > 0).
 
-**Loop mechanics:**
+**Loop:** (1) Generate bug report at `.planning/phases/{phase}/VISUAL-BUGS.md` with per-issue route, screenshot, type, severity, location, suggested fix, and resolution tracking table. (2) Pass bug report to debugger (Step 5a) alongside functional issues. (3) After fix, re-run Step 2.5 and update resolution tracking. (4) Terminates when all critical/major issues resolved, or max 3 debug attempts reached. Schema: see autopilot-schemas.md Section 16.
 
-1. **Initial capture:** Verifier captures baseline screenshots and analyzes them (Step 2.5 during normal verification)
-
-2. **Bug report generation:** When issues are found, generate a structured visual bug report at `.planning/phases/{phase}/VISUAL-BUGS.md`:
-   ```markdown
-   # Visual Bug Report -- Phase {N}
-
-   **Generated:** {timestamp}
-   **Routes tested:** {N}
-   **Issues found:** {N}
-
-   ## Issues
-
-   ### Issue 1: {description}
-   - **Route:** {path}
-   - **Screenshot:** {screenshot_path}
-   - **Type:** layout|rendering|regression|accessibility
-   - **Severity:** critical|major|minor
-   - **Location:** {approximate location in screenshot}
-   - **Suggested fix:** {actionable suggestion with target file/component}
-   - **Status:** open
-
-   ## Resolution Tracking
-   | Issue | Fix Applied | Re-test Result | Status |
-   |-------|------------|----------------|--------|
-   | Issue 1 | {commit SHA or description} | {pass/fail} | resolved/open |
-   ```
-
-3. **Fix integration:** Visual bug reports are passed to the debugger (Step 5a) as additional issues when the phase enters a debug loop. The debugger addresses visual issues alongside functional issues.
-
-4. **Re-test after fix:** After the debugger commits fixes, the verifier re-runs visual testing (Step 2.5) on the same routes. Screenshots are captured again and compared against the issues list.
-
-5. **Resolution confirmation:** For each issue in VISUAL-BUGS.md, update the Resolution Tracking table with the re-test result. An issue is marked `resolved` only when the re-test screenshot no longer shows the reported problem.
-
-6. **Loop termination:** The visual regression loop terminates when:
-   - All critical/major issues are resolved, OR
-   - The debug attempt limit is reached (max 3 attempts), OR
-   - No visual issues were found in the initial capture
-
-**Baseline management:**
-- After all visual issues are resolved (or on first successful visual test with no issues), save the current screenshots as baselines to `{screenshot_dir}/baseline/`
-- On subsequent runs, the verifier compares new screenshots against baselines to detect regressions
-- Baseline screenshots are NOT committed to git (they are ephemeral verification artifacts)
+**Baselines:** Save passing screenshots to `{screenshot_dir}/baseline/` for regression detection. Not committed to git.
 
 ---
 
@@ -1207,7 +1051,7 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 > </should>
 >
 > <should>
-> 4. Write a trace file to .planning/phases/{phase}/judge-trace.jsonl with one JSONL line per significant action (file read, command run, criterion check). Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "judge", "action": "file_read|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+> 4. Write trace file to .planning/phases/{phase}/judge-trace.jsonl (JSONL, schema: autopilot-schemas.md Section 6)
 > </should>
 >
 > <may>
@@ -1317,7 +1161,7 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 >    - Side effects analysis
 >    - Aggregate score with deduction justifications
 >    - Score calibration note (which band the score falls in and why)
-> 9. Return structured JSON (see Return JSON below). ALL scores MUST be decimal (x.x format). Integer scores (7, 8, 9) are NOT valid -- use 7.0, 8.0, 9.0 at minimum.
+> 9. Return structured JSON (see Return JSON below).
 > </must>
 >
 > <should>
@@ -1583,7 +1427,7 @@ Failing checks:
 </may>
 
 <should>
-4. Write a trace file to .planning/phases/{phase}/debug-trace.jsonl with one JSONL line per significant action. Each line: {"timestamp": "ISO-8601", "phase_id": "{N}", "step": "debug", "action": "file_read|file_write|command_run|decision", "input_summary": "truncated to 200 chars", "output_summary": "truncated to 200 chars", "duration_ms": N, "status": "success|failure"}
+4. Write trace file to .planning/phases/{phase}/debug-trace.jsonl (JSONL, schema: autopilot-schemas.md Section 6)
 </should>
 
 Mode: find_and_fix
@@ -1809,7 +1653,7 @@ If rollback was performed, add to return: `rollback_performed: true`, `rollback_
 
 ## Section 4: Return Contract
 
-The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. Return that exact JSON structure as the LAST thing in your response. Key points:
+The return contract is defined in `C:\Users\Parth\.claude/autopilot/protocols/autopilot-orchestrator.md` Section 4. Return that exact JSON structure as the LAST thing in your response. Key points:
 
 - `pipeline_steps` uses shape: `{"status": "pass|fail|completed|skipped", "agent_spawned": boolean}`
 - `pipeline_steps.triage` should include `{"status": "full_pipeline|verify_only", "agent_spawned": false, "pass_ratio": 0.0-1.0}`
@@ -1853,4 +1697,4 @@ The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilo
 
 ## Summary
 
-This playbook defines the phase-runner subagent's step-specific behavior: exact prompt templates for each pipeline step, verification methodology with concrete bash commands per phase type, re-plan and debug loop logic, rollback procedures, and error handling. The phase-runner's identity, pipeline structure, context rules, and quality mindset are in its agent definition. The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4.
+This playbook defines the phase-runner subagent's step-specific behavior: exact prompt templates for each pipeline step, verification methodology with concrete bash commands per phase type, re-plan and debug loop logic, rollback procedures, and error handling. The phase-runner's identity, pipeline structure, context rules, and quality mindset are in its agent definition. The return contract is defined in `C:\Users\Parth\.claude/autopilot/protocols/autopilot-orchestrator.md` Section 4.
