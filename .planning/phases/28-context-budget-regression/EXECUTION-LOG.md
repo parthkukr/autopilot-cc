@@ -57,3 +57,21 @@
   4. v1.7.x vs v1.8.x comparison table added with git-measured values (no estimates)
 - **Test Results:** 19/19 assertions passed (9 task-28-01, 5 task-28-02, 5 task-28-03)
 - **Confidence:** 9
+
+---
+
+## Remediation Cycle 2
+
+### Remediation: Replace estimated Tier 3 agent prompt sizes with measured values
+- **Status:** COMPLETED
+- **Commit SHA:** a5ffe58
+- **Files modified:** FINDINGS.md
+- **Remediation items addressed:**
+  1. Read actual playbook template sections for each step agent (STEP 1 Research lines 267-313, STEP 2 Plan lines 339-412, STEP 2.5 Plan Check lines 437-489, STEP 3 Execute lines 628-691, STEP 4 Verify lines 718-982, STEP 4.5 Judge lines 1031-1092, STEP 4.6 Rate lines 1119-1223, Mini-Verifier lines 577-608, Debug lines 1401-1448)
+  2. Measured actual line counts (wc -l) and character counts (wc -c) for each template section
+  3. Replaced estimated token counts with measured values derived from actual character counts (chars / 4 = approximate tokens)
+  4. Labeled the measurement methodology explicitly in FINDINGS.md
+  5. Updated reduction strategies section to use measured values instead of estimates
+  6. Added total Tier 3 prompt budget calculation for a 5-task full pipeline phase (~23,091 tokens)
+- **Test Results:** Pending verification
+- **Confidence:** 9
