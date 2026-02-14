@@ -123,31 +123,36 @@ Several concepts are repeated across the orchestrator, playbook, and phase-runne
 
 **Insight:** The top 3 sections consume 712 lines (41.9% of the playbook). Each section is primarily used by a single agent type. The phase-runner loads ALL of them, but most of the content is prompt templates that get passed to sub-agents.
 
-### Tier 3 Agent Spawn Prompt Sizes (estimated from playbook templates)
+### Tier 3 Agent Spawn Prompt Sizes (measured from playbook template sections)
 
-| Agent | Prompt Source | Est. Lines | Notes |
-|-------|-------------|-----------|-------|
-| Verifier | STEP 4 template + methodology | ~250 | Largest Tier 3 prompt |
-| Executor (per task) | STEP 3 template + task def | ~150 | Spawned per task (3-5 times) |
-| Rating Agent | STEP 4.6 template | ~100 | Includes calibration guide |
-| Judge | STEP 4.5 template | ~80 | Includes divergence protocol |
-| Plan Checker | STEP 2.5 template | ~80 | Includes test spec requirements |
-| Researcher | STEP 1 template | ~70 | Includes repo-map instructions |
-| Planner | STEP 2 template | ~90 | Includes test generation instructions |
-| Mini-Verifier | PVRF-01 template (per task) | ~40 | Spawned per task (3-5 times) |
+**Measurement methodology:** Each prompt size was measured by extracting the exact template section from `autopilot-playbook.md` (the lines between the opening and closing code fence markers for each STEP's prompt template) and computing character count via `wc -c` and line count via `wc -l`. Token estimates use the standard approximation: chars / 4 = approximate tokens. Measurements taken from the post-deduplication playbook at HEAD.
+
+| Agent | Prompt Source (playbook lines) | Measured Lines | Measured Chars | Est. Tokens (chars/4) | Notes |
+|-------|-------------------------------|---------------|---------------|----------------------|-------|
+| Verifier | STEP 4 template, lines 718-982 | 265 | 17,767 | ~4,441 | Largest Tier 3 prompt; includes methodology, behavioral traces, visual testing, sandbox execution |
+| Rating Agent | STEP 4.6 template, lines 1119-1223 | 105 | 8,592 | ~2,148 | Includes calibration guide, anti-inflation rules, behavioral criteria scoring |
+| Executor | STEP 3 template, lines 628-691 | 64 | 7,286 | ~1,821 | Base template; add 5 lines / 553 chars / ~138 tokens for per-task incremental mode addition |
+| Planner | STEP 2 template, lines 339-412 | 74 | 7,017 | ~1,754 | Includes test generation instructions, behavioral criteria requirements |
+| Plan Checker | STEP 2.5 template, lines 437-489 | 53 | 5,318 | ~1,329 | Includes test spec requirements, behavioral criteria check |
+| Judge | STEP 4.5 template, lines 1031-1092 | 62 | 4,042 | ~1,010 | Includes divergence protocol, behavioral spot-check requirement |
+| Researcher | STEP 1 template, lines 267-313 | 47 | 3,657 | ~914 | Includes repo-map instructions, discuss context, context-map integration |
+| Debugger | STEP 5a template, lines 1401-1448 | 48 | 1,452 | ~363 | Smallest full agent; spawned only on failure |
+| Mini-Verifier | PVRF-01 template, lines 577-608 | 32 | 1,361 | ~340 | Spawned per task (3-5 times); smallest prompt |
+
+**Total Tier 3 prompt budget per full pipeline phase (5-task):** Researcher (914) + Planner (1,754) + Plan Checker (1,329) + Executor 5x (5 x 1,959) + Mini-Verifier 5x (5 x 340) + Verifier (4,441) + Judge (1,010) + Rating Agent (2,148) = ~23,091 tokens in Tier 3 prompts alone.
 
 ### Proposed Reduction Strategies for Top 3 Cost Centers
 
-**1. Verifier (293 lines / ~250-line prompt):**
-- Extract the Visual Testing methodology (Step 2.5, lines 860-912 equivalent) to a separate `playbook-visual.md` -- only loaded for UI phases
-- **Estimated savings:** ~120 lines from playbook for non-UI phases (~3,000 tokens)
+**1. Verifier (293 playbook lines / 265-line measured prompt / ~4,441 tokens):**
+- Extract the Visual Testing methodology (Step 2.5, lines 860-912) to a separate `playbook-visual.md` -- only loaded for UI phases
+- **Estimated savings:** ~120 lines from playbook for non-UI phases (~3,000 tokens), reducing verifier prompt to ~145 lines / ~2,941 tokens
 
 **2. Compose Result (228 lines):**
 - Move the TRACE.jsonl aggregation details and return contract schema to autopilot-schemas.md (reference only)
 - **Estimated savings:** ~80 lines from playbook (~2,000 tokens)
 
-**3. Execute (191 lines / ~150-line prompt):**
-- The per-task verification loop (PVRF-01) protocol is 105 lines within this section. It could be referenced rather than inlined if the executor's prompt is assembled dynamically.
+**3. Execute (191 playbook section lines / 64-line measured prompt / ~1,821 tokens):**
+- The per-task verification loop (PVRF-01) protocol is 105 lines within this section (consumed by the phase-runner, not passed to the executor). The executor prompt itself is only 64 lines / 7,286 chars.
 - **Estimated savings:** ~60 lines from playbook (~1,500 tokens) -- higher risk, requires careful extraction
 
 ---
