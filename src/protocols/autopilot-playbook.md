@@ -1653,7 +1653,7 @@ If rollback was performed, add to return: `rollback_performed: true`, `rollback_
 
 ## Section 4: Return Contract
 
-The return contract is defined in `C:\Users\Parth\.claude/autopilot/protocols/autopilot-orchestrator.md` Section 4. Return that exact JSON structure as the LAST thing in your response. Key points:
+The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. Return that exact JSON structure as the LAST thing in your response. Key points:
 
 - `pipeline_steps` uses shape: `{"status": "pass|fail|completed|skipped", "agent_spawned": boolean}`
 - `pipeline_steps.triage` should include `{"status": "full_pipeline|verify_only", "agent_spawned": false, "pass_ratio": 0.0-1.0}`
@@ -1697,4 +1697,4 @@ The return contract is defined in `C:\Users\Parth\.claude/autopilot/protocols/au
 
 ## Summary
 
-This playbook defines the phase-runner subagent's step-specific behavior: exact prompt templates for each pipeline step, verification methodology with concrete bash commands per phase type, re-plan and debug loop logic, rollback procedures, and error handling. The phase-runner's identity, pipeline structure, context rules, and quality mindset are in its agent definition. The return contract is defined in `C:\Users\Parth\.claude/autopilot/protocols/autopilot-orchestrator.md` Section 4.
+This playbook defines the phase-runner subagent's step-specific behavior: exact prompt templates for each pipeline step, verification methodology with concrete bash commands per phase type, re-plan and debug loop logic, rollback procedures, and error handling. The phase-runner's identity, pipeline structure, context rules, and quality mindset are in its agent definition. The return contract is defined in `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4.

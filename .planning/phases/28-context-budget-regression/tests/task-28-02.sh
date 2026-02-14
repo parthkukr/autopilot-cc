@@ -11,12 +11,14 @@ else
   echo "FAIL: Playbook line count not sufficiently reduced ($linecount lines, need <= 1816)"; ((FAIL++))
 fi
 
-# Criterion 2: Trace aggregation section condensed
-trace_lines=$(grep -A 20 'Trace Aggregation' "$PLAYBOOK" | wc -l)
-if [ "$trace_lines" -le 12 ]; then
+# Criterion 2: Trace aggregation section condensed (measure lines between header and next section)
+trace_start=$(grep -n 'Trace Aggregation' "$PLAYBOOK" | head -1 | cut -d: -f1)
+next_section=$(grep -n '^### ' "$PLAYBOOK" | awk -F: -v s="$trace_start" '$1 > s {print $1; exit}')
+trace_lines=$((next_section - trace_start))
+if [ "$trace_lines" -le 6 ]; then
   echo "PASS: Trace aggregation condensed ($trace_lines lines)"; ((PASS++))
 else
-  echo "FAIL: Trace aggregation still too long ($trace_lines lines, need <= 12)"; ((FAIL++))
+  echo "FAIL: Trace aggregation still too long ($trace_lines lines, need <= 6)"; ((FAIL++))
 fi
 
 # Criterion 3: Progress emission section exists (verify it wasn't accidentally deleted)

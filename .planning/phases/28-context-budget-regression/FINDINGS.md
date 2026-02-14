@@ -158,7 +158,51 @@ Several concepts are repeated across the orchestrator, playbook, and phase-runne
 
 ---
 
-## 7. Open Questions for User
+## 7. Results: Strategy B Applied
+
+### Before and After Comparison
+
+| Metric | Before (v1.8.7) | After Deduplication | Reduction |
+|--------|-----------------|---------------------|-----------|
+| Playbook lines | 1,856 | 1,700 | -156 lines (-8.4%) |
+| Playbook bytes | 116,008 | 106,708 | -9,300 bytes (-8.0%) |
+| Playbook tokens (est.) | ~29,002 | ~26,677 | ~-2,325 tokens (-8.0%) |
+| Total protocol lines | 5,500 | 5,344 | -156 lines (-2.8%) |
+
+### What Was Condensed
+
+| Section | Before | After | Savings |
+|---------|--------|-------|---------|
+| Trace aggregation | 17 lines | 3 lines | -14 |
+| Progress emission | 58 lines | 7 lines | -51 |
+| Sandbox execution policy | 25 lines | 5 lines | -20 |
+| Visual regression loop | 54 lines | 8 lines | -46 |
+| Mini-verifier context budget | 10 lines | 2 lines | -8 |
+| EXECUTION-LOG.md entry template | 14 lines | 2 lines | -12 |
+| 7x inline trace file schemas | 7 x ~2 lines verbose | 7 x 1 line reference | -7 |
+| Redundant decimal format reminder | 1 line | removed | -1 |
+| **Total** | | | **-159 lines** |
+
+(Some lines were added for condensed replacements, net effect: -156 lines)
+
+### Quality Enforcement Preserved
+
+All critical quality markers verified present after deduplication:
+- VRFY-01 (blind verification): present
+- BLIND VERIFICATION: present
+- CONTEXT ISOLATION (rating agent): present
+- All 25+ STEP references: present
+- All pipeline step templates (0 through 5a): present
+
+### Remaining Opportunity
+
+Strategy B delivered an 8.4% reduction. For further context savings:
+- **Strategy A** (playbook modularization) could save an additional ~7,000 tokens (~18%) per non-UI phase by extracting UI-only content
+- This requires user discussion about file management trade-offs
+
+---
+
+## 8. Open Questions for User
 
 1. Is the Tier 2 (phase-runner) context consumption the primary problem you're experiencing?
 2. How often do you use visual testing (`--visual`)? If rarely, 174 lines of UI-only content in the playbook are pure waste for most runs.
