@@ -24,5 +24,19 @@ else
   echo "FAIL: SUMMARY.md missing reduction details ($count mentions, need >= 1)"; ((FAIL++))
 fi
 
+# Remediation Criterion 4: SUMMARY.md references git-measured data
+if grep -q 'Git-Measured\|git history\|git show\|dd606b1\|measured' .planning/phases/28-context-budget-regression/SUMMARY.md; then
+  echo "PASS: SUMMARY.md references git-measured data"; ((PASS++))
+else
+  echo "FAIL: SUMMARY.md does not reference git-measured data"; ((FAIL++))
+fi
+
+# Remediation Criterion 5: SUMMARY.md mentions per-agent analysis
+if grep -q 'per-agent\|30,514 tokens\|base cost\|highest-cost' .planning/phases/28-context-budget-regression/SUMMARY.md; then
+  echo "PASS: SUMMARY.md references per-agent cost analysis"; ((PASS++))
+else
+  echo "FAIL: SUMMARY.md does not reference per-agent cost analysis"; ((FAIL++))
+fi
+
 echo "RESULTS: $PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ] && exit 0 || exit 1
