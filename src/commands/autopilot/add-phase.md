@@ -238,6 +238,25 @@ For each phase being created (whether from the single-phase fast path or from ba
 - **From Step 1.5's pending phases inventory:** What planned work exists that the new phase might depend on or conflict with. Warn if the new phase depends on a pending (not yet completed) phase.
 - What the project's conventions are for Goal sections, success criteria format, and dependency notation
 - If `.autopilot/repo-map.json` exists, use it to identify relevant existing implementations (functions, modules, files) that the new phase can build on or must integrate with
+- **From Step 1.8's `deep_context` (if available):** When `--deep` was used, the user's answers from the conversational context-gathering flow provide explicit decisions about scope, preferences, edge cases, thresholds, and integration points. These answers are the HIGHEST PRIORITY input for spec generation -- they represent direct user intent, not inference.
+
+**Deep Context Integration (`--deep` enrichment):**
+
+If `deep_context` is available from Step 1.8, use the gathered answers to produce a noticeably richer specification compared to the no-flag baseline. For each category of answers, incorporate them into the appropriate specification section:
+
+- **Scope decisions** -> Refine the Goal section with explicit boundary statements. Add "In scope: ..." and "Out of scope: ..." when the user provided scope boundaries. The Goal should be 3-5 sentences (vs 2-3 baseline) when deep context is available.
+- **Preference decisions** -> Add specificity to Success Criteria based on the user's stated preferences. For example, if the user chose "strict mode", criteria should include "errors on invalid input" rather than generic "handles input". Each criterion should reference a specific user decision where applicable.
+- **Edge case decisions** -> Generate additional criteria covering the identified edge cases and failure modes. These are criteria that would NOT exist without the deep context -- they address scenarios the user explicitly identified as important.
+- **Threshold decisions** -> Set verification method specificity in criteria. If the user specified machine-verifiable acceptance, include grep patterns or command outputs. If the user specified thresholds (e.g., "must complete in under 5 seconds"), include measurable acceptance criteria.
+- **Integration decisions** -> Add dependency rationale informed by the user's answers about integration points. Cross-reference existing features the user identified as related.
+
+**Quality targets with deep context:**
+- Goals: 3-5 sentences (vs 2-3 baseline) -- the additional sentences capture scope boundaries and user preferences
+- Success Criteria: 5-7 items (vs 3-5 baseline) -- the additional criteria come from edge case and threshold decisions
+- Each criterion should reference a specific user decision when one applies (e.g., "Per user preference for strict validation: invalid input produces an error message, not silent degradation")
+- The generated spec should be noticeably richer in specificity -- a reader comparing a deep-context spec to a baseline spec should see concrete implementation decisions, not just more words
+
+**Deep context for multi-phase decomposition:** When `--deep` is used with multi-item input that triggers decomposition (Step 4/5), the deep context gathered in Step 1.8 applies to the OVERALL input. During batch creation in Step 5, apply the gathered deep_context to ALL decomposed phases as shared context. If individual phases within the decomposition have distinct needs not covered by the shared context, note this in each phase's spec under a "Deep Context Applicability" heading, indicating which decisions apply to that specific phase and which are inherited from the overall context.
 
 **1. Generate the Goal Section (minimum 2-3 sentences):**
 
@@ -261,7 +280,7 @@ Example of a bad Goal (stub):
 Each criterion describes a user/system-observable outcome, not an implementation task. Use the pattern: "[Observable outcome that must be true when this phase completes]".
 
 Rules:
-- Generate 3-5 criteria, each specific and testable
+- Generate 3-5 criteria (5-7 when `deep_context` is available), each specific and testable
 - Use the pattern: "[Observable outcome] -- [how to verify]" where possible
 - Criteria describe outcomes (what is true after completion), not tasks (what to do)
 - At least one criterion should be machine-verifiable (references a grep pattern, file existence check, or command output that could confirm the criterion)
