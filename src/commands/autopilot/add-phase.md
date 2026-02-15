@@ -1,7 +1,7 @@
 ---
 name: autopilot:add-phase
-description: Add new phases to the roadmap -- accepts freeform input of any complexity and auto-decomposes into multiple phases when appropriate
-argument-hint: <freeform description>
+description: Add new phases to the roadmap -- accepts freeform input of any complexity and auto-decomposes into multiple phases when appropriate. Use --deep for conversational context gathering before creation.
+argument-hint: <freeform description> [--deep]
 allowed-tools:
   - Read
   - Write
@@ -99,6 +99,110 @@ After the scan, pass the following context to Step 2 and Step 2.5:
 - The completed phases inventory (for infrastructure awareness in spec generation)
 - The pending phases inventory (for dependency warnings)
 - Any overlap decisions (acknowledged overlaps noted in the spec)
+- Deep context answers (if `--deep` was used -- from Step 1.8)
+
+### Step 1.8: Deep Context Gathering (`--deep` flag)
+
+**Skip condition:** If `--deep` is NOT present in the user's invocation arguments, skip Step 1.8 entirely. Proceed directly from Step 1.5 to Step 2. All existing behavior from phases 31-33 remains unchanged without this flag.
+
+**Purpose:** When `--deep` is specified, conduct a one-question-at-a-time conversational flow that gathers targeted context about the phase before specification generation. This produces measurably richer specifications by incorporating explicit user decisions about scope, preferences, edge cases, and thresholds -- rather than relying solely on inference from the freeform input.
+
+**1. Analyze the input to identify question-worthy areas:**
+
+Read the user's freeform description and identify areas where targeted questions would produce better specifications. Focus on five question categories:
+
+- **Scope Boundaries** -- What is explicitly in scope vs. out of scope? Should this replace existing behavior or be additive? What are the boundaries of this change?
+- **Implementation Preferences** -- Should this be strict (error on edge cases) or flexible (graceful degradation)? What existing codebase patterns should it follow or extend? What trade-offs does the user prefer (speed vs. thoroughness, simplicity vs. flexibility)?
+- **Edge Cases & Failure Modes** -- What should happen when unexpected input is received? What is the expected failure mode for the most likely error scenarios? How should errors be reported?
+- **Acceptance Thresholds** -- What level of verification is needed? Should success criteria be machine-verifiable or human-checked? What "done" looks like at the detail level?
+- **Integration Points** -- What existing features does this interact with? Should this be opt-in (flag-gated) or default behavior? What are the downstream consumers of this work?
+
+For each category, generate 1-3 questions that are SPECIFIC to the user's phase description. Do NOT use generic templates -- every question must reference concrete elements from the input.
+
+**2. Present questions one at a time using the discuss pattern:**
+
+Present each question individually, waiting for the user's response before presenting the next:
+
+```
+Deep context: Question {N}/{total}
+Topic: {category name}
+
+{question text -- must reference specific elements from the user's input}
+
+Options:
+a) {concrete choice 1 -- a real implementation approach, not "Option A"}
+b) {concrete choice 2 -- a different real approach}
+c) {concrete choice 3 -- another distinct approach, if applicable}
+d) You decide (Claude's discretion)
+
+(Enter a letter, or type a custom answer)
+```
+
+**Question quality rules:**
+- Questions MUST reference specific elements from the user's phase description -- not generic "tell me more" prompts
+- Questions MUST NOT be generic. Bad: "How should errors be handled?" Good: "When the --deep flag receives an empty response to a question, should it (a) skip that question and move on, (b) re-ask with a simpler version, or (c) end the deep context flow?"
+- Each option must be concrete and distinct -- options should represent genuinely different implementation approaches, not variations of the same answer
+- The "You decide (Claude's discretion)" option is always the last option, providing a graceful escape for questions the user does not want to answer
+
+**3. Adaptive follow-up generation:**
+
+After each answer, generate the next question by analyzing ALL answers given so far. The follow-up question must:
+- Address something not yet covered by previous questions
+- Be specific to the phase description (not generic)
+- Adapt based on the user's previous answers -- if the user chose "strict mode" in a previous answer, subsequent questions should explore strict-mode implications rather than asking about flexible approaches
+
+Example adaptive logic:
+- If user answers "replace existing behavior" for scope -> follow up with "What should happen for users or workflows relying on the current behavior?"
+- If user answers "strict mode" for implementation -> follow up with "Should strict-mode violations produce warnings or hard errors?"
+- If user answers "flexible/graceful degradation" -> follow up with "Should degraded behavior be logged/visible, or silent?"
+- If user answers "machine-verifiable" for thresholds -> follow up with "What grep patterns or command outputs would confirm success?"
+
+**4. Depth control:**
+
+After every 4 questions, offer the user depth control:
+
+```
+4 questions answered. Continue with more questions about your phase, or move on to creation?
+
+a) More questions (2-3 additional targeted questions)
+b) Move on to phase creation with context gathered so far
+```
+
+If "more questions": generate 2-3 additional context-aware follow-up questions derived from the answers given so far. These follow-ups should drill deeper into the most complex or ambiguous areas identified by the prior answers.
+
+If "move on": end the deep context gathering and proceed to Step 2.
+
+**5. Compile gathered context:**
+
+After the conversational flow completes (either by exhausting questions or user choosing to move on), compile all answers into a structured `deep_context` object:
+
+```
+deep_context:
+  scope_decisions:
+    - question: "{question text}"
+      answer: "{user's answer or selected option}"
+  preference_decisions:
+    - question: "{question text}"
+      answer: "{user's answer}"
+  edge_case_decisions:
+    - question: "{question text}"
+      answer: "{user's answer}"
+  threshold_decisions:
+    - question: "{question text}"
+      answer: "{user's answer}"
+  integration_decisions:
+    - question: "{question text}"
+      answer: "{user's answer}"
+  total_questions_asked: N
+  total_questions_answered: N
+```
+
+Pass this `deep_context` to Step 2 and Step 2.5. It is consumed during specification generation to produce richer output.
+
+**Error handling for --deep:**
+- If the user provides an empty response or says "skip" to a question: record the question as unanswered, proceed to the next question. Do not re-ask.
+- If the user cancels the deep context flow entirely (e.g., "cancel", "stop", "done"): proceed with whatever context has been gathered so far. Even partial deep context improves spec quality.
+- If no answers are gathered at all (user skips or cancels immediately): proceed as if `--deep` was not specified. The baseline spec generation from phases 31-33 handles this gracefully.
 
 ### Step 2: Semantic Analysis -- Single vs. Multi-Phase Decision
 
