@@ -319,10 +319,14 @@ After the user approves a decomposition, create all phases sequentially with pro
    b. Generate the slug from the item title
    c. Create the phase directory: `mkdir -p .planning/phases/{N}-{slug}`
    d. Add the phase entry to the ROADMAP.md Phases list (same mechanics as Step 3, substep 6)
-   e. Add the phase detail section to ROADMAP.md (same mechanics as Step 3, substep 7)
-      - For the first item: `**Depends on**: Phase {last_existing} (independent)`
-      - For subsequent items with dependencies: `**Depends on**: Phase {previous_in_chain} (dependency chain from decomposition)`
-      - For independent items: `**Depends on**: Phase {last_existing} (independent)`
+   e. **Generate a rich specification for this item using Step 2.5 methodology**, then add the phase detail section to ROADMAP.md (same mechanics as Step 3, substep 7 -- which now uses the generated spec). The rich specification includes:
+      - A detailed Goal (2-3+ sentences, goal-backward framing)
+      - 3-5 specific, testable success criteria
+      - Dependency analysis with rationale:
+        - For the first item: analyze against existing roadmap phases (do NOT default to "Phase {last_existing} (independent)" -- determine the real technical dependency)
+        - For subsequent items that build on earlier items in the batch: explain the chain relationship (e.g., "Phase {X} (builds on the parsing infrastructure established in Phase {X-1})")
+        - For independent items: state "None (independent)" or reference the actual dependency with rationale
+      - 2-5 preliminary tasks as verb-phrase deliverables
    f. Update the Progress table (same mechanics as Step 3, substep 8)
    g. Update the Execution Order (same mechanics as Step 3, substep 9)
    h. Update STATE.md (same mechanics as Step 3, substep 10)
@@ -331,22 +335,26 @@ After the user approves a decomposition, create all phases sequentially with pro
 
 5. **Report to user (batch creation summary):**
    ```
-   Created {N} phases:
+   Created {N} phases (each with rich specification):
 
    Phase {X}: {Title 1}
      Directory: .planning/phases/{X}-{slug1}/
+     Goal: {first sentence of generated goal}
+     Criteria: {count} success criteria generated
 
    Phase {X+1}: {Title 2}
      Directory: .planning/phases/{X+1}-{slug2}/
+     Goal: {first sentence of generated goal}
+     Criteria: {count} success criteria generated
 
    ...
 
    Dependency chain: {X} -> {X+1} -> ... -> {X+N-1}
 
-   Roadmap: Updated (Phases list, detail sections, Progress table, Execution Order)
+   Roadmap: Updated (Phases list, detail sections with rich specifications, Progress table, Execution Order)
    State: Updated (STATE.md "By Phase" table)
 
-   Next: Define success criteria in ROADMAP.md, then /clear and /autopilot {X}
+   Next: /clear then /autopilot {X} to execute
    ```
 
 ## Error Handling
@@ -370,4 +378,9 @@ After the user approves a decomposition, create all phases sequentially with pro
 - [ ] Each created phase has: directory, ROADMAP.md entry, detail section, Progress row, Execution Order entry, STATE.md row
 - [ ] Phase number correctly determined using deterministic regex-based parsing
 - [ ] No dependency on external tools or packages
+- [ ] Every created phase has a detailed Goal section (minimum 2-3 sentences) with goal-backward framing, not a stub placeholder
+- [ ] Every created phase has 3-5 verifiable success criteria that are specific and testable, not "[To be defined]" stubs
+- [ ] Every created phase has a dependency rationale explaining WHY dependencies exist, not just listing phase numbers
+- [ ] Generated specifications use understanding of the request and roadmap context, not just parroting the user's input
+- [ ] Generated specifications are rich enough for the phase-runner to execute without additional context gathering
 </success_criteria>
