@@ -35,3 +35,15 @@
   - **Criteria passed:** 6
   - **Failures:** None
   - **Debug attempts:** 0
+
+### Remediation: Add Post-Generation Quality Gate (Cycle 1)
+- **Status:** COMPLETED
+- **Commit SHA:** cc92599
+- **Files modified:** src/commands/autopilot/add-phase.md
+- **Evidence:**
+  - Added "Post-Generation Quality Gate" subsection to Step 2.5 with 5 validation checks: Goal length (>= 2 sentences), Criteria count (>= 3), Criteria specificity (blocklist check), Dependency rationale (WHY check), Anti-parroting (80% similarity check)
+  - Updated Step 3.7 to explicitly reference running the quality gate before writing to ROADMAP.md
+  - Updated Step 5.4e to reference the quality gate for batch creation path
+  - Added success criterion for quality gate validation in the success_criteria section
+  - Regeneration procedure: specific failing components only, max 2 attempts, proceed with best version and warning if still failing
+- **Test Results:** 13/13 assertions passed (7 from 32-01, 6 from 32-02)

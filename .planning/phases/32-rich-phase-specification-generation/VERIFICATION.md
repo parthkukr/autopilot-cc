@@ -79,8 +79,35 @@
 11. `grep -c '{generated_goal' src/commands/autopilot/add-phase.md` -> confirmed present
 12. `grep -c 'Step 2.5 methodology' src/commands/autopilot/add-phase.md` -> 3 references
 
+## Remediation Verification (Cycle 1)
+
+### Criterion 6 (REMEDIATION): Post-Generation Quality Gate
+- **Status:** VERIFIED
+- **Evidence:** add-phase.md:151-162 contains "Post-Generation Quality Gate" section with 5 validation checks:
+  1. Goal length check (>= 2 sentences) -- line 156
+  2. Criteria count check (>= 3) -- line 157
+  3. Criteria specificity check (blocklist) -- line 158
+  4. Dependency rationale check (WHY) -- line 159
+  5. Anti-parroting check (80% threshold) -- line 160
+- **Regeneration procedure:** Defined at line 162 -- specific failing component only, max 2 attempts, proceed with warning
+- **Integration:** Referenced in Step 3.7 (line 213) and Step 5.4e (line 335)
+- **Success criteria section:** Updated with quality gate criterion at line 399
+- **Command:** `grep -c 'Post-Generation Quality Gate' src/commands/autopilot/add-phase.md` -> 3
+
+### Commands Run (Remediation)
+1. `grep -c 'Post-Generation Quality Gate' src/commands/autopilot/add-phase.md` -> 3
+2. `grep -c 'Goal length check' src/commands/autopilot/add-phase.md` -> 1
+3. `grep -c 'Criteria count check' src/commands/autopilot/add-phase.md` -> 1
+4. `grep -c 'Criteria specificity check' src/commands/autopilot/add-phase.md` -> 1
+5. `grep -c 'Dependency rationale check' src/commands/autopilot/add-phase.md` -> 1
+6. `grep -c 'Anti-parroting check' src/commands/autopilot/add-phase.md` -> 1
+7. `grep -c 'run the Post-Generation Quality Gate from Step 2.5' src/commands/autopilot/add-phase.md` -> 1
+8. `grep -c 'run the Post-Generation Quality Gate to validate' src/commands/autopilot/add-phase.md` -> 1
+9. `bash tests/task-32-01.sh` -> 7/7 PASS
+10. `bash tests/task-32-02.sh` -> 6/6 PASS
+
 ## Summary
 
-All 5 acceptance criteria verified with file:line evidence. All 13 test assertions pass. No scope creep detected. The changes are confined to add-phase.md (the target file). No compilation/lint checks apply to .md protocol files.
+All 6 acceptance criteria verified with file:line evidence (5 original + 1 remediation). All 13 test assertions pass. The quality gate addresses the specific remediation deficiency: compile-time quality enforcement for generated specifications. Both code paths (single-phase and batch) reference the gate. Regeneration procedure prevents infinite loops with 2-attempt max.
 
 Autonomous confidence: 9 (all criteria verifiable through code analysis and command execution)
