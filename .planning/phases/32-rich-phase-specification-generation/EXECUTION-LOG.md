@@ -17,3 +17,21 @@
   - **Criteria passed:** 7
   - **Failures:** None
   - **Debug attempts:** 0
+
+### Task 32-02: Update Batch Creation Path and Quality Enforcement
+- **Status:** COMPLETED
+- **Commit SHA:** d8625ab
+- **Files modified:** src/commands/autopilot/add-phase.md
+- **Evidence:**
+  - Updated Step 5.4e to reference Step 2.5 rich specification generation for each batch item
+  - Replaced stub dependency patterns with rich analysis instructions including chain rationale
+  - Updated Step 5.5 batch report to show per-phase Goal/Criteria summaries instead of "Define success criteria" guidance
+  - Added 5 new success criteria to the success_criteria section covering rich specs
+- **Test Results:** 6/6 assertions passed
+- **Confidence:** 9
+- **Mini-Verification:**
+  - **Result:** PASS
+  - **Criteria checked:** 6
+  - **Criteria passed:** 6
+  - **Failures:** None
+  - **Debug attempts:** 0
