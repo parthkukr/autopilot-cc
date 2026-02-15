@@ -148,6 +148,19 @@ Rules:
 - **Downstream consumer awareness:** Generated specs must be rich enough that `autopilot {N}` (the phase-runner) can research the domain effectively, plan executable tasks, execute and verify without additional user input, and determine what "done" looks like without re-deriving the phase scope.
 - **Quality reference:** Match the quality and format of well-specified phases in the existing roadmap. Look for phases with multi-sentence Goals, specific criteria, and dependency rationale as models.
 
+**Post-Generation Quality Gate:**
+
+After generating the specification and BEFORE writing it to ROADMAP.md, validate the output against these minimum requirements. If any check fails, regenerate the failing component with more explicit instructions.
+
+Validation checks:
+1. **Goal length check:** Count the sentences in the generated Goal. A sentence ends with a period, exclamation mark, or question mark followed by a space or end of text. The Goal must contain at least 2 complete sentences. If it contains fewer than 2 sentences, regenerate the Goal with the instruction: "The Goal must be at least 2-3 sentences. Expand to describe both WHAT needs to be done and WHY it matters, using goal-backward framing."
+2. **Criteria count check:** Count the number of generated success criteria. There must be at least 3. If fewer than 3 criteria were generated, regenerate the criteria with the instruction: "Generate at least 3 success criteria. Each must describe a specific, testable, observable outcome."
+3. **Criteria specificity check:** For each generated criterion, verify it does NOT consist solely of vague phrases from the blocklist ("should work correctly", "properly handles", "is implemented correctly", "functions as expected", "works as intended") without a concrete verification method. If any criterion fails this check, regenerate that criterion with the instruction: "This criterion is too vague. Rewrite it to describe a specific observable outcome with a verification method."
+4. **Dependency rationale check:** Verify the "Depends on" field includes a WHY explanation -- it must contain a parenthetical rationale (text in parentheses explaining the reason) or the explicit phrase "independent" with a justification. A bare phase number without rationale (e.g., just "Phase 5" with no explanation) fails this check. If it fails, regenerate the dependency analysis with the instruction: "Explain WHY each dependency exists in a parenthetical, or state why the phase is independent."
+5. **Anti-parroting check:** Compare the generated Goal text against the user's original input. If the Goal is more than 80% identical to the user's input (same words in the same order with only minor additions), regenerate with the instruction: "The Goal too closely mirrors the user's input. Add context from the roadmap, existing phase patterns, and project architecture to demonstrate understanding beyond what the user stated."
+
+If regeneration is needed, apply it to the specific failing component only (do not regenerate components that passed). After regeneration, re-validate. If a component fails validation twice, proceed with the best version available and log a warning: "Quality gate: {component} did not fully pass after regeneration. Proceeding with best available version."
+
 ### Step 3: Single-Phase Fast Path (One Coherent Unit)
 
 When the input describes one coherent unit of work, create the phase immediately with zero additional overhead compared to the direct creation path.
@@ -197,7 +210,7 @@ mkdir -p .planning/phases/{N}-{slug}
 
 7. **Generate the rich specification using Step 2.5 methodology**, then **add the phase detail section to ROADMAP.md:**
 
-   First, apply the spec generation methodology from Step 2.5 using the user's input description and the existing roadmap context. Generate: the Goal (2-3+ sentences), Success Criteria (3-5 specific items), Dependency Analysis (with rationale), and Preliminary Task Breakdown (2-5 tasks).
+   First, apply the spec generation methodology from Step 2.5 using the user's input description and the existing roadmap context. Generate: the Goal (2-3+ sentences), Success Criteria (3-5 specific items), Dependency Analysis (with rationale), and Preliminary Task Breakdown (2-5 tasks). Then run the Post-Generation Quality Gate from Step 2.5 to validate the output before writing. If any check fails, regenerate the failing component as described in the gate procedure.
 
    Then find the last `### Phase` detail section in the file. Locate the end of that section (the line before the next section starting with `## ` or `### Phase`, or the end of file). Add the new detail section there using Edit.
 
@@ -319,7 +332,7 @@ After the user approves a decomposition, create all phases sequentially with pro
    b. Generate the slug from the item title
    c. Create the phase directory: `mkdir -p .planning/phases/{N}-{slug}`
    d. Add the phase entry to the ROADMAP.md Phases list (same mechanics as Step 3, substep 6)
-   e. **Generate a rich specification for this item using Step 2.5 methodology**, then add the phase detail section to ROADMAP.md (same mechanics as Step 3, substep 7 -- which now uses the generated spec). The rich specification includes:
+   e. **Generate a rich specification for this item using Step 2.5 methodology**, then run the Post-Generation Quality Gate to validate the output, then add the phase detail section to ROADMAP.md (same mechanics as Step 3, substep 7 -- which now uses the validated spec). The rich specification includes:
       - A detailed Goal (2-3+ sentences, goal-backward framing)
       - 3-5 specific, testable success criteria
       - Dependency analysis with rationale:
@@ -383,4 +396,5 @@ After the user approves a decomposition, create all phases sequentially with pro
 - [ ] Every created phase has a dependency rationale explaining WHY dependencies exist, not just listing phase numbers
 - [ ] Generated specifications use understanding of the request and roadmap context, not just parroting the user's input
 - [ ] Generated specifications are rich enough for the phase-runner to execute without additional context gathering
+- [ ] A post-generation quality gate validates specs before writing to ROADMAP.md -- Goal has >= 2 sentences, >= 3 criteria exist, criteria are specific (not vague), dependency includes WHY rationale, Goal is not a parrot of user input
 </success_criteria>
