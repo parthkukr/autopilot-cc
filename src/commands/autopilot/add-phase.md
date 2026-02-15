@@ -23,12 +23,16 @@ Intelligently add one or more phases to the project roadmap from freeform input 
 **Arguments:**
 - Freeform description: Any text describing what needs to be done -- from a short phrase to a detailed multi-paragraph description mixing multiple concerns. The full text is used for semantic analysis; nothing is truncated or lost.
 
+**Options:**
+- `--deep`: Triggers a conversational context-gathering flow before phase creation. Asks targeted one-question-at-a-time questions about scope, preferences, edge cases, and thresholds. Produces richer specifications by incorporating explicit user decisions. Purely additive -- without this flag, all existing behavior is unchanged.
+
 **What it does:**
 1. Accepts freeform input of any length without truncation
-2. Semantically analyzes the input to determine if it describes one coherent unit of work or multiple distinct items
-3. For single-item inputs: creates one phase instantly via the fast path (no overhead)
-4. For multi-item inputs: presents a numbered decomposition for user approval, then batch-creates all approved phases with proper numbering and dependency chains
-5. Each created phase gets: directory, ROADMAP.md entry (Phases list + detail section + Progress table + Execution Order), and STATE.md entry
+2. (If `--deep`) Conducts an interactive context-gathering conversation using the one-question-at-a-time pattern -- targeted questions with concrete options, adaptive follow-ups, and depth control
+3. Semantically analyzes the input to determine if it describes one coherent unit of work or multiple distinct items
+4. For single-item inputs: creates one phase instantly via the fast path (no overhead)
+5. For multi-item inputs: presents a numbered decomposition for user approval, then batch-creates all approved phases with proper numbering and dependency chains
+6. Each created phase gets: directory, ROADMAP.md entry (Phases list + detail section + Progress table + Execution Order), and STATE.md entry
 </objective>
 
 <execution>
@@ -563,6 +567,8 @@ After the user approves a decomposition, create all phases sequentially with pro
 - If no description provided after prompting: "A phase description is required."
 - If the Progress table cannot be found: Log warning "Progress table not found in ROADMAP.md -- skipping progress table update." Continue with other updates.
 - If the Execution Order line cannot be found: Log warning "Execution Order line not found in ROADMAP.md -- skipping execution order update." Continue with other updates.
+- If user cancels or skips all `--deep` questions: Proceed with whatever deep context has been gathered. If no answers were gathered at all, proceed as if `--deep` was not specified -- the baseline spec generation handles this gracefully.
+- If user provides an empty response to a `--deep` question: Record the question as unanswered, proceed to the next question. Do not re-ask.
 
 </execution>
 
@@ -589,4 +595,9 @@ After the user approves a decomposition, create all phases sequentially with pro
 - [ ] Dependencies are set based on actual technical analysis of what infrastructure the new phase requires, not sequential numbering
 - [ ] Execution order positioning places new phases after their last technical dependency, not just appended to the end
 - [ ] If a new phase depends on a pending (not yet completed) phase, a warning is emitted
+- [ ] `--deep` flag triggers a one-question-at-a-time interactive context gathering flow (Step 1.8) before spec generation
+- [ ] Deep context questions are targeted to the specific phase content -- not generic "tell me more" but referencing concrete elements from the user's input
+- [ ] Answers from deep context are incorporated into richer Goal (3-5 sentences vs 2-3 baseline) and Criteria (5-7 items vs 3-5 baseline) sections
+- [ ] The deep context question flow adapts based on user answers -- follow-up questions change dynamically, not from a fixed script
+- [ ] Without `--deep`, all existing add-phase behavior is preserved unchanged -- the flag is purely additive
 </success_criteria>
