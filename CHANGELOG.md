@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0 (2026-02-15)
+
+### Features
+
+- **Smart Phase Creation:** `/autopilot:add-phase` now accepts freeform input of any complexity and auto-decomposes multi-feature descriptions into separate phases with dependency chains, presenting the breakdown for user approval before creating
+- **Rich Specification Generation:** Every created phase gets a detailed Goal (2-3+ sentences), 3-5 specific success criteria, dependency analysis with WHY rationale, and preliminary task breakdowns instead of stub placeholders
+- **Post-Generation Quality Gate:** Generated specifications are validated against 5 checks (Goal length, criteria count, specificity, dependency rationale, anti-parroting) with automatic regeneration on failure
+- **Codebase-Aware Phase Positioning:** New phases are scanned against existing roadmap for overlap detection, positioned with correct technical dependencies using infrastructure inventory from completed phases, and suggest insert-phase when duplicates are found
+- **Deep Context Gathering:** New `--deep` flag triggers one-question-at-a-time conversational context gathering before phase creation, with adaptive follow-ups across 5 question categories, producing measurably richer specifications
+
 ## 1.8.8 (2026-02-14)
 
 ### Features

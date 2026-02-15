@@ -47,6 +47,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 27: Phase Management Command Overhaul** - Rewrite /autopilot:add-phase to match GSD quality, add /autopilot:insert-phase for decimal phase insertion, add /autopilot:remove-phase for phase removal with renumbering, and scaffold all detail sections with requirements/criteria placeholders
 - [x] **Phase 28: Context Budget Regression Investigation** - Diagnose and fix context exhaustion regression from v1.8.0 upgrades, rebalance quality vs. context consumption
 - [x] **Phase 29: Discuss Flag Overhaul** - Rework --discuss to use GSD-style one-question-at-a-time interactive flow, replacing the current wall-of-text approach
+- [x] **Phase 30: Research gsd:new-project Patterns** - Deep investigation of /gsd:new-project flow, questions, artifacts, and conversational patterns to produce a design blueprint for smart phase creation
+- [x] **Phase 31: Smart Input Parsing and Auto-Decomposition** - Accept freeform input of any complexity and auto-decompose into multiple phases when appropriate
+- [x] **Phase 32: Rich Phase Specification Generation** - Generate detailed Goals, success criteria, dependency analysis, and task breakdowns instead of stubs
+- [x] **Phase 33: Codebase-Aware Phase Positioning** - Scan existing roadmap and codebase to avoid duplicates, position phases with correct dependencies
+- [x] **Phase 34: Deep Context Gathering Flag** - `--deep` flag for conversational context gathering before phase creation, inspired by /gsd:new-project
 
 ## Phase Details
 
@@ -149,7 +154,7 @@ This phase was identified from a real autopilot run failure on a desktop app pro
 
 - **Total waste:** ~155k tokens across 2 phases that could have been triage'd in seconds
 - **Run context:** The full 6-phase run used 927k tokens over 92 minutes -- already-implemented detection could have saved ~17% of total tokens
-- **Root cause:** The current system has already-implemented checks (orchestrator guide Section 5, checks 6 and 8) but they validate AFTER the phase-runner returns. By then, the phase-runner has already spent 10-15 minutes and 65-90k tokens running the full linear pipeline (research -> plan -> execute -> verify -> judge) regardless of current codebase state
+- **Root cause:** The current system has already-implemented checks (orchestrator guide Section 5, checks 6 and 8) but they validate AFTER the phase-runner returns. By then, the phase-runner has already spent 10-15 minutes and 30-90k tokens running the full linear pipeline (research -> plan -> execute -> verify -> judge) regardless of current codebase state
 - **Fix:** Move detection UPSTREAM -- before the pipeline launches, not after it finishes
 
 Plans:
@@ -294,6 +299,11 @@ Phases 17+: 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26 -> 26.1 -> 
 | 27. Phase Management Command Overhaul | Completed | v1.8.7 |
 | 28. Context Budget Regression Investigation | Completed | v1.8.8 |
 | 29. Discuss Flag Overhaul | Completed | v1.8.8 |
+| 30. Research gsd:new-project Patterns | Completed | v1.9.0 |
+| 31. Smart Input Parsing and Auto-Decomposition | Completed | v1.9.0 |
+| 32. Rich Phase Specification Generation | Completed | v1.9.0 |
+| 33. Codebase-Aware Phase Positioning | Completed | v1.9.0 |
+| 34. Deep Context Gathering Flag | Completed | v1.9.0 |
 
 ### Phase 8: Batch Completion Mode
 **Goal**: The user can invoke `/autopilot --complete` to run all outstanding (incomplete) phases in dependency order without specifying a phase range -- the orchestrator determines what's left, skips what's done, resolves dependency ordering, and runs to project completion with aggregated reporting
@@ -523,7 +533,7 @@ This phase is intentionally budget-heavy on research. Expected resource allocati
 - Vulnerability assessment: 1 agent doing deep codebase analysis of autopilot-cc post-v2
 - v3 roadmap draft: 1 agent synthesizing all findings + user questionnaire answers
 - User questionnaire: interactive session with structured questions
-- **Expected total duration: 60-120 minutes** (research-heavy by design)
+- **Expected total duration: 30-120 minutes** (research-heavy by design)
 - **Expected total tokens: 500k-1M** (justified by the breadth of research)
 
 **Trigger conditions:**
@@ -928,3 +938,71 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 29 to break down)
+
+### Phase 30: Research gsd:new-project Patterns for Phase Creation
+**Goal**: Deep investigation of how `/gsd:new-project` works -- reverse-engineer the entire flow from invocation to artifact creation. Document every question it asks, every file it creates (PROJECT.md, ROADMAP.md, REQUIREMENTS.md, etc.), how it structures the conversational context-gathering, how it breaks down a project description into phases, and what makes the output high quality. This is a pure research phase producing a design document that phases 31-34 implement.
+**Depends on**: Phase 29 (independent -- can start anytime)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. A design document exists cataloging every step of `/gsd:new-project`: the questions asked (in order), the decision points, the artifacts created, the conversational patterns used, and the output quality characteristics
+  2. The document identifies which patterns from new-project are applicable to phase creation (vs. project-level-only concerns) and how they should be adapted
+  3. The document includes a concrete specification for the redesigned `/autopilot:add-phase` command covering all 4 implementation phases (31-34), serving as the blueprint they execute against
+  4. No code changes -- this phase produces only research and design documentation
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 30 to break down)
+
+### Phase 31: Smart Input Parsing and Auto-Decomposition
+**Goal**: The core intelligence upgrade -- `/autopilot:add-phase` accepts freeform input of any complexity (from a one-liner to a stream-of-consciousness brain dump mixing multiple features, bugs, and improvements) and automatically determines whether it maps to one phase or should be decomposed into multiple phases. When decomposition is needed, the command presents the breakdown to the user for approval before creating anything.
+**Depends on**: Phase 30 (needs the design document from research)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. `/autopilot:add-phase` accepts arbitrarily long freeform descriptions without truncation or loss
+  2. The command analyzes the input and determines if it contains one coherent unit of work or multiple distinct items -- using semantic analysis, not just length
+  3. When multiple phases are detected, the command presents a numbered decomposition to the user showing proposed phase titles and one-sentence descriptions for each, and waits for approval/editing before creating
+  4. When the user approves (or edits) the decomposition, all phases are created with proper sequential numbering and dependency chains between them
+  5. Single-phase inputs still work instantly -- no overhead for simple "add one thing" usage
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 31 to break down)
+
+### Phase 32: Rich Phase Specification Generation
+**Goal**: Every phase created by `/autopilot:add-phase` gets a detailed specification instead of stub placeholders -- the command generates comprehensive Goal sections, machine-verifiable success criteria, dependency analysis, and preliminary task breakdowns. The output should be rich enough that `autopilot` can execute the phase without additional context.
+**Depends on**: Phase 31 (needs decomposition working first so specs are generated per-phase correctly)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. Every phase created includes a detailed Goal section (minimum 2-3 sentences) that fully describes what needs to be done, not a one-liner placeholder
+  2. Every phase includes at least 3 success criteria that are specific and verifiable -- not "[To be defined during planning]" stubs
+  3. Every phase includes a "Depends on" analysis explaining WHY it depends on specific phases, not just listing numbers
+  4. The command uses the user's input description plus its understanding of the request to generate criteria -- it doesn't just parrot back what the user said
+  5. Generated specifications match the quality and format of the best existing phase entries in the roadmap (Phases 2.1, 3.1, 4.1 are good examples with evidence sections and design notes)
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 32 to break down)
+
+### Phase 33: Codebase-Aware Phase Positioning
+**Goal**: Before creating new phases, `/autopilot:add-phase` scans the existing roadmap, codebase architecture, and completed work to understand the current state -- it avoids creating duplicate phases, positions new phases with correct dependencies, and understands what infrastructure already exists that new phases can build on.
+**Depends on**: Phase 32 (needs rich spec generation to produce dependency-aware outputs)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. The command reads existing roadmap phases and identifies potential overlaps before creating new phases -- if a proposed phase duplicates or heavily overlaps an existing one, the user is warned
+  2. The command analyzes existing completed phases to understand what infrastructure/capabilities are already available, and references them in new phase dependencies
+  3. New phases are positioned in the roadmap with correct dependency ordering based on actual technical dependencies, not just sequential numbering
+  4. When the user describes work that's partially covered by an existing phase, the command suggests extending the existing phase (via insert-phase) rather than creating a redundant new one
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 33 to break down)
+
+### Phase 34: Deep Context Gathering Flag for Phase Creation
+**Goal**: Add a `--deep` flag to `/autopilot:add-phase` that triggers a conversational context-gathering flow before phase creation -- inspired by `/gsd:new-project`'s interview process and autopilot's own `--discuss` one-question-at-a-time pattern. The flag asks targeted questions about implementation preferences, edge cases, scope boundaries, and acceptance thresholds, then incorporates answers into richer phase specifications.
+**Depends on**: Phase 32 (needs rich spec generation as the baseline that --deep enhances), Phase 29 (reuses the one-question-at-a-time discuss infrastructure)
+**Requirements**: TBD (to be defined during planning)
+**Success Criteria** (what must be TRUE):
+  1. `--deep` flag triggers an interactive question flow using the one-question-at-a-time pattern from Phase 29's discuss overhaul
+  2. Questions are specific to the phase content -- not generic "tell me more" but targeted questions like "Should this replace the existing behavior or be additive?" or "What's the expected failure mode if X happens?"
+  3. Answers are incorporated into the generated phase specification, producing measurably richer Goal/Criteria sections compared to the no-flag baseline
+  4. The discuss flow adapts based on answers -- follow-up questions change based on what the user already said, not a fixed script
+  5. Without `--deep`, the command still works well (phases 31-33 handle the baseline quality) -- the flag is purely additive
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 34 to break down)
