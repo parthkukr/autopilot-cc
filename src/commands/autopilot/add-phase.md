@@ -129,11 +129,11 @@ Ask: "Could this entire description be delivered and verified independently as o
 
 For each phase being created (whether from the single-phase fast path or from batch creation), generate a detailed specification instead of stub placeholders. This step defines the methodology; Steps 3 and 5 reference it when constructing the ROADMAP.md detail section.
 
-**Context gathering:** Before generating the specification, read the existing ROADMAP.md to understand:
-- What phases already exist and what they accomplish
-- What patterns, infrastructure, and capabilities the project has
+**Context gathering:** Use the infrastructure inventory built in Step 1.5, supplemented by reading the existing ROADMAP.md:
+- **From Step 1.5's completed phases inventory:** What infrastructure, capabilities, and patterns are already available from completed phases (marked with `[x]` in the roadmap). Use this to reference existing capabilities in the new phase's spec and to identify accurate technical dependencies.
+- **From Step 1.5's pending phases inventory:** What planned work exists that the new phase might depend on or conflict with. Warn if the new phase depends on a pending (not yet completed) phase.
 - What the project's conventions are for Goal sections, success criteria format, and dependency notation
-- Which phases are completed vs. pending, so you can reference existing capabilities accurately
+- If `.autopilot/repo-map.json` exists, use it to identify relevant existing implementations (functions, modules, files) that the new phase can build on or must integrate with
 
 **1. Generate the Goal Section (minimum 2-3 sentences):**
 
@@ -142,8 +142,8 @@ The Goal must describe WHAT needs to be done and WHY it matters in the context o
 Rules:
 - Minimum 2-3 sentences that fully describe the scope and purpose
 - Use goal-backward framing to describe the end state, not just the action
-- Reference existing codebase patterns, infrastructure, or conventions where relevant
-- Do NOT simply restate the user's input as the Goal -- add context from your understanding of the roadmap, existing phases, and the project's architecture
+- Reference existing codebase patterns, infrastructure, or conventions where relevant -- use the infrastructure inventory from Step 1.5 to identify what the new phase can leverage (e.g., "This phase builds on the one-question-at-a-time pattern established in Phase 29" or "This leverages the existing per-task verification infrastructure from Phase 20")
+- Do NOT simply restate the user's input as the Goal -- add context from your understanding of the roadmap, existing phases, and the project's architecture. The infrastructure inventory provides concrete details about what already exists.
 - The Goal should be specific enough that someone reading it understands exactly what "done" looks like
 
 Example of a good Goal (from an existing phase):
@@ -176,11 +176,12 @@ Example of bad criteria (stubs):
 Analyze the existing roadmap phases to determine what the new phase depends on and WHY.
 
 Rules:
-- Read all existing phases in the roadmap to identify infrastructure the new phase needs
+- Use the infrastructure inventory from Step 1.5 to identify what completed phases provide capabilities the new phase technically requires. Match the new phase's needs (infrastructure, APIs, patterns, files it would modify or depend on) against the deliverables cataloged in the inventory.
 - For each dependency, explain WHY it exists in a parenthetical (e.g., "Phase 29 (reuses the one-question-at-a-time discuss infrastructure)")
 - If the phase is truly independent, state "None (independent -- does not require infrastructure from other phases)" with a brief justification
-- Do NOT default to "Phase {N-1} (independent)" -- actually analyze the technical relationship
-- Dependencies should be based on technical need, not just sequential ordering
+- Do NOT default to "Phase {N-1} (independent)" -- actually analyze the technical relationship using the infrastructure inventory
+- Dependencies should be based on actual technical need, not just sequential ordering -- a phase depends on another only if it requires infrastructure, patterns, or deliverables from that phase
+- If the new phase depends on a pending phase (one not yet marked as completed with `[x]`), add a warning note: "Note: This depends on Phase {N} which has not been completed yet -- execute Phase {N} first"
 
 Example of a good dependency:
 > Phase 2 (executor must have per-task commits and self-testing before integration checks layer on top)
