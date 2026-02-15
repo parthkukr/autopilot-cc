@@ -43,6 +43,63 @@ If no description provided, ask: "What should this phase accomplish? Describe wh
 
 If no description provided after prompting: "A phase description is required."
 
+### Step 1.5: Codebase and Roadmap Awareness Scan
+
+Before any phase creation, scan the existing roadmap and codebase to detect overlaps, understand available infrastructure, and inform dependency positioning. This step prevents duplicate phases and ensures new phases are positioned correctly relative to existing work.
+
+**1. Read the existing roadmap and build a phase inventory:**
+
+Read `.planning/ROADMAP.md` and extract ALL existing phases into an inventory:
+- For each phase: extract the phase number, title, goal text, success criteria, completion status (marked with `[x]` = completed, `[ ]` = pending), and dependency chain
+- Build two lists:
+  - **Completed phases inventory:** Phases marked with `[x]` -- these represent available infrastructure and capabilities that new phases can build on
+  - **Pending phases inventory:** Phases marked with `[ ]` -- these represent planned but unexecuted work
+
+**2. Build an infrastructure inventory from completed phases:**
+
+For completed phases, build an infrastructure inventory describing what capabilities, patterns, and systems are already available in the codebase:
+- Read each completed phase's goal and success criteria to understand what was delivered
+- If `.autopilot/repo-map.json` exists, use it to identify relevant existing implementations (functions, modules, patterns)
+- Summarize available infrastructure as a list of capabilities (e.g., "one-question-at-a-time interactive flow (Phase 29)", "structured test specifications (Phase 18)", "per-task verification loop (Phase 20)")
+- This inventory is used in Step 2.5 to generate accurate dependency analysis and reference existing capabilities in new phase specs
+
+**3. Overlap detection -- semantic comparison against existing phases:**
+
+For the proposed phase description (or each item in a multi-item decomposition), perform a semantic overlap comparison against every existing phase in the inventory:
+
+- Compare the proposed phase's intent, scope, and deliverables against each existing phase's title, goal, and success criteria
+- Use semantic understanding for comparison, not just string matching -- two phases can overlap even with different wording if they accomplish the same outcome
+- Overlap threshold: If the proposed phase would produce >70% of the same deliverables as an existing phase (based on semantic analysis of goals and criteria), flag it as an overlap
+
+**If overlap is detected, present a warning:**
+
+```
+Warning: This looks similar to existing Phase {N}: "{Phase Title}"
+
+Overlap: {1-2 sentence explanation of what overlaps}
+
+Options:
+1. Create anyway (it's different enough)
+2. Extend Phase {N} instead (use /autopilot:insert-phase {N}.X "{description}")
+3. Cancel
+```
+
+**Handle the user's response:**
+- **"Create anyway" or option 1:** Proceed with phase creation. The overlap was acknowledged.
+- **"Extend" or option 2:** Instruct the user to run `/autopilot:insert-phase {N} "{description}"` to add a decimal sub-phase under the overlapping phase instead of creating a new top-level phase. Stop execution of add-phase.
+- **"Cancel" or option 3:** Stop execution. No phase created.
+
+**4. For multi-phase decompositions:**
+
+When Step 2 detects multiple items and Step 4 presents a decomposition, the overlap check from substep 3 above runs per-item BEFORE batch creation in Step 5. Each item is individually checked against the existing phase inventory. Items with overlap are flagged individually, and the user can choose to create, extend, or skip each overlapping item independently.
+
+**5. Pass context to subsequent steps:**
+
+After the scan, pass the following context to Step 2 and Step 2.5:
+- The completed phases inventory (for infrastructure awareness in spec generation)
+- The pending phases inventory (for dependency warnings)
+- Any overlap decisions (acknowledged overlaps noted in the spec)
+
 ### Step 2: Semantic Analysis -- Single vs. Multi-Phase Decision
 
 Analyze the freeform input to determine how many distinct units of work are described. This uses semantic understanding, not keyword matching or length-based heuristics.

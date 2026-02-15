@@ -1,0 +1,37 @@
+{
+  "phase_id": "33",
+  "timestamp": "2026-02-15T00:00:00Z",
+  "criteria_source": "roadmap",
+  "criteria_checked": [
+    {
+      "criterion": "The command reads existing roadmap phases and identifies potential overlaps before creating new phases",
+      "command": "grep -c 'overlap\\|duplicate\\|similar.*phase' src/commands/autopilot/add-phase.md",
+      "result": "fail",
+      "output": "0 matches for overlap/duplicate detection logic"
+    },
+    {
+      "criterion": "The command analyzes completed phases to understand existing infrastructure",
+      "command": "grep -c 'completed.*phase\\|infrastructure.*exist\\|EXECUTION-LOG' src/commands/autopilot/add-phase.md",
+      "result": "fail",
+      "output": "0 matches for completed phase infrastructure analysis"
+    },
+    {
+      "criterion": "New phases positioned with correct dependency ordering based on technical dependencies",
+      "command": "grep -c 'technical.*depend\\|dependency.*position\\|insert.*correct' src/commands/autopilot/add-phase.md",
+      "result": "fail",
+      "output": "0 matches for technical dependency positioning"
+    },
+    {
+      "criterion": "Command suggests extending existing phase via insert-phase when overlap detected",
+      "command": "grep -c 'insert-phase\\|extend.*phase\\|autopilot:insert' src/commands/autopilot/add-phase.md",
+      "result": "fail",
+      "output": "0 matches for insert-phase suggestion"
+    }
+  ],
+  "total_criteria": 4,
+  "passed_criteria": 0,
+  "pass_ratio": 0.0,
+  "routing_decision": "full_pipeline",
+  "skipped_steps": [],
+  "note": "Phase 33 is not implemented. Current add-phase.md has Phase 31 (input parsing) and Phase 32 (rich spec generation) but no codebase-aware positioning, duplicate detection, or insert-phase suggestion logic."
+}
