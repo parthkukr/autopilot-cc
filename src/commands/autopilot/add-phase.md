@@ -302,16 +302,21 @@ mkdir -p .planning/phases/{N}-{slug}
    | {N}. {Title} | Not started | - |
    ```
 
-9. **Update the Execution Order in ROADMAP.md:**
+9. **Update the Execution Order in ROADMAP.md (dependency-aware positioning):**
 
    Find the execution order line that lists the most recent phases. This matches the pattern `^Phases \d+\+: ` followed by a ` -> ` separated list of phase numbers.
 
-   Append ` -> {N}` to the end of that line using Edit.
+   **Dependency-aware positioning logic:**
+   - If the new phase has dependencies (from the generated dependency analysis in Step 2.5), find the LAST dependency's position in the execution order chain
+   - Position the new phase AFTER its last dependency in the chain, not necessarily at the very end
+   - If the last dependency is not the final phase in the chain and there are independent phases after it, insert after the last dependency by splitting the chain at that point
+   - If the new phase has no dependencies or its dependencies are all at or near the end of the chain, append ` -> {N}` to the end (standard behavior)
+   - If the execution order line does not exist, add one: `Phases {N}+: {N}`
 
-   If the execution order line does not exist, add one:
-   ```
-   Phases {N}+: {N}
-   ```
+   **Pending dependency warning:**
+   - If the generated dependency analysis references a phase that is not yet completed (not marked with `[x]` in the roadmap), emit a note in the user report: "Note: Phase {N} depends on Phase {dep} which has not been completed yet. Execute Phase {dep} first."
+
+   Use Edit to update the execution order line.
 
 10. **Update STATE.md "By Phase" table:**
 
@@ -399,7 +404,7 @@ After the user approves a decomposition, create all phases sequentially with pro
         - For independent items: state "None (independent)" or reference the actual dependency with rationale
       - 2-5 preliminary tasks as verb-phrase deliverables
    f. Update the Progress table (same mechanics as Step 3, substep 8)
-   g. Update the Execution Order (same mechanics as Step 3, substep 9)
+   g. Update the Execution Order using dependency-aware positioning (same mechanics as Step 3, substep 9 -- position after last dependency in the chain, not just append to end)
    h. Update STATE.md (same mechanics as Step 3, substep 10)
 
    **Important:** After each phase is added, re-read the relevant anchor positions for the next phase insertion, since the ROADMAP.md content has shifted.
@@ -455,4 +460,10 @@ After the user approves a decomposition, create all phases sequentially with pro
 - [ ] Generated specifications use understanding of the request and roadmap context, not just parroting the user's input
 - [ ] Generated specifications are rich enough for the phase-runner to execute without additional context gathering
 - [ ] A post-generation quality gate validates specs before writing to ROADMAP.md -- Goal has >= 2 sentences, >= 3 criteria exist, criteria are specific (not vague), dependency includes WHY rationale, Goal is not a parrot of user input
+- [ ] Before creating any phase, duplicate/overlap detection scans existing roadmap phases and warns when a proposed phase overlaps >70% with an existing one
+- [ ] When overlap is detected, user is offered options: create anyway, extend existing phase via /autopilot:insert-phase, or cancel
+- [ ] An infrastructure inventory of completed phases is built and used to reference existing capabilities in new phase specifications
+- [ ] Dependencies are set based on actual technical analysis of what infrastructure the new phase requires, not sequential numbering
+- [ ] Execution order positioning places new phases after their last technical dependency, not just appended to the end
+- [ ] If a new phase depends on a pending (not yet completed) phase, a warning is emitted
 </success_criteria>
