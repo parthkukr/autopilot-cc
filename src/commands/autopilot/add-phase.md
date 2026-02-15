@@ -65,8 +65,88 @@ Ask: "Could this entire description be delivered and verified independently as o
 - Whether it depends on any of the other detected items
 
 **Decision routing:**
-- **1 coherent unit of work detected:** Proceed to Step 3 (Single-Phase Fast Path)
-- **2+ distinct items detected:** Proceed to Step 4 (Decomposition Presentation)
+- **1 coherent unit of work detected:** Proceed to Step 2.5 (Generate Rich Phase Specification) then Step 3 (Single-Phase Fast Path)
+- **2+ distinct items detected:** Proceed to Step 4 (Decomposition Presentation), then Step 2.5 for each approved item during Step 5
+
+### Step 2.5: Generate Rich Phase Specification
+
+For each phase being created (whether from the single-phase fast path or from batch creation), generate a detailed specification instead of stub placeholders. This step defines the methodology; Steps 3 and 5 reference it when constructing the ROADMAP.md detail section.
+
+**Context gathering:** Before generating the specification, read the existing ROADMAP.md to understand:
+- What phases already exist and what they accomplish
+- What patterns, infrastructure, and capabilities the project has
+- What the project's conventions are for Goal sections, success criteria format, and dependency notation
+- Which phases are completed vs. pending, so you can reference existing capabilities accurately
+
+**1. Generate the Goal Section (minimum 2-3 sentences):**
+
+The Goal must describe WHAT needs to be done and WHY it matters in the context of the project. Use goal-backward framing: "When this phase completes, [observable outcome] will be true."
+
+Rules:
+- Minimum 2-3 sentences that fully describe the scope and purpose
+- Use goal-backward framing to describe the end state, not just the action
+- Reference existing codebase patterns, infrastructure, or conventions where relevant
+- Do NOT simply restate the user's input as the Goal -- add context from your understanding of the roadmap, existing phases, and the project's architecture
+- The Goal should be specific enough that someone reading it understands exactly what "done" looks like
+
+Example of a good Goal (from an existing phase):
+> Every new file created by the executor is verified as connected to the existing codebase -- orphaned files that compile but are never imported or rendered are caught immediately, not deferred to manual improvement passes
+
+Example of a bad Goal (stub):
+> [To be planned]
+
+**2. Generate 3-5 Success Criteria (specific and testable):**
+
+Each criterion describes a user/system-observable outcome, not an implementation task. Use the pattern: "[Observable outcome that must be true when this phase completes]".
+
+Rules:
+- Generate 3-5 criteria, each specific and testable
+- Use the pattern: "[Observable outcome] -- [how to verify]" where possible
+- Criteria describe outcomes (what is true after completion), not tasks (what to do)
+- At least one criterion should be machine-verifiable (references a grep pattern, file existence check, or command output that could confirm the criterion)
+- Reject vague criteria internally -- do not generate criteria like "should work correctly", "properly handles errors", or "is implemented correctly" without a concrete verification method
+- Each criterion should be independently verifiable -- verifying one criterion should not require verifying another
+
+Example of good criteria (from existing phases):
+> 1. After the executor creates any new source file, it searches the codebase for imports/references to that file; if zero are found and the file is not a known standalone type, the executor treats the task as incomplete
+> 2. When the executor detects an unwired file, it either adds the import/wiring to an appropriate parent file or explicitly documents why the file is standalone -- silent orphaning is not allowed
+
+Example of bad criteria (stubs):
+> 1. [To be defined during planning]
+
+**3. Generate Dependency Analysis (with rationale):**
+
+Analyze the existing roadmap phases to determine what the new phase depends on and WHY.
+
+Rules:
+- Read all existing phases in the roadmap to identify infrastructure the new phase needs
+- For each dependency, explain WHY it exists in a parenthetical (e.g., "Phase 29 (reuses the one-question-at-a-time discuss infrastructure)")
+- If the phase is truly independent, state "None (independent -- does not require infrastructure from other phases)" with a brief justification
+- Do NOT default to "Phase {N-1} (independent)" -- actually analyze the technical relationship
+- Dependencies should be based on technical need, not just sequential ordering
+
+Example of a good dependency:
+> Phase 2 (executor must have per-task commits and self-testing before integration checks layer on top)
+
+Example of a bad dependency (stub):
+> Phase {N-1} (independent)
+
+**4. Generate Preliminary Task Breakdown:**
+
+Create 2-5 high-level tasks that decompose the Goal into deliverables.
+
+Rules:
+- Each task is a verb-phrase describing a concrete deliverable (e.g., "Add compile gate to executor prompt", "Create verification command parser")
+- Tasks should be ordered by natural execution sequence
+- 2-5 tasks is the target range -- enough to decompose the goal, not so many as to micromanage
+- Each task should be independently verifiable as a unit of work
+
+**Quality Enforcement:**
+
+- **Anti-parroting:** Do NOT simply restate the user's description as the Goal or criteria. Add context from your understanding of the roadmap, existing phases, and the project's patterns. The generated spec should demonstrate understanding of the request, not just echo it.
+- **Vague criteria blocklist:** Never generate criteria containing only these phrases without a concrete verification method: "should work correctly", "properly handles", "is implemented correctly", "functions as expected", "works as intended". If you catch yourself writing a vague criterion, make it specific.
+- **Downstream consumer awareness:** Generated specs must be rich enough that `autopilot {N}` (the phase-runner) can research the domain effectively, plan executable tasks, execute and verify without additional user input, and determine what "done" looks like without re-deriving the phase scope.
+- **Quality reference:** Match the quality and format of well-specified phases in the existing roadmap. Look for phases with multi-sentence Goals, specific criteria, and dependency rationale as models.
 
 ### Step 3: Single-Phase Fast Path (One Coherent Unit)
 
@@ -115,22 +195,32 @@ mkdir -p .planning/phases/{N}-{slug}
    - [ ] **Phase {N}: {Title}** - {One-sentence description from input}
    ```
 
-7. **Add the phase detail section to ROADMAP.md:**
+7. **Generate the rich specification using Step 2.5 methodology**, then **add the phase detail section to ROADMAP.md:**
 
-   Find the last `### Phase` detail section in the file. Locate the end of that section (the line before the next section starting with `## ` or `### Phase`, or the end of file). Add the new detail section there using Edit.
+   First, apply the spec generation methodology from Step 2.5 using the user's input description and the existing roadmap context. Generate: the Goal (2-3+ sentences), Success Criteria (3-5 specific items), Dependency Analysis (with rationale), and Preliminary Task Breakdown (2-5 tasks).
 
-   New detail section format (with full scaffolding):
+   Then find the last `### Phase` detail section in the file. Locate the end of that section (the line before the next section starting with `## ` or `### Phase`, or the end of file). Add the new detail section there using Edit.
+
+   New detail section format (using generated rich specification):
    ```markdown
    ### Phase {N}: {Title}
-   **Goal**: [To be planned]
-   **Depends on**: Phase {N-1} (independent)
-   **Requirements**: TBD (to be defined during planning)
+   **Goal**: {generated_goal -- minimum 2-3 sentences, goal-backward framing, not a stub}
+   **Depends on**: {generated_dependency_analysis -- with WHY rationale, not "Phase N-1 (independent)"}
+   **Requirements**: TBD (to be mapped during planning)
    **Success Criteria** (what must be TRUE):
-     1. [To be defined]
+     1. {generated_criterion_1 -- specific, testable, observable outcome}
+     2. {generated_criterion_2}
+     3. {generated_criterion_3}
+     {additional criteria if 4-5 were generated}
 
    Plans:
-   - [ ] TBD (run /clear then /autopilot {N} to execute)
+   - [ ] {generated_task_1 -- verb-phrase deliverable}
+   - [ ] {generated_task_2}
+   - [ ] {generated_task_3}
+   {additional tasks if generated}
    ```
+
+   **Important:** Every field above uses the rich specification generated in Step 2.5. No field should contain placeholder text like "[To be planned]", "[To be defined]", or "TBD" (except Requirements which is mapped during the planning step, not at creation time).
 
 8. **Update the Progress table in ROADMAP.md:**
 
@@ -168,11 +258,15 @@ mkdir -p .planning/phases/{N}-{slug}
     Phase {N} created: {Title}
 
     Directory: .planning/phases/{N}-{slug}/
-    Roadmap: Updated (Phases list, detail section, Progress table, Execution Order)
+    Roadmap: Updated (Phases list, detail section with rich specification, Progress table, Execution Order)
     State: Updated (STATE.md "By Phase" table)
     Status: Not started
 
-    Next: Define success criteria in ROADMAP.md, then /clear and /autopilot {N}
+    Goal: {first sentence of generated goal}
+    Success Criteria: {count} criteria generated
+    Dependencies: {generated dependency summary}
+
+    Next: /clear then /autopilot {N} to execute
     ```
 
 ### Step 4: Decomposition Presentation (Multiple Distinct Items)
