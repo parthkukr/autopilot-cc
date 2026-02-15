@@ -157,9 +157,15 @@ After each answer, generate the next question by analyzing ALL answers given so 
 
 Example adaptive logic:
 - If user answers "replace existing behavior" for scope -> follow up with "What should happen for users or workflows relying on the current behavior?"
+- If user answers "additive/opt-in" for scope -> follow up with "Should there be a migration path to make this the default later?"
 - If user answers "strict mode" for implementation -> follow up with "Should strict-mode violations produce warnings or hard errors?"
 - If user answers "flexible/graceful degradation" -> follow up with "Should degraded behavior be logged/visible, or silent?"
 - If user answers "machine-verifiable" for thresholds -> follow up with "What grep patterns or command outputs would confirm success?"
+- If user answers "human-checked" for thresholds -> follow up with "What specific aspects require human judgment that automated checks cannot cover?"
+- If user identifies integration with existing feature X -> follow up with "Should this phase modify feature X directly, or create a separate module that X consumes?"
+- If user says "out of scope" for something -> follow up with "Should the implementation explicitly reject out-of-scope inputs, or silently ignore them?"
+
+The key principle: each follow-up question narrows the design space based on the user's prior choice, moving from broad decisions toward concrete implementation details. Never re-ask about a topic already decided.
 
 **4. Depth control:**
 
