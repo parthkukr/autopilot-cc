@@ -9,7 +9,7 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 
 ## Current Position
 
-Phase: 17 of 26 (Sandboxed Code Execution)
+Phase: 17 of 25 (Sandboxed Code Execution)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
 Last activity: 2026-02-12 -- Added 10 new phases (17-26) based on competitive analysis research.
@@ -102,6 +102,12 @@ Recent decisions affecting current work:
 - Phase 27 added: Phase Management Command Overhaul -- rewrite add-phase, add insert-phase and remove-phase commands
 - Phase 28 added: Context Budget Regression Investigation -- diagnose context exhaustion regression from v1.8.0 upgrades (Phases 17-26), rebalance quality vs. context consumption. Discussion-first phase.
 - Phase 29 added: Discuss Flag Overhaul -- rework --discuss to match GSD's interactive one-question-at-a-time flow, reverse-engineer /gsd:discuss-phase patterns
+- Phase 30 removed and split into 5 focused phases (30-34) for quality:
+- Phase 30 added: Research gsd:new-project Patterns -- investigate /gsd:new-project flow, questions, artifacts, and conversational patterns to produce design blueprint
+- Phase 31 added: Smart Input Parsing and Auto-Decomposition -- accept freeform input, auto-decompose into multiple phases
+- Phase 32 added: Rich Phase Specification Generation -- generate detailed Goals, criteria, dependencies instead of stubs
+- Phase 33 added: Codebase-Aware Phase Positioning -- scan existing roadmap/codebase to avoid duplicates, correct dependencies
+- Phase 34 added: Deep Context Gathering Flag -- --deep flag for conversational context gathering before phase creation
 
 ### Pending Todos
 
