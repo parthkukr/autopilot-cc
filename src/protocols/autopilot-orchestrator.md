@@ -14,15 +14,17 @@ When the user types `/autopilot <phases>`:
 2. **Parse phases**: `"3-7"` = range, `"3"` = single, `"3,5,8"` = list, `"all"` = all incomplete, `"next"` = next one, `"--complete"` = batch completion mode (Section 1.1), `"--map"` or `"--map 3-7"` = context mapping mode (Section 1.2), `"--lenient"` = lenient mode (Section 1.3), `"--force"` or `"--force 3"` = force mode (Section 1.4), `"--quality"` or `"--quality 3"` = quality mode (Section 1.5), `"--gaps"` or `"--gaps 3"` = gaps mode (Section 1.6), `"--discuss"` or `"--discuss 3"` = discuss mode (Section 1.7), `"--visual"` = visual testing mode (Section 3, visual testing config). **Set `pass_threshold`:** If `--lenient` is present, set `pass_threshold = 7`. If `--quality` is present, set `pass_threshold = 9.5`. Otherwise, `pass_threshold = 9` (default). Store in `_meta.pass_threshold` in state.json. **Flag mutual exclusivity:** `--force` and `--quality` are mutually exclusive (error if both present). `--gaps` can combine with `--quality`. `--discuss` combines with any flag (always runs first). `--force` and `--gaps` are mutually exclusive (force redoes from scratch, gaps refines what exists).
 3. **Read roadmap**: Find at `.planning/ROADMAP.md` (or project root). Extract phase names/goals for the requested range.
 4. **Locate frozen spec**: Read `project.spec_paths` from `.planning/config.json` and check each path in order until one exists. Default fallback order: `.planning/REQUIREMENTS.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`. Compute hash: `sha256sum <spec> | cut -d' ' -f1`.
-5. **Immediate start**: Show a 2-line status and begin the loop. No confirmation. No preview. The user invoked the command -- that is the instruction to proceed.
+5. **Project Detection (EXEC-01)**: Auto-detect project type and commands from manifest files. This populates `project.commands` in `.planning/config.json` so every downstream agent (executor, verifier, rating agent) knows what compile/test/lint/build commands to run. See Section 1.8 for the full detection protocol.
+6. **Immediate start**: Show a 2-line status and begin the loop. No confirmation. No preview. The user invoked the command -- that is the instruction to proceed.
 
 ```
 Autopilot: Phases {range} | Spec: {path} ({hash_short}) | Model: {model}
+Project: {project.type} ({project.manifest}) | Commands: compile={compile}, test={test}, lint={lint}, build={build}
 Starting phase {first}...
 ```
 
-6. **On start**: Create `.autopilot/` dir, write initial `state.json`, ensure `.autopilot/` is in `.gitignore`.
-7. **Reset learnings file (LRNG-03)**: If `.autopilot/learnings.md` exists, delete it. Learnings are scoped to the current run and must not accumulate across runs to prevent context pollution. Log: "Learnings file reset for new run."
+7. **On start**: Create `.autopilot/` dir, write initial `state.json`, ensure `.autopilot/` is in `.gitignore`.
+8. **Reset learnings file (LRNG-03)**: If `.autopilot/learnings.md` exists, delete it. Learnings are scoped to the current run and must not accumulate across runs to prevent context pollution. Log: "Learnings file reset for new run."
 
 ---
 
@@ -726,6 +728,144 @@ When `--discuss` is used WITHOUT `--force`, `--quality`, or `--gaps` (e.g., `/au
 - `--discuss --quality 3`: Discuss phase 3, then run quality remediation.
 - `--discuss --gaps 3`: Discuss phase 3, then run gap analysis and fixes.
 - `--discuss --complete`: Discuss all outstanding phases, then run batch completion.
+
+---
+
+## 1.8 Project Detection Protocol (EXEC-01)
+
+When autopilot starts (step 5 of Invocation), it auto-detects the project type and discovers compile/test/lint/build commands from manifest files. This ensures every downstream agent knows what commands to run without user configuration.
+
+### Detection Flow
+
+```
+1. READ existing config: Read `.planning/config.json`
+2. CHECK for user overrides: If `project.commands` already exists with all four
+   fields (compile, test, lint, build) set to non-null values:
+   -> Log: "Project commands: user-configured (skipping auto-detection)."
+   -> DONE (skip detection, preserve user values)
+3. SCAN for manifests in project root, in priority order:
+   a. package.json  (Node.js)
+   b. pyproject.toml (Python)
+   c. Cargo.toml    (Rust)
+   d. Makefile      (Generic/Python fallback)
+4. For the FIRST manifest found, extract commands (see Manifest-Specific Logic below)
+5. MERGE: User overrides in config.json take precedence over auto-detected values.
+   For each command (compile, test, lint, build):
+     if user already set it in config.json -> keep user value, mark source as "user-override"
+     else -> use auto-detected value, mark source as "auto-detected"
+6. WRITE the merged `project` section to `.planning/config.json`
+7. LOG result: "Project detected: {type} ({manifest}). Commands: compile={cmd}, test={cmd}, lint={cmd}, build={cmd}"
+```
+
+### Manifest-Specific Logic
+
+**Node.js (package.json):**
+```
+Read the `scripts` object from package.json.
+- compile: scripts.compile, or scripts.typecheck, or "npx tsc --noEmit" (if "typescript" appears in devDependencies or dependencies), or null
+- test:    scripts.test (ONLY if it is not the npm default "echo \"Error: no test specified\" && exit 1"), or null
+- lint:    scripts.lint, or null
+- build:   scripts.build, or null
+
+Set project.type = "nodejs", project.manifest = "package.json"
+```
+
+**Python (pyproject.toml):**
+```
+Read pyproject.toml (TOML format).
+- compile: null (Python is interpreted; no compile step unless explicitly configured)
+- test:    "pytest" if "pytest" appears in project.dependencies, project.optional-dependencies,
+           or tool.pytest section exists; otherwise "python -m unittest discover"
+- lint:    "ruff check ." if "ruff" appears in dependencies or tool.ruff section exists;
+           "flake8" if "flake8" appears in dependencies; otherwise null
+- build:   "python -m build" if build-system section exists, or null
+
+Set project.type = "python", project.manifest = "pyproject.toml"
+```
+
+**Rust (Cargo.toml):**
+```
+Rust projects use standard cargo commands.
+- compile: "cargo check"
+- test:    "cargo test"
+- lint:    "cargo clippy" (standard Rust linter, included with rustup)
+- build:   "cargo build"
+
+Set project.type = "rust", project.manifest = "Cargo.toml"
+```
+
+**Makefile (fallback):**
+```
+Scan the Makefile for target names. A target exists if a line matches "^{name}:" at the start.
+- compile: "make check" if "check:" target exists, or "make compile" if "compile:" target exists, or null
+- test:    "make test" if "test:" target exists, or null
+- lint:    "make lint" if "lint:" target exists, or null
+- build:   "make build" if "build:" target exists, or "make all" if "all:" target exists, or null
+
+Set project.type = "makefile", project.manifest = "Makefile"
+```
+
+### No Manifest Found
+
+If none of the four manifest files exist in the project root:
+- Log warning: "No project manifest found (checked: package.json, pyproject.toml, Cargo.toml, Makefile). Project commands will be empty. Downstream compile/lint/test gates will be skipped."
+- Set `project.type = "unknown"`, `project.manifest = null`
+- Set all four commands to null
+- Set all four commands_source values to "auto-detected"
+- Write the project section to config.json (so downstream agents see explicit nulls rather than a missing section)
+
+### Config.json Output Format
+
+After detection, `.planning/config.json` contains a `project` section:
+
+```json
+{
+  "mode": "yolo",
+  "depth": "comprehensive",
+  "project": {
+    "type": "nodejs",
+    "manifest": "package.json",
+    "commands": {
+      "compile": "npx tsc --noEmit",
+      "test": "npm test",
+      "lint": "npm run lint",
+      "build": "npm run build"
+    },
+    "commands_source": {
+      "compile": "auto-detected",
+      "test": "auto-detected",
+      "lint": "auto-detected",
+      "build": "auto-detected"
+    }
+  }
+}
+```
+
+### User Override Behavior
+
+Users can pre-populate or override any command by editing `.planning/config.json` before running `/autopilot`. For example:
+
+```json
+{
+  "project": {
+    "commands": {
+      "compile": "my-custom-compile-script",
+      "test": null
+    }
+  }
+}
+```
+
+In this case:
+- `compile` uses the user-provided value ("my-custom-compile-script"), source = "user-override"
+- `test` is explicitly null (user chose to disable test gating), source = "user-override"
+- `lint` and `build` are auto-detected from the manifest, source = "auto-detected"
+
+A user override takes precedence even when it is `null` -- this allows users to explicitly disable a gate.
+
+### Re-detection
+
+Project detection runs once per `/autopilot` invocation (not per phase). The detected commands persist in `.planning/config.json` for the entire run. To force re-detection, delete the `project` section from config.json before re-running `/autopilot`.
 
 ---
 
