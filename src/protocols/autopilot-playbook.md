@@ -636,7 +636,7 @@ When the mini-verifier reports `pass: false`:
 > Before executing any tasks, perform context priming:
 > 1. Read the PLAN.md to understand all tasks and their dependencies.
 > 2. Read 3-5 key project files listed in the plan's "files" fields to understand the codebase state.
-> 3. Run the configured compile command once to establish a baseline. Record: PASS (0 errors) or FAIL (N errors). If baseline fails, note which errors are pre-existing vs. your responsibility.
+> 3. Run the configured compile command once to establish a baseline. Record: PASS (0 errors) or FAIL (N errors). If baseline fails, note which errors are pre-existing vs. your responsibility. **Note:** Project commands (`project.commands.compile`, `.test`, `.lint`, `.build`) are auto-detected from project manifests by the orchestrator during initialization (Section 1.8) and populated in `.planning/config.json`. The executor reads these values and does not need to detect them itself. If `project.commands.compile` is null (no compile command available), skip the compile baseline and log: "Compile command not configured -- compile gate skipped."
 > 4. If `.autopilot/learnings.md` exists, read it and acknowledge known pitfalls. Note any learnings relevant to this phase in your first EXECUTION-LOG.md entry.
 > 5. If `.autopilot/repo-map.json` exists, read it to understand the codebase structure before creating any new files. Use the map to check if functionality you are about to create already exists elsewhere (check `exports` and `functions` arrays for matching names). If an existing implementation is found via the map, extend or import it rather than creating a duplicate. The repo-map is the primary lookup mechanism for existing implementations; use grep as a fallback for symbols not covered by the map.
 > 6. Report priming results in your first EXECUTION-LOG.md entry before any task work: files read, baseline compile result, repo-map status (loaded with N files or "not found"), and pitfalls acknowledged (or "no learnings file found").
@@ -644,7 +644,7 @@ When the mini-verifier reports `pass: false`:
 >
 > <must>
 > 1. Make atomic git commits per task with format: `{type}({phase}): {task_id} - {concise task description}`. Example: `feat(02): 02-01 - add compile gates to executor prompt`. Each task gets exactly one commit.
-> 2. After writing or modifying any file, immediately run the compile check (from `.planning/config.json` `project.commands.compile`). If a file you wrote fails compilation, you MUST fix that file before writing any other file. Do not proceed to the next file or task until compilation passes. Run compile and lint (from `project.commands.lint`) before each commit. Fix errors before committing.
+> 2. After writing or modifying any file, immediately run the compile check (from `.planning/config.json` `project.commands.compile`). If a file you wrote fails compilation, you MUST fix that file before writing any other file. Do not proceed to the next file or task until compilation passes. Run compile and lint (from `project.commands.lint`) before each commit. Fix errors before committing. If `project.commands.compile` or `project.commands.lint` are null (commands not available for this project type), skip the corresponding gate and log: "Compile/lint command not configured -- gate skipped." Do NOT error when commands are null -- null means the gate is not applicable.
 > 3. Self-test EACH acceptance criterion for the current task before marking it complete. For every criterion, run the specified verification command (grep, file read, command output check) and record the result as PASS or FAIL with file:line evidence. If ANY criterion fails, you MUST fix the issue before marking the task complete. Do NOT mark a task complete based on "I wrote the code so it should work." Additionally, run the generated test specification file for the task (`bash .planning/phases/{phase}/tests/task-{id}.sh 2>&1; echo EXIT:$?`). If the test file exits with non-zero, the task is NOT complete -- fix the failing assertions before proceeding. If the test file does not exist (planner did not generate one), log a warning but do not block task completion.
 > 4. **Post-creation integration check:** After creating any NEW source file (not modifying an existing one), search the codebase for imports or references to that file (e.g., `grep -r "import.*filename" . --include="*.ts" --include="*.tsx" --include="*.js" --include="*.md"`). If zero references are found, check whether the file is a known standalone type: entry points (index.*, main.*, App.*), config files (*.config.*, *.json, *.yaml, *.yml, *.toml, .eslintrc*, .prettierrc*, tsconfig*), test files (*.test.*, *.spec.*, __tests__/*), scripts (bin/*, scripts/*), type declarations (*.d.ts), or documentation (*.md). If the file is NOT a standalone type AND has zero imports/references, the task is INCOMPLETE -- you must either: (a) add the import/reference to an appropriate parent file and verify it is called/rendered, OR (b) document an explicit standalone justification in the EXECUTION-LOG.md task entry explaining why the file does not need to be imported. Silent orphaning (zero references, no justification, task marked complete) is blocked.
 > 5. Record evidence per task: commands run with output, file:line references proving each criterion is met. Include the test specification output (PASS/FAIL per criterion and overall exit code) in the evidence for each task.
@@ -779,14 +779,15 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 > **VERIFICATION METHODOLOGY:**
 >
 > **Step 1: Automated checks (ALL phase types):**
+> Project commands are auto-detected from manifests and populated in `.planning/config.json` by the orchestrator (Section 1.8). If a command is null, skip that check and record "n/a" (not "FAIL").
 > ```bash
-> # 1. Compile check (run configured compile command)
+> # 1. Compile check (run configured compile command, skip if null)
 > {project.commands.compile} 2>&1
-> # Record: PASS (0 errors) or FAIL (N errors, first 3 error messages)
+> # Record: PASS (0 errors) or FAIL (N errors, first 3 error messages) or n/a (command is null)
 >
-> # 2. Lint check (run configured lint command)
+> # 2. Lint check (run configured lint command, skip if null)
 > {project.commands.lint} 2>&1 | tail -5
-> # Record: PASS (0 errors) or FAIL (N errors)
+> # Record: PASS (0 errors) or FAIL (N errors) or n/a (command is null)
 > ```
 >
 > **Step 1.5: Execution-Based Verification (ALL phase types):**
