@@ -25,6 +25,7 @@
 14. [Repository Map Schema](#section-14-repository-map-schema)
 15. [Debug Session Schema](#section-15-debug-session-schema)
 16. [Visual Testing Schemas](#section-16-visual-testing-schemas)
+17. [Project Configuration Schema](#section-17-project-configuration-schema)
 
 ---
 
@@ -1886,6 +1887,155 @@ When visual testing is not configured or infrastructure is unavailable, this fie
 
 ---
 
+## Section 17: Project Configuration Schema
+
+The `project` section of `.planning/config.json` is auto-populated by the orchestrator during initialization (Section 1.8 of the orchestrator guide). It contains the detected project type, manifest path, and commands that downstream agents use for compile/test/lint/build gates.
+
+### Schema
+
+```json
+{
+  "project": {
+    "type": "nodejs | python | rust | makefile | unknown",
+    "manifest": "package.json | pyproject.toml | Cargo.toml | Makefile | null",
+    "commands": {
+      "compile": "string | null",
+      "test": "string | null",
+      "lint": "string | null",
+      "build": "string | null"
+    },
+    "commands_source": {
+      "compile": "auto-detected | user-override",
+      "test": "auto-detected | user-override",
+      "lint": "auto-detected | user-override",
+      "build": "auto-detected | user-override"
+    },
+    "ui": {
+      "source_dir": "string (path to UI source directory, e.g., 'src/')",
+      "file_extensions": "string (glob pattern, e.g., '*.{ts,tsx}')"
+    },
+    "spec_paths": ["string (ordered list of spec file paths to check)"]
+  }
+}
+```
+
+### Field Descriptions
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `project.type` | string | Yes | Auto-detected project type. One of: `"nodejs"`, `"python"`, `"rust"`, `"makefile"`, `"unknown"`. Set during project detection (orchestrator Section 1.8). |
+| `project.manifest` | string or null | Yes | Path to the manifest file used for detection (e.g., `"package.json"`). Null if no manifest found. |
+| `project.commands.compile` | string or null | Yes | Command to type-check or compile the project. Null if not available. |
+| `project.commands.test` | string or null | Yes | Command to run the project's test suite. Null if not available. |
+| `project.commands.lint` | string or null | Yes | Command to run the project's linter. Null if not available. |
+| `project.commands.build` | string or null | Yes | Command to produce a production build. Null if not available. |
+| `project.commands_source.compile` | string | Yes | Provenance of the compile command: `"auto-detected"` or `"user-override"`. |
+| `project.commands_source.test` | string | Yes | Provenance of the test command. |
+| `project.commands_source.lint` | string | Yes | Provenance of the lint command. |
+| `project.commands_source.build` | string | Yes | Provenance of the build command. |
+| `project.ui` | object | No | UI-specific configuration. Only relevant for projects with a frontend. |
+| `project.ui.source_dir` | string | No | Path to the UI source directory (e.g., `"src/"`). Used for phase type classification. |
+| `project.ui.file_extensions` | string | No | Glob pattern for UI source files (e.g., `"*.{ts,tsx}"`). |
+| `project.spec_paths` | array of strings | No | Ordered list of spec file paths the orchestrator checks when locating the frozen spec. |
+
+### Complete Example (Node.js Project)
+
+```json
+{
+  "mode": "yolo",
+  "depth": "comprehensive",
+  "parallelization": true,
+  "commit_docs": false,
+  "model_profile": "quality",
+  "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true
+  },
+  "project": {
+    "type": "nodejs",
+    "manifest": "package.json",
+    "commands": {
+      "compile": "npx tsc --noEmit",
+      "test": "npm test",
+      "lint": "npm run lint",
+      "build": "npm run build"
+    },
+    "commands_source": {
+      "compile": "auto-detected",
+      "test": "auto-detected",
+      "lint": "user-override",
+      "build": "auto-detected"
+    },
+    "ui": {
+      "source_dir": "src/",
+      "file_extensions": "*.{ts,tsx}"
+    },
+    "spec_paths": [".planning/REQUIREMENTS.md", ".planning/PROJECT.md"]
+  }
+}
+```
+
+### Example (Python Project)
+
+```json
+{
+  "project": {
+    "type": "python",
+    "manifest": "pyproject.toml",
+    "commands": {
+      "compile": null,
+      "test": "pytest",
+      "lint": "ruff check .",
+      "build": "python -m build"
+    },
+    "commands_source": {
+      "compile": "auto-detected",
+      "test": "auto-detected",
+      "lint": "auto-detected",
+      "build": "auto-detected"
+    }
+  }
+}
+```
+
+### Example (No Manifest Found)
+
+```json
+{
+  "project": {
+    "type": "unknown",
+    "manifest": null,
+    "commands": {
+      "compile": null,
+      "test": null,
+      "lint": null,
+      "build": null
+    },
+    "commands_source": {
+      "compile": "auto-detected",
+      "test": "auto-detected",
+      "lint": "auto-detected",
+      "build": "auto-detected"
+    }
+  }
+}
+```
+
+### Downstream Usage
+
+Agents reference project commands via these config paths:
+- `project.commands.compile` -- executor runs this after writing code (playbook STEP 3, MUST item 2)
+- `project.commands.lint` -- executor runs this before committing (playbook STEP 3, MUST item 2)
+- `project.commands.test` -- executor runs this after each task (playbook STEP 3)
+- `project.commands.build` -- verifier runs this for UI phases (playbook STEP 4)
+- `project.ui.source_dir` -- orchestrator uses this for phase type classification
+- `project.commands_source` -- audit trail showing whether each command was auto-detected or user-provided
+
+When a command is null, the corresponding gate is skipped (not errored). The executor, verifier, and rating agent all check for null before running a command.
+
+---
+
 ## Summary
 
-This document is developer reference documentation for the autopilot orchestration system. It defines 16 sections: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05) plus CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, CONTEXT.md format, score history tracking, gap deficiency analysis, and flag-specific event types, (13) sandbox execution schemas for execution-based verification results including exit codes, stdout/stderr capture, timeout handling, and sandbox violation detection, (14) repository map schema for structured codebase understanding including exports, imports, functions, classes per file with size caps, incremental update instructions, and structural query examples, (15) debug session schemas for persistent debug state management including session file format, status transitions, failure taxonomy classification, and learnings loop integration, and (16) visual testing schemas for screenshot-based visual regression detection including visual testing configuration, screenshot result format, visual bug reports, and verifier return extensions. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
+This document is developer reference documentation for the autopilot orchestration system. It defines 17 sections: (1) a state file schema that tracks run progress and enables crash recovery, (2) circuit breaker configuration with ten tunable thresholds, (3) thirty event types forming an append-only audit log, (4) the directory structure for runtime and phase artifacts, (5) the step agent handoff protocol with JSON return schemas for all agents, (6) trace span and post-mortem schemas for execution observability (OBSV-01 through OBSV-04), (7) learnings file schema for cross-phase learning (LRNG-01 through LRNG-04), (8) metrics and cost schemas for run-level metrics collection, pre-execution cost estimation, and cross-run trend analysis (MTRC-01 through MTRC-03), (9) self-audit schemas for post-completion requirement verification and gap-fix tracking, (10) batch completion report schema for `--complete` mode aggregated reporting (CMPL-04), (11) context mapping schemas for `--map` mode context sufficiency scoring, questioning agent returns, and user answer persistence (CMAP-01 through CMAP-05), (12) confidence enforcement schemas for `--lenient` mode threshold configuration, remediation cycle events, diagnostic file format, and force_incomplete state tracking (CENF-01 through CENF-05) plus CLI quality flags schemas for `--force`, `--quality`, `--gaps`, and `--discuss` modes including discuss-context persistence, CONTEXT.md format, score history tracking, gap deficiency analysis, and flag-specific event types, (13) sandbox execution schemas for execution-based verification results including exit codes, stdout/stderr capture, timeout handling, and sandbox violation detection, (14) repository map schema for structured codebase understanding including exports, imports, functions, classes per file with size caps, incremental update instructions, and structural query examples, (15) debug session schemas for persistent debug state management including session file format, status transitions, failure taxonomy classification, and learnings loop integration, (16) visual testing schemas for screenshot-based visual regression detection including visual testing configuration, screenshot result format, visual bug reports, and verifier return extensions, and (17) project configuration schema for auto-detected project type, manifest path, compile/test/lint/build commands with provenance tracking, and downstream usage patterns. For the canonical return contract, see `__INSTALL_BASE__/autopilot/protocols/autopilot-orchestrator.md` Section 4. For step prompt templates, see `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md`.
