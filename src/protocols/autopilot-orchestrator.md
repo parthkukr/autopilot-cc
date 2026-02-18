@@ -32,19 +32,60 @@ Before proceeding to phase execution (between step 2 and step 3), the orchestrat
 
 **Mutual Exclusivity Enforcement:**
 
-The following flag combinations are incompatible and MUST produce an immediate error:
+The following flag combinations are incompatible and MUST produce an immediate, specific error message. Each combination has its own tailored error that explains the conflict and suggests the correct usage:
 
 | Flag A | Flag B | Reason |
 |--------|--------|--------|
 | `--force` | `--quality` | Force redoes from scratch; quality refines what exists |
 | `--force` | `--gaps` | Force redoes from scratch; gaps refines what exists |
 | `--force` | `--complete` | Force targets completed phases; complete targets incomplete phases |
+| `--force` | `--map` | Force rebuilds phases; map only regenerates the repo map -- use them separately |
 
-When an incompatible combination is detected, emit:
+**Specific error messages for each invalid combination:**
+
+`--force` + `--quality`:
 ```
-Error: --{flag_a} and --{flag_b} cannot be combined.
-Reason: {reason from table above}.
-Use --{flag_a} to {what flag_a does}, or --{flag_b} to {what flag_b does} -- not both.
+Error: --force and --quality cannot be combined.
+--force rebuilds phases from scratch (deleting existing work).
+--quality refines existing phases to improve their score.
+These are opposite strategies. Use --force to start over, or --quality to improve what you have.
+```
+
+`--force` + `--gaps`:
+```
+Error: --force and --gaps cannot be combined.
+--force rebuilds phases from scratch (deleting existing work).
+--gaps targets specific deficiencies to push scores toward 10/10.
+Use --force to start over, or --gaps to surgically fix remaining issues.
+```
+
+`--force` + `--complete`:
+```
+Error: --force and --complete cannot be combined.
+--force re-runs phases that already passed (rebuilding from scratch).
+--complete runs only phases that have not yet passed.
+These select opposite sets of phases. Use --force {phase} for specific phases, or --complete for unfinished ones.
+```
+
+`--force` + `--map`:
+```
+Error: --force and --map cannot be combined.
+--force rebuilds phases from scratch.
+--map only regenerates the semantic repository map without running phases.
+Run --map first to update the map, then --force to rebuild if needed.
+```
+
+**Required argument validation:**
+
+Flags that accept an optional phase argument (`--force`, `--quality`, `--gaps`) work in two modes:
+- With argument: `--force 3` operates on Phase 3 only
+- Without argument: `--force` operates on all applicable phases
+
+No error is needed for missing arguments -- both modes are valid. However, if a non-numeric argument is provided where a phase number is expected, emit:
+```
+Error: '{value}' is not a valid phase number.
+Expected: a number (e.g., --force 3) or no argument (e.g., --force for all phases).
+Available phases: {list of phase IDs from roadmap}
 ```
 
 **Flag Compatibility Matrix:**
@@ -59,7 +100,7 @@ Use --{flag_a} to {what flag_a does}, or --{flag_b} to {what flag_b does} -- not
 | --discuss | yes | yes | yes | yes | yes | - | yes | yes | yes |
 | --visual | yes | yes | yes | yes | yes | yes | - | yes | yes |
 | --sequential | yes | yes | yes | yes | yes | yes | yes | - | yes |
-| --map | yes | yes | no | yes | yes | yes | yes | yes | - |
+| --map | yes | yes | NO | yes | yes | yes | yes | yes | - |
 
 **Unknown Flag Handling:**
 
@@ -1052,23 +1093,108 @@ The orchestrator reconstructs step-level progress from the phase-runner's return
 
 **Tier 2 (Phase-Runner) -- captured by orchestrator:**
 
-The phase-runner emits progress messages between step agent spawns. These are captured in the phase-runner's output and visible to the orchestrator (and to the user in the orchestrator's output after the phase completes):
+The phase-runner emits progress messages between step agent spawns. These are captured in the phase-runner's output and visible to the orchestrator (and to the user in the orchestrator's output after the phase completes). Each step has a specific format:
+
+**Per-Step Format Examples (full pipeline):**
 
 ```
-[Phase {N}] Step: RESEARCH (1/6)
-[Phase {N}] Step: RESEARCH complete.
-[Phase {N}] Step: PLAN (2/6)
-[Phase {N}] Step: PLAN complete.
-[Phase {N}] Step: EXECUTE (4/6) -- {total_tasks} tasks
-[Phase {N}] Task {task_id} (1/{total}): {description}
-[Phase {N}] Task {task_id}: modifying {file_path}
-[Phase {N}] Task {task_id}: compile PASS
-[Phase {N}] Task {task_id}: VERIFIED
-[Phase {N}] Task {task_id} (2/{total}): {description}
-...
-[Phase {N}] Step: VERIFY (5/6)
-[Phase {N}] Step: JUDGE (6/6)
-[Phase {N}] Step: RATE (7/7)
+[Phase 3] Step: PREFLIGHT (1/9)
+[Phase 3] [PASS] PREFLIGHT complete. (2s) -- spec hash verified, tree clean
+
+[Phase 3] Step: TRIAGE (2/9)
+[Phase 3] [PASS] TRIAGE complete. (5s) -- routing: full_pipeline (0/6 criteria pass)
+
+[Phase 3] Step: RESEARCH (3/9) -- scanning codebase for test patterns
+[Phase 3] [PASS] RESEARCH complete. (12s) -- 4 key files identified, 2 patterns found
+
+[Phase 3] Step: PLAN (4/9) -- generating task breakdown
+[Phase 3] [PASS] PLAN complete. (8s) -- 4 tasks, 0 checkpoints
+
+[Phase 3] Step: PLAN-CHECK (5/9) -- validating task specs
+[Phase 3] [PASS] PLAN-CHECK complete. (3s) -- confidence 8/10
+
+[Phase 3] Step: EXECUTE (6/9) -- 4 tasks to run
+[Phase 3] Task 03-01 (1/4): Add test runner configuration
+[Phase 3] Task 03-01: modifying src/protocols/autopilot-playbook.md
+[Phase 3] Task 03-01: compile PASS
+[Phase 3] Task 03-01: VERIFIED
+[Phase 3] Task 03-02 (2/4): Add test failure handling
+[Phase 3] Task 03-02: modifying src/protocols/autopilot-playbook.md
+[Phase 3] Task 03-02: compile PASS
+[Phase 3] Task 03-02: VERIFIED
+[Phase 3] ... still working (120s)
+[Phase 3] Task 03-03 (3/4): Add test result parsing
+[Phase 3] Task 03-03: modifying src/protocols/autopilot-orchestrator.md
+[Phase 3] Task 03-03: compile PASS
+[Phase 3] Task 03-03: VERIFIED
+[Phase 3] Task 03-04 (4/4): Add test evidence collection
+[Phase 3] Task 03-04: modifying src/protocols/autopilot-playbook.md
+[Phase 3] Task 03-04: compile PASS
+[Phase 3] Task 03-04: VERIFIED
+[Phase 3] [PASS] EXECUTE complete. (3m 15s) -- 4/4 tasks passed
+
+[Phase 3] Step: VERIFY (7/9) -- blind verification starting
+[Phase 3] [PASS] VERIFY complete. (45s) -- all criteria met
+
+[Phase 3] Step: JUDGE (8/9) -- independent assessment
+[Phase 3] [PASS] JUDGE complete. (18s) -- recommendation: proceed
+
+[Phase 3] Step: RATE (9/9) -- alignment scoring
+[Phase 3] [PASS] RATE complete. (12s) -- alignment: 8.7/10
+```
+
+**Per-Step Format Examples (verify_only routing):**
+
+```
+[Phase 5] Step: PREFLIGHT (1/9)
+[Phase 5] [PASS] PREFLIGHT complete. (2s) -- spec hash verified, tree clean
+
+[Phase 5] Step: TRIAGE (2/9)
+[Phase 5] [PASS] TRIAGE complete. (8s) -- routing: verify_only (5/6 criteria pass)
+
+[Phase 5] [SKIP] RESEARCH skipped (verify_only routing)
+[Phase 5] [SKIP] PLAN skipped (verify_only routing)
+[Phase 5] [SKIP] PLAN-CHECK skipped (verify_only routing)
+[Phase 5] [SKIP] EXECUTE skipped (verify_only routing)
+
+[Phase 5] Step: VERIFY (7/9) -- blind verification starting
+[Phase 5] [PASS] VERIFY complete. (38s) -- all criteria met
+
+[Phase 5] Step: JUDGE (8/9) -- independent assessment
+[Phase 5] [PASS] JUDGE complete. (15s) -- recommendation: proceed
+
+[Phase 5] Step: RATE (9/9) -- alignment scoring
+[Phase 5] [PASS] RATE complete. (10s) -- alignment: 9.2/10
+```
+
+**Per-Step Format Examples (failed phase):**
+
+```
+[Phase 4] Step: PREFLIGHT (1/9)
+[Phase 4] [PASS] PREFLIGHT complete. (2s)
+
+[Phase 4] Step: TRIAGE (2/9)
+[Phase 4] [PASS] TRIAGE complete. (4s) -- routing: full_pipeline
+
+[Phase 4] Step: EXECUTE (6/9) -- 3 tasks to run
+[Phase 4] Task 04-01 (1/3): Add evidence collector
+[Phase 4] Task 04-01: compile PASS
+[Phase 4] Task 04-01: VERIFIED
+[Phase 4] Task 04-02 (2/3): Add evidence validator
+[Phase 4] Task 04-02: compile FAIL -- syntax error in protocol section
+[Phase 4] Task 04-02: FAILED -- debug attempt 1/2
+[Phase 4] Task 04-02: compile PASS (after debug)
+[Phase 4] Task 04-02: VERIFIED
+[Phase 4] Task 04-03 (3/3): Add evidence reporting
+[Phase 4] Task 04-03: compile FAIL -- missing cross-reference
+[Phase 4] Task 04-03: FAILED -- debug attempt 1/2
+[Phase 4] Task 04-03: FAILED -- debug attempt 2/2 (max retries)
+[Phase 4] [FAIL] EXECUTE complete. (5m 42s) -- 2/3 tasks passed, 1 failed
+
+[Phase 4] Step: VERIFY (7/9)
+[Phase 4] [FAIL] VERIFY complete. (32s) -- 2 criteria unmet
+[Phase 4] [ -- ] JUDGE not reached
+[Phase 4] [ -- ] RATE not reached
 ```
 
 **Tier 3 (Step Agents) -- captured by phase-runner:**
@@ -1077,10 +1203,12 @@ Step agents (executor, verifier, etc.) emit their own progress within their outp
 
 **Format rules:**
 - All progress messages are plain text (no markdown, no emojis)
-- Phase-level messages use `--- [PHASE ...] ---` delimiters
-- Step-level messages use `[Phase {N}] Step: ...` prefix
+- Phase-level messages use `=== [PHASE ...] ===` delimiters for strong visual separation
+- Step-level messages use `[Phase {N}] Step: ...` prefix before, `[Phase {N}] [{STATUS}] ... complete. ({elapsed})` after
 - Task-level messages use `[Phase {N}] Task {task_id}: ...` prefix
 - Compile/lint results use `PASS` or `FAIL` keywords for machine parseability
+- Each step completion line includes a brief context suffix (e.g., "-- 4/4 tasks passed", "-- routing: full_pipeline") so the user understands the outcome at a glance
+- Duration is always included in step completion lines using the format `({seconds}s)` or `({minutes}m {seconds}s)`
 
 ### Visual Formatting Standard
 
@@ -1178,9 +1306,29 @@ The orchestrator computes the elapsed time by recording `Date.now()` (or equival
 
 **Heartbeat Protocol for Long-Running Operations:**
 
-During long-running agent spawns (executor, verifier), the phase-runner emits a heartbeat line every 60 seconds so the user knows the system is still working:
+During long-running agent spawns (executor, verifier), the phase-runner emits a heartbeat line every 60 seconds so the user knows the system is still working. Heartbeats include concrete timing information -- both elapsed time and estimated remaining time -- so the user can gauge progress, not just see that the system is alive.
+
+**Heartbeat format with timing:**
 ```
-[Phase {N}] ... still working ({elapsed}s)
+[Phase {N}] ... still working ({elapsed}s elapsed, ~{estimated_remaining}s remaining)
+```
+
+**Estimated remaining calculation:** The phase-runner estimates remaining time based on task completion rate. For executor operations with multiple tasks, compute:
+- `avg_task_time = total_elapsed / tasks_completed`
+- `estimated_remaining = avg_task_time * tasks_remaining`
+- If no tasks have completed yet, use the average task time from previous phases (from `state.json` `avg_task_seconds`) or default to `120s` as the initial estimate.
+
+**Heartbeat examples with timing context:**
+```
+[Phase 3] ... still working (60s elapsed, ~180s remaining) -- executing task 1/4
+[Phase 3] ... still working (120s elapsed, ~120s remaining) -- executing task 2/4
+[Phase 3] ... still working (180s elapsed, ~45s remaining) -- executing task 3/4
+[Phase 3] ... still working (45s elapsed, ~90s remaining) -- verifier running
+```
+
+When estimated remaining time is unavailable (single-task phases, first heartbeat before any task completes), omit the estimate:
+```
+[Phase {N}] ... still working ({elapsed}s elapsed) -- {current_operation}
 ```
 
 The heartbeat is emitted by the phase-runner between polling cycles when waiting for background agents (executor spawned with `run_in_background=true`). It is NOT emitted during foreground agent spawns (planner, plan-checker, judge, rating agent) since those complete within the polling interval.
@@ -1217,54 +1365,103 @@ This tells the user upfront how many phases will execute, which flags are active
 
 **Between-Phase Guidance:**
 
-After each phase completes and before spawning the next phase-runner, emit a transition line that explains what completed and what comes next:
+After each phase completes and before spawning the next phase-runner, emit a transition line that explains what completed, its key outcome, and what comes next with a brief preview:
 
 ```
-Phase {N} complete ({score}/10). Next: Phase {N+1} -- {next_phase_name}
+Phase {N} complete ({score}/10, {duration}).
+  Key result: {one-line summary of what changed, e.g., "test execution pipeline added to playbook and orchestrator"}
+  Next: Phase {N+1} -- {next_phase_name} ({brief description of what it will do})
 ```
 
-If the completed phase scored below the pass threshold but still passed (remediation scenario), add context:
+Example:
+```
+Phase 3 complete (8.7/10, 4m 32s).
+  Key result: test runner configuration and failure handling added to executor protocol
+  Next: Phase 4 -- Evidence-Based Verification (adds command-output evidence to verifier and judge)
+```
+
+If the completed phase scored below the pass threshold but still passed (remediation scenario), add specific guidance:
 ```
 Phase {N} complete ({score}/10, below {threshold} threshold). Entering remediation cycle.
+  Deficiencies: {list of specific issues from judge feedback}
+  The remediation will target these {count} issues. Estimated: 1-2 additional cycles.
 ```
 
-If a phase was skipped (dependency blocked, already complete), explain why:
+If a phase was skipped (dependency blocked, already complete), explain why with actionable suggestion:
 ```
-Phase {N} skipped: blocked by Phase {dependency} (scored {score}/10, needs {threshold}+)
+Phase {N} skipped: blocked by Phase {dependency} (scored {score}/10, needs {threshold}+).
+  To unblock: run `/autopilot --quality {dependency}` to improve Phase {dependency} above {threshold}.
 ```
 
 **Completion Guidance:**
 
-At run end (after all phases complete), emit a summary with actionable next-step suggestions:
+At run end (after all phases complete), emit a detailed summary with scenario-specific next-step suggestions. The completion message should give the user a clear picture of the run outcome and exactly what to do next.
 
+Normal completion (mixed results):
 ```
-Run complete: {completed}/{total} phases passed.
+Run complete: {completed}/{total} phases passed ({duration} total).
+
+Score summary:
+  Highest: Phase {N} ({score}/10) -- {phase_name}
+  Lowest:  Phase {M} ({score}/10) -- {phase_name}
+  Average: {avg_score}/10
 
 Next steps:
-- Run `/autopilot status` to review all phase scores
-- Run `/autopilot --quality {low_scoring_phase}` to polish phases below 9.5
-- Run `/autopilot --gaps {phase}` to push specific phases toward 10/10
+  1. Review scores: run `/autopilot status` to see all phase results
+  2. Improve lowest: run `/autopilot --quality {lowest_phase}` to polish Phase {M} (currently {score}/10)
+  3. Push to 10: run `/autopilot --gaps {phase}` to close remaining gaps in specific phases
 ```
 
-If all phases scored 9.5+:
+All phases scored 9.5+:
 ```
-All phases at 9.5+. Consider running `/autopilot --gaps` to push toward 10/10, or the project is ready for review.
+All {total} phases passed at 9.5+ ({duration} total). Project quality target met.
+
+Next steps:
+  1. Push toward perfection: run `/autopilot --gaps` to target 10/10 on all phases
+  2. Final review: run `/autopilot status` to see the complete scorecard
+  3. Ship it: the project meets quality standards and is ready for review
 ```
 
-If any phases failed:
+Some phases failed:
 ```
-{N} phase(s) failed. To retry: /clear then /autopilot {failed_phases}
-To inspect failures: check .autopilot/diagnostics/phase-{N}-postmortem.json
+{failed_count} of {total} phases failed ({duration} total).
+
+Failed phases:
+  Phase {N}: {phase_name} -- {failure_reason, e.g., "executor failed on task 3, max retries exceeded"}
+  Phase {M}: {phase_name} -- {failure_reason}
+
+Next steps:
+  1. Retry failed phases: /clear then `/autopilot {failed_phase_list}`
+  2. Inspect failures: check `.autopilot/diagnostics/phase-{N}-postmortem.json` for details
+  3. Force redo: run `/autopilot --force {phase}` to rebuild a phase from scratch
+  4. Lower bar: run `/autopilot --lenient {phase}` if 7.0+ is acceptable
+```
+
+Single phase completion (when running a specific phase):
+```
+Phase {N} complete: {score}/10 ({duration}).
+  {one-line summary of what was implemented}
+
+Next steps:
+  1. Continue: run `/autopilot` to proceed with remaining phases
+  2. Polish: run `/autopilot --quality {N}` to push this phase above 9.5
+  3. Review: check `.planning/phases/{phase_dir}/VERIFICATION.md` for detailed results
 ```
 
 **Warning Guidance:**
 
-Before executing a phase whose dependencies scored below the pass threshold, emit a proactive warning:
+Before executing a phase whose dependencies scored below the pass threshold, emit a proactive warning with specific risk assessment:
 
 ```
 Warning: Phase {N} depends on Phase {dep}. Phase {dep} scored {score}/10 (below {threshold}).
-Consider running `/autopilot --quality {dep}` first to improve the foundation.
-Proceeding anyway -- dependency met minimum (7.0+) but not at target quality.
+  Risk: {specific risk, e.g., "Evidence collection may be incomplete because test execution (Phase 3) has gaps"}
+  Suggested action: run `/autopilot --quality {dep}` first to improve the foundation.
+  Proceeding anyway -- dependency met minimum (7.0+) but not at target quality.
+```
+
+Before executing a phase with known complexity (e.g., many tasks, cross-file dependencies):
+```
+Note: Phase {N} has {task_count} tasks modifying {file_count} files. Estimated time: {estimate}.
 ```
 
 This warns the user about potential issues before they manifest, rather than waiting for a downstream failure. The orchestrator checks each phase's dependency scores against the pass threshold before spawning the phase-runner.

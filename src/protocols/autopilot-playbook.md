@@ -103,9 +103,11 @@ Emit structured progress messages at pipeline step boundaries. Format:
 
 **Task-level (during EXECUTE):** `[Phase {N}] Task {task_id} ({M}/{total}): {description}`, then `modifying {file}`, `compile PASS|FAIL`, `VERIFIED|FAILED`. All plain text, no markdown/emojis.
 
-**Long Operation Feedback:** When waiting for a background agent (executor, verifier) that takes longer than 60 seconds, emit a heartbeat line: `[Phase {N}] ... still working ({elapsed}s)`. This provides intermediate status updates during long-running operations so the user is not left waiting in silence. Heartbeats are emitted every 60 seconds until the agent returns.
+**Long Operation Feedback:** When waiting for a background agent (executor, verifier) that takes longer than 60 seconds, emit a heartbeat line with concrete timing information -- both elapsed time and estimated remaining time. Format: `[Phase {N}] ... still working ({elapsed}s elapsed, ~{estimated_remaining}s remaining) -- {current_operation}`. This provides intermediate status updates with timing context during long-running operations so the user can gauge progress, not just see activity. Heartbeats are emitted every 60 seconds until the agent returns. See the orchestrator's Heartbeat Protocol for the estimated remaining time calculation formula.
 
-**Executor elapsed time reporting:** When spawning the executor, instruct it to record the elapsed time per task in its EXECUTION-LOG.md entry. The phase-runner uses this to compute per-task timing for the progress output.
+**Executor elapsed time reporting:** When spawning the executor, instruct it to record the elapsed time per task in its EXECUTION-LOG.md entry. Include an `elapsed_seconds` field per task so the phase-runner can compute per-task timing averages for heartbeat remaining-time estimates and progress output.
+
+**Verifier long-running feedback:** When spawning the verifier, instruct it to emit intermediate status lines if verification takes longer than 60 seconds. Format: `[Verify] Checking criterion {M}/{total}: {criterion_name}`. This gives the phase-runner information to include in heartbeat messages during verification.
 
 ---
 
