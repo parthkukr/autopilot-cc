@@ -201,19 +201,32 @@ The verification chain (verifier -> judge -> rating agent) MUST operate independ
 **Contamination markers (case-insensitive patterns to scan for in return JSON text fields):**
 
 Verifier contamination markers (verifier should NOT reference executor conclusions):
-- `executor reported`, `executor's confidence`, `executor claimed`, `according to the executor`, `executor's self-assessment`, `executor determined`, `executor's evidence shows`, `executor concluded`
+- Direct references: `executor reported`, `executor's confidence`, `executor claimed`, `according to the executor`, `executor's self-assessment`, `executor determined`, `executor's evidence shows`, `executor concluded`
+- Paraphrased references: `the executor said`, `executor indicated`, `executor noted`, `executor stated`, `as the executor`, `executor's results`, `executor's output`, `executor mentioned`, `executor found that`, `based on executor`, `from the executor`, `per the executor`, `executor's findings`, `execution agent reported`, `execution agent's`
 
 Judge contamination markers (judge should NOT reference verifier's pass/fail conclusion):
-- `verifier concluded`, `verifier passed`, `verifier failed`, `verifier's score`, `verification result was`, `verifier determined`, `verifier's pass/fail`, `verifier rated`
+- Direct references: `verifier concluded`, `verifier passed`, `verifier failed`, `verifier's score`, `verification result was`, `verifier determined`, `verifier's pass/fail`, `verifier rated`
+- Paraphrased references: `verifier said`, `verifier indicated`, `verifier noted`, `verifier stated`, `as the verifier`, `verifier's results`, `verifier's output`, `verifier mentioned`, `verifier found that`, `based on verifier`, `from the verifier`, `per the verifier`, `verifier's findings`, `verifier's conclusion`, `verifier's assessment`, `verification agent concluded`, `verification agent's`, `verifier reported that`, `verifier's judgment`, `verifier gave`, `verifier scored`, `verifier awarded`
 
 Rating agent contamination markers (rating agent should NOT reference verifier or judge output):
-- `verifier found`, `judge recommended`, `judge's concerns`, `verification report shows`, `judge concluded`, `verifier reported`, `judge determined`, `verifier's assessment`
+- Direct references: `verifier found`, `judge recommended`, `judge's concerns`, `verification report shows`, `judge concluded`, `verifier reported`, `judge determined`, `verifier's assessment`
+- Paraphrased references: `judge said`, `judge indicated`, `judge noted`, `judge stated`, `as the judge`, `judge's results`, `judge's output`, `judge mentioned`, `judge found that`, `based on judge`, `from the judge`, `per the judge`, `judge's findings`, `judge's recommendation`, `judge's conclusion`, `verifier's report`, `verification showed`, `verification indicated`, `judge gave`, `judge scored`, `judge awarded`, `judge approved`, `judge rejected`, `verifier's conclusion`, `verifier noted`, `verifier indicated`
+
+**False-positive exclusions (patterns that MUST NOT trigger contamination detection):**
+The following patterns are legitimate references to agents in a structural/procedural context, NOT references to another agent's conclusions. The detection logic MUST exclude matches that fall within these safe patterns:
+- Role descriptions: `the verifier agent is spawned`, `spawn the judge`, `the rating agent produces`, `verifier must verify`, `judge forms an independent`
+- Prompt construction: `verifier prompt`, `judge prompt`, `rating agent prompt`, `pass to the verifier`, `pass to the judge`
+- Process references: `verifier step`, `judge step`, `rating step`, `after the verifier returns`, `before spawning the judge`
+- Configuration: `verifier's return JSON`, `judge's return JSON`, `rating agent's return JSON` (referring to the expected schema, not actual results)
+- Phase-runner instructions: `the verifier reads`, `the judge reads`, `the rating agent reads` (describing what an agent should do, not what it concluded)
 
 **Detection logic:**
 After receiving each agent's return JSON, scan all text fields (concerns, notes, evidence descriptions, justifications, criterion text, aggregate_justification) for the corresponding contamination markers. Matching is case-insensitive and looks for the marker as a substring.
 
+Before flagging a match, check the surrounding context (20 characters before and after the match) against the false-positive exclusion patterns. If the match occurs within a safe pattern context (e.g., "the verifier agent is spawned" contains "verifier" but is procedural), do NOT flag it as contamination. This prevents false positives when agents legitimately refer to other agents in a structural or procedural context without referencing their conclusions.
+
 **Response to contamination:**
-1. If a contamination marker is found: REJECT the return. Log: "Cross-contamination detected in {agent} return: pattern '{matched_pattern}' found in field '{field_name}'. Re-spawning with clean prompt."
+1. If a contamination marker is found (and not excluded by false-positive check): REJECT the return. Log: "Cross-contamination detected in {agent} return: pattern '{matched_pattern}' found in field '{field_name}'. Re-spawning with clean prompt."
 2. Re-spawn the agent with the original clean prompt plus a warning: "Your previous return contained references to another agent's conclusions ('{matched_pattern}'). You MUST verify independently -- do not reference or rely on any other agent's findings."
 3. **Max 1 contamination re-spawn per agent.** If the second return is also contaminated, log the contamination as a warning and proceed with the result. Do not infinite-loop.
 4. Record all contamination events in the return JSON `issues` array: "cross_contamination: {agent} referenced {matched_pattern} in {field}".
