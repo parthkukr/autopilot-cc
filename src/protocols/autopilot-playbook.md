@@ -298,6 +298,8 @@ Requirements for this phase (if provided):
 
 **Silent operation (PROM-03):** Read files, run commands, and gather information silently without narrating each action. Do not announce "Let me read this file" or "I'll now check..." -- just do it. File reads and tool invocations happen in the background. Present findings and conclusions, not a play-by-play of your investigation process.
 
+**Proactive issue detection (PROM-04):** If you notice anything wrong, suboptimal, or concerning during your research -- even if it is not part of your explicit task -- surface it in the `issues_detected` field of your return JSON. Examples: dependency conflicts, architectural inconsistencies, missing edge cases, outdated patterns, files that reference nonexistent modules. Do not silently proceed past problems.
+
 <may>
 1. Suggest alternative approaches with trade-off analysis
 2. Note related improvements outside the current phase scope
@@ -312,7 +314,8 @@ Return JSON:
   "key_findings": ["finding 1", "finding 2"],
   "recommended_approach": "1-2 sentence approach",
   "risks": ["risk 1"],
-  "open_questions": ["question 1"]
+  "open_questions": ["question 1"],
+  "issues_detected": ["any unexpected issues noticed during research"]
 }
 ```
 
@@ -799,6 +802,8 @@ When the mini-verifier reports `pass: false`, enter the per-task fix loop. Fix f
 >
 > **Silent operation (PROM-03):** Read files, run commands, and write code silently without narrating each action. Do not announce "Let me read this file" or "I'll now check..." -- just do it. Present results and evidence, not a play-by-play of your process.
 >
+> **Proactive issue detection (PROM-04):** If you notice anything wrong, suboptimal, or concerning during execution -- dependency conflicts, architectural concerns, missing edge cases, inconsistencies between files, code that compiles but has logical issues -- surface it in the `issues_detected` field of your return JSON. Do not silently proceed past problems.
+>
 > <may>
 > 1. Create SUMMARY.md in the phase directory if it helps document the work.
 > 2. Add inline comments in modified files explaining non-obvious changes.
@@ -825,7 +830,8 @@ When the mini-verifier reports `pass: false`, enter the per-task fix loop. Fix f
 >     "compile": {"status": "pass|fail|skipped", "command": "string|null", "exit_code": 0, "output": "first 500 chars", "attempts": 1, "fix_attempts": []},
 >     "lint": {"status": "pass|fail|skipped", "command": "string|null", "exit_code": 0, "output": "first 500 chars", "attempts": 1, "fix_attempts": []}
 >   },
->   "deviations": ["any departures from plan"]
+>   "deviations": ["any departures from plan"],
+>   "issues_detected": ["any unexpected issues noticed during execution"]
 > }
 > ```
 
@@ -916,6 +922,8 @@ The rating agent prompt MUST contain ONLY: phase info, plan path, git diff comma
 > </should>
 >
 > **Silent operation (PROM-03):** Run verification commands and read files silently without narrating each action. Present your findings and evidence directly.
+>
+> **Proactive issue detection (PROM-04):** If you notice anything wrong, suboptimal, or concerning during verification -- even outside the explicit acceptance criteria -- surface it in the `issues_detected` field of your return JSON. Examples: code that passes criteria but has logical flaws, missing error handling, broken cross-references, security concerns. Do not silently proceed past problems.
 >
 > <may>
 > 1. Suggest improvements to code quality or test coverage
@@ -1144,7 +1152,8 @@ The rating agent prompt MUST contain ONLY: phase info, plan path, git diff comma
 >   ],
 >   "autonomous_resolution_attempted": true,
 >   "autonomous_confidence": 8,
->   "deferral_evidence": []
+>   "deferral_evidence": [],
+>   "issues_detected": ["any unexpected issues noticed during verification"]
 > }
 > ```
 >
@@ -1606,6 +1615,8 @@ Failing checks:
 
 **Silent operation (PROM-03):** Diagnose and fix silently without narrating each investigation step. Present your root cause analysis and fix results directly.
 
+**Proactive issue detection (PROM-04):** If you notice anything wrong or concerning beyond the specific issues you were asked to fix -- architectural problems, latent bugs, inconsistencies -- surface them in the `issues_detected` field of your return JSON. Do not silently proceed past problems.
+
 <may>
 1. Note related issues discovered during debugging that are out of scope
 </may>
@@ -1627,7 +1638,8 @@ Return JSON:
   "changes": ["description of each fix"],
   "commits": ["sha1", "sha2"],
   "remaining_issues": ["anything still broken"],
-  "failure_categories": [{"failure": "description", "category": "taxonomy_value from Section 2.5"}]
+  "failure_categories": [{"failure": "description", "category": "taxonomy_value from Section 2.5"}],
+  "issues_detected": ["any unexpected issues noticed beyond the assigned fixes"]
 }
 ```
 
