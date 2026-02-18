@@ -552,8 +552,8 @@ for each task in tasks:
      - Pass: task definition, PLAN.md path, cumulative EXECUTION-LOG.md (so executor has context from prior tasks)
      - Executor completes the task, writes EXECUTION-LOG.md entry, makes atomic commit, returns JSON
   2. MINI-VERIFY: Spawn mini-verifier (general-purpose, run_in_background=false)
-     - Pass: task's acceptance criteria from PLAN.md, files modified (from executor return), EXECUTION-LOG.md entry
-     - Mini-verifier runs each verification command independently, returns structured JSON
+     - Pass: task's acceptance criteria from PLAN.md, files modified (from executor return), EXECUTION-LOG.md entry, gate_results from executor return (for compile/lint gate validation per EXEC-02)
+     - Mini-verifier runs each verification command independently AND validates gate_results, returns structured JSON
   3. PROCESS RESULT:
      - If mini-verifier returns pass: log "Task {id} VERIFIED. Proceeding to next task." Continue loop.
      - If mini-verifier returns fail: spawn autopilot-debugger (or gsd-debugger as fallback) targeting the specific failures.
@@ -582,18 +582,25 @@ Task: {task_id} -- {task_description}
 Files modified: {files_from_executor_return}
 Acceptance criteria from PLAN.md:
 {task_acceptance_criteria_with_verification_commands}
+Executor gate_results: {gate_results_from_executor_return}
 
 <must>
 1. For EACH acceptance criterion, run the verification command specified in the criterion.
 2. Compare the command output against the expected result.
 3. Record PASS or FAIL per criterion with evidence (file:line, command output).
-4. Return structured JSON (see Return JSON below).
-5. Do NOT trust the executor's self-reported results. Run every command yourself.
+4. **Compile/lint gate validation (EXEC-02):** Check the executor's `gate_results` field:
+   a. If `gate_results` is missing entirely AND the project has configured compile/lint commands (check `.planning/config.json` `project.commands`), return `pass: false` with reason "Missing compile/lint gate evidence -- executor did not report gate_results."
+   b. If `gate_results.compile.status` is "fail" OR `gate_results.lint.status` is "fail", return `pass: false` regardless of acceptance criteria results. Broken code must not enter git.
+   c. If `gate_results.compile.status` or `gate_results.lint.status` is "skipped", that is acceptable -- skipped means the command is null (not applicable for this project type). Skipped gates are not failures.
+   d. If both gates are "pass" or "skipped", the gate validation passes. Proceed to evaluate acceptance criteria normally.
+5. Return structured JSON (see Return JSON below).
+6. Do NOT trust the executor's self-reported results. Run every command yourself.
 </must>
 
 <should>
 1. If a criterion passes via grep but the surrounding context looks wrong (e.g., pattern found but in a comment or dead code block), flag it as a concern.
 2. Check that the executor's commit is atomic (only touches files listed in the task).
+3. If gate_results shows fix_attempts, verify the final attempt resolved the issue (exit_code should be 0 if status is "pass").
 </should>
 
 Return JSON:
@@ -603,6 +610,7 @@ Return JSON:
   "criteria_results": [
     {"criterion": "text", "status": "pass|fail", "evidence": "file:line -- output", "command": "the command run", "command_output": "first 200 chars"}
   ],
+  "gate_validation": {"compile": "pass|fail|skipped|missing", "lint": "pass|fail|skipped|missing"},
   "concerns": ["any concerns even if passing"],
   "commands_run": ["command -> result"]
 }
