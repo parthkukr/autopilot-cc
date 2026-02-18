@@ -97,9 +97,15 @@ After each step agent completes, append `{step}-trace.jsonl` (if found) to `TRAC
 
 Emit structured progress messages at pipeline step boundaries. Format:
 
-**Step-level:** `[Phase {N}] Step: {STEP_NAME} ({step_number}/9)` before, `[Phase {N}] Step: {STEP_NAME} complete.` after. Steps: 1-PREFLIGHT, 2-TRIAGE, 3-RESEARCH, 4-PLAN, 5-PLAN-CHECK, 6-EXECUTE, 7-VERIFY, 8-JUDGE, 9-RATE. Skipped steps: `[Phase {N}] Step: {STEP_NAME} skipped ({reason}).`
+**Step-level:** `[Phase {N}] Step: {STEP_NAME} ({step_number}/9)` before, `[Phase {N}] [PASS] {STEP_NAME} complete. ({elapsed}s)` after. Steps: 1-PREFLIGHT, 2-TRIAGE, 3-RESEARCH, 4-PLAN, 5-PLAN-CHECK, 6-EXECUTE, 7-VERIFY, 8-JUDGE, 9-RATE. Skipped steps: `[Phase {N}] [SKIP] {STEP_NAME} skipped ({reason}).`
+
+**Step timing:** Record the wall-clock start time before each step. On step completion, compute the step duration in seconds and include it in the completion line. This gives the user visibility into how long each step takes.
 
 **Task-level (during EXECUTE):** `[Phase {N}] Task {task_id} ({M}/{total}): {description}`, then `modifying {file}`, `compile PASS|FAIL`, `VERIFIED|FAILED`. All plain text, no markdown/emojis.
+
+**Long Operation Feedback:** When waiting for a background agent (executor, verifier) that takes longer than 60 seconds, emit a heartbeat line: `[Phase {N}] ... still working ({elapsed}s)`. This provides intermediate status updates during long-running operations so the user is not left waiting in silence. Heartbeats are emitted every 60 seconds until the agent returns.
+
+**Executor elapsed time reporting:** When spawning the executor, instruct it to record the elapsed time per task in its EXECUTION-LOG.md entry. The phase-runner uses this to compute per-task timing for the progress output.
 
 ---
 

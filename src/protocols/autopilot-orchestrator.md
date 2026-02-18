@@ -1098,6 +1098,38 @@ For a failed phase:
 - Stage banners use `===` delimiters (three equals signs minimum)
 - All progress messages remain plain text (no markdown formatting in output)
 
+### Timing and Heartbeat Protocol
+
+**Elapsed Time Display:**
+
+The phase completion banner includes the elapsed time in human-readable format (minutes and seconds):
+```
+=== [PHASE 3/8] Complete: 8.5/10 | 4m 32s ===
+```
+
+The orchestrator computes the elapsed time by recording `Date.now()` (or equivalent) when spawning the phase-runner and when receiving its return. Format: `{minutes}m {seconds}s` for durations over 60 seconds, `{seconds}s` for shorter durations.
+
+**Heartbeat Protocol for Long-Running Operations:**
+
+During long-running agent spawns (executor, verifier), the phase-runner emits a heartbeat line every 60 seconds so the user knows the system is still working:
+```
+[Phase {N}] ... still working ({elapsed}s)
+```
+
+The heartbeat is emitted by the phase-runner between polling cycles when waiting for background agents (executor spawned with `run_in_background=true`). It is NOT emitted during foreground agent spawns (planner, plan-checker, judge, rating agent) since those complete within the polling interval.
+
+**Step-Level Timing:**
+
+Each step in the phase-runner's progress output includes the elapsed time for that step:
+```
+[Phase {N}] [PASS] RESEARCH complete. (12s)
+[Phase {N}] [PASS] PLAN complete. (8s)
+[Phase {N}] [PASS] EXECUTE complete. 4/4 tasks (3m 15s)
+[Phase {N}] [PASS] VERIFY complete. (45s)
+```
+
+The phase-runner records the wall-clock start time before each step and computes the duration when the step completes. This timing data is also included in the return JSON `pipeline_steps` entries for the orchestrator to display in its summary.
+
 ---
 
 ### Human-Defer Rate Tracking (STAT-04)
