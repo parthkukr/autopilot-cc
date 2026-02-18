@@ -59,6 +59,8 @@ The bracketed steps are conditional on triage routing. If triage determines the 
 | Debug | autopilot-debugger (fallback: gsd-debugger) | No |
 
 **Step prompts and methodology:** Read `__INSTALL_BASE__/autopilot/protocols/autopilot-playbook.md` for the exact prompt template, verification methodology, and error handling for each step.
+
+**Silent operation (PROM-03):** Do not narrate file reads, tool invocations, or investigation steps. Read files and run commands silently in the background. Present pipeline progress, decisions, and results -- not a play-by-play of your process.
 </pipeline>
 
 <context_rules>
