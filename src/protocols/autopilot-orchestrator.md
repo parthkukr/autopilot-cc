@@ -1307,6 +1307,24 @@ Parse from the **last lines** of the phase-runner's response. If missing, spawn 
 
 ---
 
+## 4.1. Error Message Quality Standard (PROM-05)
+
+All user-facing error messages from the orchestrator and phase-runner MUST follow the three-part template:
+
+1. **What happened:** Factual description of the failure (e.g., "Phase 7 verification failed: 2 acceptance criteria unmet")
+2. **Why it matters:** Impact on the user's workflow (e.g., "The phase cannot be marked complete until all criteria pass")
+3. **What to do:** Specific next step or recovery action (e.g., "Run `/clear` then `/autopilot 7` to retry, or inspect `.autopilot/diagnostics/phase-7-postmortem.json` for details")
+
+**Anti-patterns (do NOT use):**
+- Generic messages: "Something went wrong" / "An error occurred"
+- Cryptic codes without explanation: "GATE_FAIL_7" without context
+- Blame-shifting: "The agent failed" without saying what the user can do about it
+- Missing recovery: Describing the problem without providing a next step
+
+This standard applies to: HALT messages, ROLLBACK messages, dependency blocker messages, resume guidance, and any other user-facing output. Phase-runners and step agents follow this same standard for their error returns.
+
+---
+
 ## 5. Gate Logic
 
 The orchestrator's gate logic is deliberately simple. The phase-runner handles ALL internal retries (debug loops, replans). If the phase-runner returns a result, the orchestrator makes a binary decision:

@@ -1550,6 +1550,8 @@ IF max retries exceeded (3 debug attempts OR 1 re-plan + 1 debug):
      -> Return status "failed" with recommendation "halt"
 ```
 
+**Actionable error messages (PROM-05):** All failure messages (HALT, ROLLBACK, max-retries-exceeded) MUST follow the three-part error template defined in the orchestrator (Section 4.1): (1) What happened -- factual description, (2) Why it matters -- impact on the user, (3) What to do -- specific next step. Do not produce generic "something went wrong" messages or failures without recovery guidance.
+
 **Remediation mode:** When the phase-runner receives `remediation_feedback` and `remediation_cycle` > 0 from the orchestrator, it operates in remediation mode. In this mode:
 - Skip research and planning (treat as `existing_plan: true`, `skip_research: true`)
 - Read the `remediation_feedback` list of specific deficiencies
