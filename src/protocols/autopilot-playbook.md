@@ -800,6 +800,36 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 
 ---
 
+### Pre-Spawn Validation (Blind Verification Enforcement)
+
+**Purpose:** Before spawning each verification-chain agent (verifier, judge, rating agent), the phase-runner validates that the prompt does not contain information from other agents in the chain. This makes blind verification structural, not just instructional.
+
+**Before spawning the VERIFIER, validate the prompt does NOT contain:**
+- Executor's confidence score (e.g., "confidence: 8")
+- Executor's evidence summary or commands_run list
+- Executor's self-test results or pass/fail per criterion
+- Any content from EXECUTION-LOG.md beyond the list of files modified
+
+The verifier prompt MUST contain ONLY: phase info, spec path, plan path, git diff command, and checkpoint SHA.
+
+**Before spawning the JUDGE, validate the prompt does NOT contain:**
+- Verifier's pass/fail conclusion
+- Verifier's alignment or autonomous_confidence score
+- Verifier's criteria_results or failures list
+
+The judge prompt MUST contain: phase info, spec, plan, git diff command, checkpoint SHA, and requirements list. The judge reads VERIFICATION.md itself AFTER writing its own independent JUDGE-REPORT.md.
+
+**Before spawning the RATING AGENT, validate the prompt does NOT contain:**
+- Executor's confidence score
+- Verifier's report, pass/fail, or criteria_results
+- Judge's recommendation, concerns, or independent_evidence
+
+The rating agent prompt MUST contain ONLY: phase info, plan path, git diff command, and acceptance criteria.
+
+**Enforcement:** If the phase-runner detects it is about to include prohibited information in a spawn prompt, it MUST strip that information before spawning. This is a MUST-level requirement -- violating it compromises the entire verification chain's independence.
+
+---
+
 ### STEP 4: VERIFY -- MANDATORY INDEPENDENT AGENT
 
 **Progress:** Emit `[Phase {N}] Step: VERIFY (7/9)` before starting. Emit `[Phase {N}] Step: VERIFY complete. Result: {pass|fail}` after.
@@ -1086,6 +1116,8 @@ enforcement: Read JSON return only -- phase-runner reads the JSON block
 
 **Phase-runner validation:** Check `commands_run` from the verifier return JSON. If it is empty, the verification is invalid -- the orchestrator will reject it. Log a warning and enter debug loop to re-run verification.
 
+**Contamination Check (VERIFY):** After receiving the verifier's return, scan all text fields in the return JSON (criteria_results[].evidence, failures[], scope_creep[]) for verifier contamination markers defined in the phase-runner's `cross_contamination_detection` section (patterns like "executor reported", "executor's confidence", "executor claimed", "according to the executor", "executor's self-assessment"). If contamination is detected, reject the return and re-spawn the verifier with a clean prompt plus contamination warning. Max 1 contamination re-spawn per agent.
+
 <context_budget>
 max_response_lines: 200
 max_summary_lines: 10
@@ -1189,6 +1221,8 @@ The judge provides an ADVERSARIAL second opinion. It does NOT read the verifier'
 >   "notes": "1-2 sentence assessment"
 > }
 > ```
+
+**Contamination Check (JUDGE):** After receiving the judge's return, scan all text fields in the return JSON (concerns[], independent_evidence[], notes, verifier_missed[]) for judge contamination markers defined in the phase-runner's `cross_contamination_detection` section (patterns like "verifier concluded", "verifier passed", "verifier's score", "verification result was", "verifier determined"). If contamination is detected, reject the return and re-spawn the judge with a clean prompt plus contamination warning. Max 1 contamination re-spawn per agent.
 
 <context_budget>
 max_response_lines: 100
@@ -1324,6 +1358,8 @@ The rating agent is a DEDICATED, CONTEXT-ISOLATED agent that does NOTHING but ev
 **Read back:** ONLY the JSON result.
 
 **Phase-runner validation:** Check the returned `alignment_score`. If it is an integer (no decimal point), reject the rating and re-spawn the rating agent with a reminder about decimal precision. Check `commands_run` -- if empty, reject as rubber-stamping.
+
+**Contamination Check (RATE):** After receiving the rating agent's return, scan all text fields in the return JSON (scorecard[].justification, scorecard[].evidence, aggregate_justification, side_effects[]) for rating contamination markers defined in the phase-runner's `cross_contamination_detection` section (patterns like "verifier found", "judge recommended", "judge's concerns", "verification report shows", "judge concluded"). If contamination is detected, reject the return and re-spawn the rating agent with a clean prompt plus contamination warning. Max 1 contamination re-spawn per agent.
 
 <context_budget>
 max_response_lines: 150

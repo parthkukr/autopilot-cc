@@ -193,6 +193,32 @@ See the playbook STEP 3 "Per-Task Execution Loop (PVRF-01)" for the full prompt 
 - If the rating agent returns an integer score (no decimal), reject and re-spawn with decimal precision reminder
 </spawning_step_agents>
 
+<cross_contamination_detection>
+**After receiving each verification-chain agent's return, scan for cross-contamination before using the result.**
+
+The verification chain (verifier -> judge -> rating agent) MUST operate independently. If an agent's return references another agent's conclusions, the independence guarantee is violated.
+
+**Contamination markers (case-insensitive patterns to scan for in return JSON text fields):**
+
+Verifier contamination markers (verifier should NOT reference executor conclusions):
+- `executor reported`, `executor's confidence`, `executor claimed`, `according to the executor`, `executor's self-assessment`, `executor determined`, `executor's evidence shows`, `executor concluded`
+
+Judge contamination markers (judge should NOT reference verifier's pass/fail conclusion):
+- `verifier concluded`, `verifier passed`, `verifier failed`, `verifier's score`, `verification result was`, `verifier determined`, `verifier's pass/fail`, `verifier rated`
+
+Rating agent contamination markers (rating agent should NOT reference verifier or judge output):
+- `verifier found`, `judge recommended`, `judge's concerns`, `verification report shows`, `judge concluded`, `verifier reported`, `judge determined`, `verifier's assessment`
+
+**Detection logic:**
+After receiving each agent's return JSON, scan all text fields (concerns, notes, evidence descriptions, justifications, criterion text, aggregate_justification) for the corresponding contamination markers. Matching is case-insensitive and looks for the marker as a substring.
+
+**Response to contamination:**
+1. If a contamination marker is found: REJECT the return. Log: "Cross-contamination detected in {agent} return: pattern '{matched_pattern}' found in field '{field_name}'. Re-spawning with clean prompt."
+2. Re-spawn the agent with the original clean prompt plus a warning: "Your previous return contained references to another agent's conclusions ('{matched_pattern}'). You MUST verify independently -- do not reference or rely on any other agent's findings."
+3. **Max 1 contamination re-spawn per agent.** If the second return is also contaminated, log the contamination as a warning and proceed with the result. Do not infinite-loop.
+4. Record all contamination events in the return JSON `issues` array: "cross_contamination: {agent} referenced {matched_pattern} in {field}".
+</cross_contamination_detection>
+
 <success_criteria>
 Phase-runner completes when:
 - [ ] All pipeline steps executed (or properly skipped)
