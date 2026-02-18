@@ -1132,6 +1132,78 @@ The phase-runner records the wall-clock start time before each step and computes
 
 ---
 
+### User Guidance Protocol
+
+The orchestrator proactively guides the user at key decision points throughout the pipeline. This is what makes autopilot feel like a collaborative partner rather than a mechanical executor. The system explains what is happening and why, not just reports status codes.
+
+**Run Start Guidance:**
+
+At the beginning of execution (after argument parsing and state setup, before spawning the first phase-runner), emit a brief summary of what the pipeline will do:
+
+```
+Starting autopilot run: {N} phases to run ({phase_list})
+Active flags: {flags or "none"}
+Spec: {spec_hash_short} | Checkpoint: {last_checkpoint_sha_short}
+```
+
+This tells the user upfront how many phases will execute, which flags are active (--lenient, --quality, etc.), and where the run will resume from if interrupted. Keep it to 2-3 lines maximum.
+
+**Between-Phase Guidance:**
+
+After each phase completes and before spawning the next phase-runner, emit a transition line that explains what completed and what comes next:
+
+```
+Phase {N} complete ({score}/10). Next: Phase {N+1} -- {next_phase_name}
+```
+
+If the completed phase scored below the pass threshold but still passed (remediation scenario), add context:
+```
+Phase {N} complete ({score}/10, below {threshold} threshold). Entering remediation cycle.
+```
+
+If a phase was skipped (dependency blocked, already complete), explain why:
+```
+Phase {N} skipped: blocked by Phase {dependency} (scored {score}/10, needs {threshold}+)
+```
+
+**Completion Guidance:**
+
+At run end (after all phases complete), emit a summary with actionable next-step suggestions:
+
+```
+Run complete: {completed}/{total} phases passed.
+
+Next steps:
+- Run `/autopilot status` to review all phase scores
+- Run `/autopilot --quality {low_scoring_phase}` to polish phases below 9.5
+- Run `/autopilot --gaps {phase}` to push specific phases toward 10/10
+```
+
+If all phases scored 9.5+:
+```
+All phases at 9.5+. Consider running `/autopilot --gaps` to push toward 10/10, or the project is ready for review.
+```
+
+If any phases failed:
+```
+{N} phase(s) failed. To retry: /clear then /autopilot {failed_phases}
+To inspect failures: check .autopilot/diagnostics/phase-{N}-postmortem.json
+```
+
+**Warning Guidance:**
+
+Before executing a phase whose dependencies scored below the pass threshold, emit a proactive warning:
+
+```
+Warning: Phase {N} depends on Phase {dep}. Phase {dep} scored {score}/10 (below {threshold}).
+Consider running `/autopilot --quality {dep}` first to improve the foundation.
+Proceeding anyway -- dependency met minimum (7.0+) but not at target quality.
+```
+
+This warns the user about potential issues before they manifest, rather than waiting for a downstream failure. The orchestrator checks each phase's dependency scores against the pass threshold before spawning the phase-runner.
+
+---
+
 ### Human-Defer Rate Tracking (STAT-04)
 
 The orchestrator maintains two counters across the loop: `human_deferred_count` (phases returning `needs_human_verification`) and `total_phases_processed` (all phases that received a return, regardless of status). Both start at 0 at run start.
