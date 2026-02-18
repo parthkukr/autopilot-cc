@@ -552,8 +552,8 @@ for each task in tasks:
      - Pass: task definition, PLAN.md path, cumulative EXECUTION-LOG.md (so executor has context from prior tasks)
      - Executor completes the task, writes EXECUTION-LOG.md entry, makes atomic commit, returns JSON
   2. MINI-VERIFY: Spawn mini-verifier (general-purpose, run_in_background=false)
-     - Pass: task's acceptance criteria from PLAN.md, files modified (from executor return), EXECUTION-LOG.md entry, gate_results from executor return (for compile/lint gate validation per EXEC-02)
-     - Mini-verifier runs each verification command independently AND validates gate_results, returns structured JSON
+     - Pass: task's acceptance criteria from PLAN.md, files modified (from executor return), EXECUTION-LOG.md entry, gate_results from executor return (for compile/lint/test gate validation per EXEC-02, EXEC-03)
+     - Mini-verifier runs each verification command independently AND validates gate_results (compile, lint, and test), returns structured JSON
   3. PROCESS RESULT:
      - If mini-verifier returns pass: log "Task {id} VERIFIED. Proceeding to next task." Continue loop.
      - If mini-verifier returns fail: spawn autopilot-debugger (or gsd-debugger as fallback) targeting the specific failures.
@@ -588,11 +588,12 @@ Executor gate_results: {gate_results_from_executor_return}
 1. For EACH acceptance criterion, run the verification command specified in the criterion.
 2. Compare the command output against the expected result.
 3. Record PASS or FAIL per criterion with evidence (file:line, command output).
-4. **Compile/lint gate validation (EXEC-02):** Check the executor's `gate_results` field:
-   a. If `gate_results` is missing entirely AND the project has configured compile/lint commands (check `.planning/config.json` `project.commands`), return `pass: false` with reason "Missing compile/lint gate evidence -- executor did not report gate_results."
-   b. If `gate_results.compile.status` is "fail" OR `gate_results.lint.status` is "fail", return `pass: false` regardless of acceptance criteria results. Broken code must not enter git.
-   c. If `gate_results.compile.status` or `gate_results.lint.status` is "skipped", that is acceptable -- skipped means the command is null (not applicable for this project type). Skipped gates are not failures.
-   d. If both gates are "pass" or "skipped", the gate validation passes. Proceed to evaluate acceptance criteria normally.
+4. **Compile/lint/test gate validation (EXEC-02, EXEC-03):** Check the executor's `gate_results` field:
+   a. If `gate_results` is missing entirely AND the project has configured compile/lint/test commands (check `.planning/config.json` `project.commands`), return `pass: false` with reason "Missing gate evidence -- executor did not report gate_results."
+   b. If `gate_results.compile.status` is "fail" OR `gate_results.lint.status` is "fail" OR `gate_results.test.status` is "fail", return `pass: false` regardless of acceptance criteria results. Broken or failing code must not enter git.
+   c. If any gate status is "skipped", that is acceptable -- skipped means the command is null (not applicable for this project type). Skipped gates are not failures.
+   d. If all gates (compile, lint, test) are "pass" or "skipped", the gate validation passes. Proceed to evaluate acceptance criteria normally.
+   e. **Test gate specific:** If `gate_results.test` is missing but compile and lint are present, log a concern ("Missing test gate evidence") but do NOT hard-fail -- the test gate is newer than compile/lint gates and may not be present in all executor returns during transition.
 5. Return structured JSON (see Return JSON below).
 6. Do NOT trust the executor's self-reported results. Run every command yourself.
 </must>
@@ -610,7 +611,7 @@ Return JSON:
   "criteria_results": [
     {"criterion": "text", "status": "pass|fail", "evidence": "file:line -- output", "command": "the command run", "command_output": "first 200 chars"}
   ],
-  "gate_validation": {"compile": "pass|fail|skipped|missing", "lint": "pass|fail|skipped|missing"},
+  "gate_validation": {"compile": "pass|fail|skipped|missing", "lint": "pass|fail|skipped|missing", "test": "pass|fail|skipped|missing"},
   "concerns": ["any concerns even if passing"],
   "commands_run": ["command -> result"]
 }
