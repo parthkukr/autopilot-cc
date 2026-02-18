@@ -281,13 +281,15 @@ Requirements for this phase (if provided):
 <must>
 1. Read the frozen spec and identify requirements mapped to this phase
 2. Investigate the current codebase state relevant to the phase goal
-3. Write findings to .planning/phases/{phase}/RESEARCH.md
-4. Return structured JSON at the END of your response (see Return JSON below)
+3. **Questioning depth (PROM-01):** For each requirement, assess whether the acceptance criteria are concrete and testable. If any requirement or criterion is vague, abstract, or ambiguous (e.g., "should work correctly", "handles edge cases", "is performant"), flag it in your findings with a concrete alternative. Do not accept vague criteria as-is -- propose specific, measurable replacements. Example: replace "handles errors properly" with "returns HTTP 400 with JSON error body containing `error_code` and `message` fields."
+4. Write findings to .planning/phases/{phase}/RESEARCH.md
+5. Return structured JSON at the END of your response (see Return JSON below)
 </must>
 
 <should>
 1. Catalog existing patterns that the phase should follow or extend
 2. Identify risks, blockers, or open questions
+3. **Follow questioning threads:** When investigating the codebase, probe deeper when your findings raise new questions. If a file references another module, read that module. If a pattern seems inconsistent, trace why. Do not stop at surface-level findings -- follow threads until you reach concrete understanding.
 3. Review prior phase outputs for context (if any exist)
 4. If `.autopilot/context-map.json` exists, read it and check for entries relevant to this phase (CMAP-04). If user-provided answers exist for this phase, incorporate them into your research findings and note them in RESEARCH.md under a "User-Provided Context" section. This file contains answers to questions gathered by the context mapping step (`/autopilot --map`) and persists across runs.
 5. If `discuss_context` is provided in the spawn prompt (from `--discuss` mode), read the phase directory's `CONTEXT.md` file first (`.planning/phases/{phase}/CONTEXT.md`) -- this is the primary discussion artifact containing structured implementation decisions from the conversational gray-area probing. If CONTEXT.md exists, incorporate the user's decisions into your research findings and note them in RESEARCH.md under a "User Discussion Context" section. Also check `.autopilot/discuss-context.json` for supplementary Q&A. CONTEXT.md decisions take priority over discuss-context.json answers and over context-map answers when conflicts exist, as discussion answers are the most recent and targeted user input.
@@ -375,7 +377,8 @@ Requirements for this phase (if provided):
    echo "RESULTS: $PASS passed, $FAIL failed"
    [ $FAIL -eq 0 ] && exit 0 || exit 1
    ```
-8. Return structured JSON at the END of your response (see Return JSON below)
+8. **Anti-stub enforcement (PROM-01, PROM-02):** Every task's action field MUST contain specific implementation steps -- which functions to add or modify, which sections to edit, what content to write. Action fields that say only "implement X" or "add Y feature" without specifying HOW are stubs and will be rejected by the plan-checker. If a requirement is too vague to produce a specific action, the planner MUST concretize it first by inferring specifics from the codebase or flagging it as needing clarification.
+9. Return structured JSON at the END of your response (see Return JSON below)
 </must>
 
 <should>
