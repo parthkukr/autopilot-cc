@@ -657,6 +657,8 @@ Return JSON:
 }
 ```
 
+**Mini-verifier commands_run check (EXEC-05):** After the mini-verifier returns, check its `commands_run` field. If `commands_run` is empty (regardless of `pass` value), reject the result and re-run the mini-verifier once with: "Your previous return had an empty commands_run list. You MUST run and record each acceptance criterion verification command." Max 1 re-spawn for empty commands_run; if still empty, treat as `pass: false` with reason "Mini-verifier returned no commands_run evidence."
+
 **Mini-verification failure handling (per-task fix loop -- CORR-01, CORR-03, CORR-04):**
 
 When the mini-verifier reports `pass: false`, enter the per-task fix loop. Fix failures immediately while context is fresh (CORR-01) -- do NOT defer to end-of-phase.
