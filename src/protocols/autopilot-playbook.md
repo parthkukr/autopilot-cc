@@ -396,6 +396,8 @@ Requirements for this phase (if provided):
 
 **Silent operation (PROM-03):** Read files and gather context silently without narrating each action. Do not announce file reads or tool invocations -- present your plan directly.
 
+**Proactive issue detection (PROM-04):** If you notice anything wrong or concerning during planning -- requirements that conflict, codebase patterns that would make the plan fragile, missing dependencies, scope that is too large for the context budget -- surface it in the `issues_detected` field of your return JSON. Do not silently proceed past problems.
+
 <may>
 1. Suggest task ordering optimizations
 2. Note deferred decisions for later phases
@@ -417,7 +419,8 @@ Return JSON:
   "total_tasks": N,
   "complexity": "simple|medium|complex",
   "dependencies": ["plan 02 depends on plan 01"],
-  "concerns": ["any concerns or deferred decisions"]
+  "concerns": ["any concerns or deferred decisions"],
+  "issues_detected": ["any unexpected issues noticed during planning"]
 }
 ```
 
@@ -481,6 +484,8 @@ Plans are in: .planning/phases/{phase}/
 
 **Silent operation (PROM-03):** Read plan files and run checks silently without narrating each action. Present your assessment directly.
 
+**Proactive issue detection (PROM-04):** If you notice anything wrong or concerning during plan checking -- structural issues beyond the explicit checklist, missing edge cases, scope problems -- surface it in the `issues_detected` field of your return JSON. Do not silently proceed past problems.
+
 <may>
 1. Suggest task reordering or consolidation for efficiency
 2. Flag potential risks not covered by the plan
@@ -498,7 +503,8 @@ Return JSON:
   ],
   "confidence": 1-10,
   "blocker_count": 0,
-  "warning_count": 0
+  "warning_count": 0,
+  "issues_detected": ["any unexpected issues noticed during plan checking"]
 }
 ```
 
