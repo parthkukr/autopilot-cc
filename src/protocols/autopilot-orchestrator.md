@@ -92,11 +92,11 @@ Available phases: {list of phase IDs from roadmap}
 
 | Flag | --complete | --lenient | --force | --quality | --gaps | --discuss | --visual | --sequential | --map |
 |------|-----------|-----------|---------|-----------|--------|-----------|----------|-------------|-------|
-| --complete | - | yes | NO | yes | yes | yes | yes | yes | yes |
+| --complete | - | yes | NO | yes | NO | yes | yes | yes | yes |
 | --lenient | yes | - | yes | yes | yes | yes | yes | yes | yes |
 | --force | NO | yes | - | NO | NO | yes | yes | yes | NO |
 | --quality | yes | yes | NO | - | yes | yes | yes | yes | yes |
-| --gaps | yes | yes | NO | yes | - | yes | yes | yes | yes |
+| --gaps | NO | yes | NO | yes | - | yes | yes | yes | yes |
 | --discuss | yes | yes | yes | yes | yes | - | yes | yes | yes |
 | --visual | yes | yes | yes | yes | yes | yes | - | yes | yes |
 | --sequential | yes | yes | yes | yes | yes | yes | yes | - | yes |
