@@ -443,6 +443,7 @@ Each task entry in EXECUTION-LOG.md includes a `mini_verification` section after
 ### Task {id}: {description}
 - **Status:** COMPLETED|FAILED|NEEDS_REVIEW
 - **Commit SHA:** {sha}
+- **Pre-task checkpoint:** {checkpoint_sha} (tag: autopilot-checkpoint-{phase}-{task_id})
 - **Files modified:** {list}
 - **Evidence:** {executor's self-test results}
 - **Gate Results:**
@@ -457,9 +458,58 @@ Each task entry in EXECUTION-LOG.md includes a `mini_verification` section after
   - **Gate validation:** {compile: pass|fail|skipped|missing, lint: pass|fail|skipped|missing, test: pass|fail|skipped|missing}
   - **Failures:** {list of failed criteria, or "None"}
   - **Debug attempts:** {0-2}
+  - **Circuit breaker status:** open|tripped (CORR-03)
+  - **Convergence check:** {diff_growing: true|false, action_taken: "continued"|"aborted"|"n/a"} (CORR-04)
 ```
 
 **Note:** The phase-level verification still runs after all tasks pass mini-verification. Per-task verification catches failures early (at minute 5 instead of minute 30); phase-level verification provides the comprehensive safety net.
+
+### Self-Correction Schema Fields (CORR-01 through CORR-04)
+
+These fields support the per-task self-correction protocol added in Phase 6.
+
+**Pre-task checkpoint (CORR-02):**
+```jsonc
+{
+  "pre_task_checkpoint": {
+    "tag": "autopilot-checkpoint-{phase}-{task_id}",  // Git tag name
+    "checkpoint_sha": "abc123"                          // SHA at checkpoint creation
+  }
+}
+```
+
+**Diff metrics per fix attempt (CORR-04):**
+```jsonc
+{
+  "diff_metrics": {
+    "lines_added": 15,        // Lines added since checkpoint
+    "lines_removed": 3,       // Lines removed since checkpoint
+    "files_changed": 2,       // Number of files changed since checkpoint
+    "total_delta": 18          // lines_added + lines_removed (used for convergence check)
+  }
+}
+```
+
+**Convergence check (CORR-04):**
+```jsonc
+{
+  "convergence_check": {
+    "attempt_1_delta": 18,     // total_delta after first fix attempt
+    "attempt_2_delta": 25,     // total_delta after second fix attempt (null if only 1 attempt)
+    "diff_growing": true,      // true if attempt_2_delta > attempt_1_delta
+    "action_taken": "aborted"  // "continued" (diff shrinking), "aborted" (diff growing), "n/a" (first attempt)
+  }
+}
+```
+
+**Circuit breaker status (CORR-03):**
+```jsonc
+{
+  "circuit_breaker_status": "open|tripped",  // "open" = fix loop active, "tripped" = max attempts exhausted or convergence check failed
+  "circuit_breaker_reason": "max_attempts|diff_growing|null",  // Why the circuit breaker tripped (null if still open)
+  "rollback_performed": true|false           // Whether rollback to checkpoint was executed
+}
+```
 
 ### Existing Step Agent Return Schemas
 
