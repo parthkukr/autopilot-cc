@@ -1417,6 +1417,12 @@ Before applying gate logic, validate the phase-runner's return:
 11. **Judge rubber-stamp detection (VRFY-04):** If `pipeline_steps.judge.agent_spawned` is `true`:
     - If the judge's `verifier_agreement` is `true` AND `verifier_missed` is empty AND `independent_evidence` is empty or missing: REJECT. Log: "Judge agrees with verifier on all points without presenting independent evidence. Possible rubber-stamp."
 
+11.5. **Cross-contamination detection (VRFY-06):** If `pipeline_steps.verify.agent_spawned` is `true`:
+    - Read `.planning/phases/{phase}/VERIFICATION.md` and scan for executor-referencing contamination patterns (case-insensitive): "executor reported", "executor's confidence", "executor claimed", "according to the executor", "executor's self-assessment", "executor determined", "executor concluded".
+    - Read `.planning/phases/{phase}/JUDGE-REPORT.md` and scan for verifier-conclusion-referencing contamination patterns (case-insensitive): "verifier concluded", "verifier passed", "verifier failed", "verifier's score", "verification result was", "verifier determined", "verifier rated".
+    - Read `.planning/phases/{phase}/SCORECARD.md` and scan for verifier/judge-referencing contamination patterns (case-insensitive): "verifier found", "judge recommended", "judge's concerns", "verification report shows", "judge concluded", "verifier reported", "judge determined", "verifier's assessment".
+    - If any contamination pattern is found in any file: Log WARNING: "Cross-contamination detected in {file}: pattern '{matched}' found. Agent independence may be compromised." Append `cross_contamination_warning` event to event_log with details (file, pattern, line number). This is a WARNING, not a REJECT -- the phase-runner's contamination detection is the primary enforcement; this orchestrator check is a secondary safety net.
+
 12. **Failure classification (VRFY-05):** If the verifier or debugger returns failures:
     - Each failure MUST include a `category` from the defined taxonomy: `executor_incomplete`, `executor_wrong_approach`, `compilation_failure`, `lint_failure`, `build_failure`, `acceptance_criteria_unmet`, `scope_creep`, `context_exhaustion`, `tool_failure`, `coordination_failure`.
     - If any failure lacks a category: Log warning: "Unclassified failure detected: {failure_description}." This is a WARNING, not a rejection.
