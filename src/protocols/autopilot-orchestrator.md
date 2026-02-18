@@ -53,7 +53,7 @@ Use --{flag_a} to {what flag_a does}, or --{flag_b} to {what flag_b does} -- not
 |------|-----------|-----------|---------|-----------|--------|-----------|----------|-------------|-------|
 | --complete | - | yes | NO | yes | yes | yes | yes | yes | yes |
 | --lenient | yes | - | yes | yes | yes | yes | yes | yes | yes |
-| --force | NO | yes | - | NO | NO | yes | yes | yes | no |
+| --force | NO | yes | - | NO | NO | yes | yes | yes | NO |
 | --quality | yes | yes | NO | - | yes | yes | yes | yes | yes |
 | --gaps | yes | yes | NO | yes | - | yes | yes | yes | yes |
 | --discuss | yes | yes | yes | yes | yes | - | yes | yes | yes |
