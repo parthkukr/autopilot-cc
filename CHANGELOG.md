@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.10.0 (2026-02-18)
+
+### Features
+
+- **Project Detection:** Auto-detect project type and commands (compile, test, lint, build) from package.json, pyproject.toml, Cargo.toml, and Makefile manifests with user override support
+- **Compile and Lint Gates:** Per-task compile/lint enforcement with structured evidence -- broken code never enters git
+- **Test Execution Pipeline:** Project test suite runs after every task with structured result capture and fix loops on failure
+- **Evidence-Based Verification:** Every verification claim backed by command output; empty evidence structurally rejected at phase-runner and orchestrator levels
+- **Blind Verification:** Verifier, judge, and rating agent operate independently with cross-contamination detection -- no agent sees another's conclusions
+- **Self-Correction with Checkpoints:** Per-task git checkpoints, circuit breaker (max 2 fix attempts), convergence monitoring, and automatic rollback on divergence
+- **Prompt and Protocol Quality:** GSD-level questioning depth, executable plan enforcement, silent file reads, proactive issue detection, and actionable error messages
+- **UX Polish:** Stage banners, progress indicators with timing, user guidance protocol, and flag validation with specific error messages
+
 ## 1.9.0 (2026-02-15)
 
 ### Features
