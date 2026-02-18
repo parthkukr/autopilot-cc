@@ -588,6 +588,8 @@ The `/autopilot:debug` orchestrator presents the checkpoint to the user, gets th
 
 ## Factual-Context-Only Constraint (CORR-04)
 
+> **Cross-reference:** This constraint is also enforced by the phase-runner in the playbook's PVRF-01 mini-verification failure handling (see `autopilot-playbook.md` STEP 3, step 3). Both definitions must stay in sync -- if the constraint is updated in one file, update the other.
+
 When the debugger is spawned from the per-task fix loop (phase-runner's PVRF-01 debug step), it operates under a strict factual-context-only constraint:
 
 **You receive ONLY factual context:** failing test output, relevant code sections, and the previous diff. Specifically:

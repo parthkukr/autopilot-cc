@@ -562,12 +562,13 @@ for each task in tasks:
   3. PROCESS RESULT (per-task fix loop -- CORR-01, CORR-03):
      - If mini-verifier returns pass: log "Task {id} VERIFIED. Proceeding to next task." Continue loop.
      - If mini-verifier returns fail: enter per-task fix loop (fix while context is fresh, not deferred to end-of-phase).
-       a. CONVERGENCE CHECK (CORR-04): Before each debug attempt, measure diff size with `git diff --stat autopilot-checkpoint-{phase_id}-{task_id}..HEAD`. Record lines_added, lines_removed, files_changed. If this is the second attempt AND the diff is larger than the first attempt's diff (patch is growing instead of shrinking), the approach is wrong -- abort the fix loop, rollback, and report honestly.
-       b. Spawn autopilot-debugger (or gsd-debugger as fallback) targeting the specific failures. Pass ONLY factual context: failing test output, relevant code sections, and previous diff -- NOT reasoning from prior fix attempts (CORR-04).
+       a. CONVERGENCE CHECK (CORR-04): Before each debug attempt, measure diff size with `git diff --stat autopilot-checkpoint-{phase_id}-{task_id}..HEAD`. Record lines_added, lines_removed, files_changed. **By design, the convergence comparison only triggers on attempt 2** (the first attempt establishes the baseline diff size; there is no prior measurement to compare against on attempt 1). If this is the second attempt AND the diff is larger than the first attempt's diff (patch is growing instead of shrinking), the approach is wrong -- abort the fix loop, rollback, and report honestly.
+       b. Spawn autopilot-debugger (or gsd-debugger as fallback) targeting the specific failures. Pass ONLY factual context: failing test output, relevant code sections, and previous diff -- NOT reasoning from prior fix attempts (CORR-04). (Cross-reference: the debugger enforces this constraint via its own `<per_task_fix_loop_context>` section in `autopilot-debugger.md`.)
        c. Debugger fixes issues, re-commits.
        d. Re-run mini-verifier to confirm the fix.
        e. CIRCUIT BREAKER (CORR-03): Max 2 debug attempts per task. If still failing after 2 attempts:
           - Rollback to the pre-task checkpoint: `git reset --soft autopilot-checkpoint-{phase_id}-{task_id} && git checkout -- .`
+            **Note on git reset --soft vs git reset --hard:** Per-task rollback uses `git reset --soft` (which preserves staged changes) combined with `git checkout -- .` to discard working tree changes. This is safe for per-task rollback because the checkpoint tag is local and recent. Phase-level rollback (STEP 4.7) uses `git revert` instead, which preserves full history -- the "never use git reset --hard" rule applies to phase-level rollback where history preservation is critical, not to per-task checkpoint rollback where the commits being undone are local and uncommitted to the remote.
           - Delete the checkpoint tag: `git tag -d autopilot-checkpoint-{phase_id}-{task_id}`
           - Report the failure honestly: mark task as FAILED in EXECUTION-LOG.md with circuit_breaker_status: "tripped", include all debug attempt evidence
           - Continue to next task (do not halt entire phase for one task failure)
@@ -638,17 +639,19 @@ When the mini-verifier reports `pass: false`, enter the per-task fix loop. Fix f
    ```bash
    git diff --stat autopilot-checkpoint-{phase_id}-{task_id}..HEAD | tail -1
    ```
-   Record: `{lines_added, lines_removed, files_changed}`. If this is debug attempt 2 AND the diff is larger than attempt 1's diff (patch is growing instead of shrinking), the approach is wrong. Abort the fix loop immediately and proceed to rollback (step 6).
-3. Spawn `autopilot-debugger` (or `gsd-debugger` as fallback) with the failed criteria as the issue list. **Factual context only (CORR-04):** Pass ONLY: failing test/check output, relevant code sections, and the git diff. Do NOT pass reasoning, hypotheses, or analysis from prior fix attempts.
+   Record: `{lines_added, lines_removed, files_changed}`. **Convergence comparison triggers on attempt 2 only** -- attempt 1 establishes the baseline measurement (there is no prior diff to compare against). If this is debug attempt 2 AND the diff is larger than attempt 1's diff (patch is growing instead of shrinking), the approach is wrong. Abort the fix loop immediately and proceed to rollback (step 6).
+3. Spawn `autopilot-debugger` (or `gsd-debugger` as fallback) with the failed criteria as the issue list. **Factual context only (CORR-04):** Pass ONLY: failing test/check output, relevant code sections, and the git diff. Do NOT pass reasoning, hypotheses, or analysis from prior fix attempts. (Cross-reference: the debugger agent enforces this same constraint in its `<per_task_fix_loop_context>` section -- see `autopilot-debugger.md` "Factual-Context-Only Constraint (CORR-04)". Both files must stay in sync.)
 4. After the debugger returns, re-spawn the mini-verifier to confirm the fix.
 5. **Circuit breaker (CORR-03):** Max 2 debug attempts per task. If still failing after 2 attempts, proceed to rollback (step 6).
 6. **Rollback on circuit breaker trip:** When the circuit breaker trips (2 attempts exhausted or convergence check fails):
    ```bash
-   # Rollback to pre-task checkpoint
+   # Rollback to pre-task checkpoint (per-task scope -- see note below)
    git reset --soft autopilot-checkpoint-{phase_id}-{task_id} && git checkout -- .
    # Clean up the checkpoint tag
    git tag -d autopilot-checkpoint-{phase_id}-{task_id}
    ```
+   **Per-task vs phase-level rollback distinction:** This per-task rollback uses `git reset --soft` + `git checkout -- .` because it targets a recent local checkpoint tag within the current task's scope. The "never use git reset --hard" rule (STEP 4.7) applies to phase-level rollback, which uses `git revert` to preserve shared history. Per-task rollback is safe because these commits have not been pushed and the scope is limited to one task's changes.
+
    Report the failure honestly: mark task as FAILED in EXECUTION-LOG.md with `circuit_breaker_status: "tripped"`, include all debug attempt evidence and diff metrics. Continue to next task (do not halt entire phase for one task failure).
 7. At the end of the per-task loop, if ANY task has status FAILED, the phase proceeds to final verification (STEP 4) but the phase-runner notes the failures in its return JSON `issues` array.
 
@@ -1540,7 +1543,7 @@ git branch autopilot-diagnostic-phase-{N}
 git revert --no-commit ${LAST_GOOD_COMMIT}..HEAD && git commit -m "rollback: revert to phase {N} checkpoint"
 ```
 
-**CRITICAL: Never use `git reset --hard`. Use `git revert` to preserve history.**
+**CRITICAL: Never use `git reset --hard` for phase-level rollback. Use `git revert` to preserve history.** (Note: Per-task rollback in the PVRF-01 fix loop uses `git reset --soft` + `git checkout -- .` which is safe for local, unpushed checkpoint tags -- see STEP 3 "Mini-verification failure handling" for details.)
 
 <context_budget>
 max_response_lines: 20
