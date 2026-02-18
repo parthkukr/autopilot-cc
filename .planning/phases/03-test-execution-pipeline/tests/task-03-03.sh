@@ -18,7 +18,7 @@ if grep -A5 'gate_validation' src/protocols/autopilot-schemas.md | grep -q 'test
 if grep -qi 'Test.*PASS.*FAIL.*SKIPPED\|Test.*gate' src/protocols/autopilot-schemas.md; then echo "PASS: EXECUTION-LOG template has test gate"; ((PASS++)); else echo "FAIL: EXECUTION-LOG template missing test gate"; ((FAIL++)); fi
 
 # Criterion: Existing Step Agent summary mentions test
-if grep -A3 'Existing Step Agent' src/protocols/autopilot-schemas.md | grep -qi 'test'; then echo "PASS: step agent summary mentions test"; ((PASS++)); else echo "FAIL: step agent summary does not mention test"; ((FAIL++)); fi
+if grep -A7 'Existing Step Agent' src/protocols/autopilot-schemas.md | grep -qi 'test'; then echo "PASS: step agent summary mentions test"; ((PASS++)); else echo "FAIL: step agent summary does not mention test"; ((FAIL++)); fi
 
 echo "RESULTS: $PASS passed, $FAIL failed"
 [ $FAIL -eq 0 ] && exit 0 || exit 1

@@ -351,7 +351,7 @@ project-root/
       "commands_run": ["string"]      // "command -> result"
     }
   ],
-  "gate_results": {                   // Compile/lint gate evidence (EXEC-02)
+  "gate_results": {                   // Compile/lint/test gate evidence (EXEC-02, EXEC-03)
     "compile": {
       "status": "pass|fail|skipped", // "skipped" when project.commands.compile is null
       "command": "string|null",       // The compile command executed, or null if skipped
@@ -373,6 +373,17 @@ project-root/
       "output": "string",            // First 500 chars of combined stdout/stderr
       "attempts": 1,                 // Total number of attempts
       "fix_attempts": []             // Same structure as compile.fix_attempts
+    },
+    "test": {
+      "status": "pass|fail|skipped", // "skipped" when project.commands.test is null
+      "command": "string|null",       // The test command executed, or null if skipped
+      "exit_code": 0,                // Exit code from command (0 = success)
+      "output": "string",            // First 500 chars of combined stdout/stderr
+      "pass_count": null,            // Number of passing tests (integer or null if parsing fails)
+      "fail_count": null,            // Number of failing tests (integer or null if parsing fails)
+      "failing_tests": [],           // Array of failing test names (empty if all pass or parsing fails)
+      "attempts": 1,                 // Total number of attempts
+      "fix_attempts": []             // Same structure as compile.fix_attempts
     }
   },
   "deviations": ["string"]           // Any departures from plan
@@ -381,16 +392,25 @@ project-root/
 
 **Compile/Lint Gate Results (EXEC-02):**
 
-The `gate_results` field is REQUIRED in every executor return. It provides structured evidence that compile and lint checks were run before committing code. The phase-runner's mini-verifier (PVRF-01) validates this field independently.
+The `gate_results` field is REQUIRED in every executor return. It provides structured evidence that compile, lint, and test checks were run before committing code. The phase-runner's mini-verifier (PVRF-01) validates this field independently.
 
 - **Status values:** `"pass"` (command ran, exit code 0), `"fail"` (command ran, exit code non-zero), `"skipped"` (command is null -- not applicable for this project type)
-- **Null-command mapping:** When `project.commands.compile` or `project.commands.lint` is null (auto-detected as unavailable by the orchestrator's project detection in Section 1.8), the corresponding gate status is `"skipped"` with command set to null. Skipped gates are acceptable -- they are NOT failures.
+- **Null-command mapping:** When `project.commands.compile`, `project.commands.lint`, or `project.commands.test` is null (auto-detected as unavailable by the orchestrator's project detection in Section 1.8), the corresponding gate status is `"skipped"` with command set to null. Skipped gates are acceptable -- they are NOT failures.
 - **Fix attempts:** When a gate initially fails, the executor attempts to fix the error (max 2 attempts). Each attempt is recorded with what failed, what fix was applied, and the result. If all attempts fail, the task is marked FAILED.
-- **Commit blocking:** The executor MUST NOT commit if either gate has status `"fail"`. Only `"pass"` or `"skipped"` allow the commit to proceed.
+- **Commit blocking:** The executor MUST NOT commit if any gate (compile, lint, or test) has status `"fail"`. Only `"pass"` or `"skipped"` allow the commit to proceed.
+
+**Test Gate Results (EXEC-03):**
+
+The test gate extends the gate_results with test-specific fields. It runs after compile and lint gates pass (or are skipped), ensuring only compilable, lint-clean code is tested.
+
+- **Test-specific fields:** `pass_count` (integer or null), `fail_count` (integer or null), `failing_tests` (array of test name strings or empty array). These fields use best-effort parsing of the test command output.
+- **Best-effort parsing:** The executor attempts to extract structured test results (pass/fail counts, failing test names) from the command output. If the output format is non-standard or ambiguous, `pass_count` and `fail_count` are set to null and `failing_tests` to an empty array. The raw output is always captured in the `output` field regardless of parsing success.
+- **Gate timing:** The test gate runs after compile and lint gates. Flow per task: write code -> compile gate -> lint gate -> test gate -> commit gate.
+- **Fix loop:** When tests fail, the executor enters a fix loop (max 2 attempts) to fix failing tests or the code that caused failures. Each fix attempt is recorded with what_failed, fix_applied, and result.
 
 ### Mini-Verifier Return Schema (PVRF-01)
 
-The mini-verifier is spawned after each task execution as part of the per-task verification loop. It independently verifies a single task's acceptance criteria AND validates compile/lint gate results (EXEC-02). The final phase-level verification (STEP 4) still runs after all tasks pass mini-verification -- this is a belt-and-suspenders approach where per-task verification catches issues early and phase-level verification provides the final safety net.
+The mini-verifier is spawned after each task execution as part of the per-task verification loop. It independently verifies a single task's acceptance criteria AND validates compile/lint/test gate results (EXEC-02, EXEC-03). The final phase-level verification (STEP 4) still runs after all tasks pass mini-verification -- this is a belt-and-suspenders approach where per-task verification catches issues early and phase-level verification provides the final safety net.
 
 ```jsonc
 {
@@ -405,9 +425,10 @@ The mini-verifier is spawned after each task execution as part of the per-task v
       "command_output": "first 200 chars of command output"
     }
   ],
-  "gate_validation": {                   // Compile/lint gate validation results (EXEC-02)
+  "gate_validation": {                   // Compile/lint/test gate validation results (EXEC-02, EXEC-03)
     "compile": "pass|fail|skipped|missing", // Result of validating executor's compile gate
-    "lint": "pass|fail|skipped|missing"     // Result of validating executor's lint gate
+    "lint": "pass|fail|skipped|missing",    // Result of validating executor's lint gate
+    "test": "pass|fail|skipped|missing"     // Result of validating executor's test gate
   },
   "concerns": ["string"],               // Concerns even if passing
   "commands_run": ["command -> result"]  // All commands executed (MUST NOT be empty)
@@ -427,12 +448,13 @@ Each task entry in EXECUTION-LOG.md includes a `mini_verification` section after
 - **Gate Results:**
   - **Compile:** {PASS|FAIL|SKIPPED} (command: {cmd}, exit_code: {N}, attempts: {N})
   - **Lint:** {PASS|FAIL|SKIPPED} (command: {cmd}, exit_code: {N}, attempts: {N})
+  - **Test:** {PASS|FAIL|SKIPPED} (command: {cmd}, exit_code: {N}, pass: {N}, fail: {N}, attempts: {N})
 - **Confidence:** {1-10}
 - **Mini-Verification:**
   - **Result:** PASS|FAIL
   - **Criteria checked:** {N}
   - **Criteria passed:** {N}
-  - **Gate validation:** {compile: pass|fail|skipped|missing, lint: pass|fail|skipped|missing}
+  - **Gate validation:** {compile: pass|fail|skipped|missing, lint: pass|fail|skipped|missing, test: pass|fail|skipped|missing}
   - **Failures:** {list of failed criteria, or "None"}
   - **Debug attempts:** {0-2}
 ```
@@ -445,7 +467,7 @@ The following agents already used JSON returns before this handoff protocol was 
 
 - **Preflight**: `all_clear`, `spec_hash_match`, `working_tree_clean`, `dependencies_met`, `unresolved_debug`, `issues`
 - **Plan-checker**: `pass`, `issues`, `confidence`, `blocker_count`, `warning_count`
-- **Mini-Verifier** (PVRF-01): `task_id`, `pass`, `criteria_results` (array), `gate_validation` (compile/lint status), `concerns`, `commands_run`
+- **Mini-Verifier** (PVRF-01): `task_id`, `pass`, `criteria_results` (array), `gate_validation` (compile/lint/test status), `concerns`, `commands_run`
 - **Verifier**: `pass`, `automated_checks`, `criteria_results`, `verification_duration_seconds`, `commands_run`, `failures`, `failure_categories`, `scope_creep`
 - **Judge**: `recommendation`, `concerns`, `independent_evidence`, `verifier_agreement`, `verifier_missed`, `scope_creep`, `missing_requirements`, `notes`
 - **Rating Agent**: `alignment_score` (decimal x.x format), `scorecard` (array of per-criterion entries), `aggregate_justification`, `side_effects`, `commands_run`, `score_band`
