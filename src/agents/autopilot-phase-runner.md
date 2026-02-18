@@ -25,10 +25,16 @@ Execute these steps in order for your assigned phase:
 PREFLIGHT -> TRIAGE -> [RESEARCH -> PLAN -> PLAN-CHECK -> EXECUTE ->] VERIFY -> JUDGE -> RATE -> GATE -> RESULT
 ```
 
-The EXECUTE step uses a per-task loop with incremental verification (PVRF-01):
+The EXECUTE step uses a per-task loop with incremental verification (PVRF-01) and self-correction (CORR-01 through CORR-04):
 ```
-EXECUTE = for each task: EXECUTOR(task) -> MINI-VERIFY(task) -> if fail: DEBUG(task)
+EXECUTE = for each task: CHECKPOINT(task) -> EXECUTOR(task) -> MINI-VERIFY(task) -> if fail: FIX-LOOP(task) with circuit breaker and convergence monitoring
 ```
+
+**Self-Correction Protocol:**
+- **Pre-task checkpoint (CORR-02):** Before each task, create a git tag `autopilot-checkpoint-{phase}-{task_id}` as a rollback target.
+- **Per-task fix loops (CORR-01):** Fix failures immediately while context is fresh, not deferred to end-of-phase.
+- **Circuit breaker (CORR-03):** Max 2 fix attempts per task. If not converging, rollback to the pre-task checkpoint and report failure honestly.
+- **Convergence monitoring (CORR-04):** Measure diff size between fix cycles. If patches are growing instead of shrinking, abort -- the approach is wrong.
 
 The bracketed steps are conditional on triage routing. If triage determines the phase is already implemented (>80% criteria pass), it skips directly to VERIFY.
 

@@ -548,19 +548,31 @@ Instead of spawning a single executor for all tasks, the phase-runner orchestrat
 ```
 tasks = extract ordered task list from PLAN.md
 for each task in tasks:
+  0. CHECKPOINT CREATE (CORR-02): Create a pre-task git checkpoint before any code changes.
+     - Run: git tag autopilot-checkpoint-{phase_id}-{task_id}
+     - Record the current HEAD SHA as the pre-task checkpoint
+     - This provides a clean rollback target if the fix loop fails
+     - Log: "Checkpoint created: autopilot-checkpoint-{phase_id}-{task_id} at {sha}"
   1. EXECUTOR SPAWN: Spawn gsd-executor for this single task (run_in_background=true)
      - Pass: task definition, PLAN.md path, cumulative EXECUTION-LOG.md (so executor has context from prior tasks)
      - Executor completes the task, writes EXECUTION-LOG.md entry, makes atomic commit, returns JSON
   2. MINI-VERIFY: Spawn mini-verifier (general-purpose, run_in_background=false)
      - Pass: task's acceptance criteria from PLAN.md, files modified (from executor return), EXECUTION-LOG.md entry, gate_results from executor return (for compile/lint/test gate validation per EXEC-02, EXEC-03)
      - Mini-verifier runs each verification command independently AND validates gate_results (compile, lint, and test), returns structured JSON
-  3. PROCESS RESULT:
+  3. PROCESS RESULT (per-task fix loop -- CORR-01, CORR-03):
      - If mini-verifier returns pass: log "Task {id} VERIFIED. Proceeding to next task." Continue loop.
-     - If mini-verifier returns fail: spawn autopilot-debugger (or gsd-debugger as fallback) targeting the specific failures.
-       - Debugger fixes issues, re-commits.
-       - Re-run mini-verifier (max 2 debug attempts per task).
-       - If still failing after 2 attempts: log failure, mark task as FAILED in EXECUTION-LOG.md, continue to next task (do not halt entire phase for one task failure).
-  4. LOG: Update EXECUTION-LOG.md with mini_verification results (see schema below).
+     - If mini-verifier returns fail: enter per-task fix loop (fix while context is fresh, not deferred to end-of-phase).
+       a. CONVERGENCE CHECK (CORR-04): Before each debug attempt, measure diff size with `git diff --stat autopilot-checkpoint-{phase_id}-{task_id}..HEAD`. Record lines_added, lines_removed, files_changed. If this is the second attempt AND the diff is larger than the first attempt's diff (patch is growing instead of shrinking), the approach is wrong -- abort the fix loop, rollback, and report honestly.
+       b. Spawn autopilot-debugger (or gsd-debugger as fallback) targeting the specific failures. Pass ONLY factual context: failing test output, relevant code sections, and previous diff -- NOT reasoning from prior fix attempts (CORR-04).
+       c. Debugger fixes issues, re-commits.
+       d. Re-run mini-verifier to confirm the fix.
+       e. CIRCUIT BREAKER (CORR-03): Max 2 debug attempts per task. If still failing after 2 attempts:
+          - Rollback to the pre-task checkpoint: `git reset --soft autopilot-checkpoint-{phase_id}-{task_id} && git checkout -- .`
+          - Delete the checkpoint tag: `git tag -d autopilot-checkpoint-{phase_id}-{task_id}`
+          - Report the failure honestly: mark task as FAILED in EXECUTION-LOG.md with circuit_breaker_status: "tripped", include all debug attempt evidence
+          - Continue to next task (do not halt entire phase for one task failure)
+  4. LOG: Update EXECUTION-LOG.md with mini_verification results, checkpoint_sha, and circuit_breaker_status (see schema below).
+  5. CLEANUP: If task succeeded, optionally delete the checkpoint tag (it served its purpose). Or keep it for audit trail.
 ```
 
 **Executor spawn for single task -- prompt additions:**
