@@ -652,6 +652,51 @@ When the mini-verifier reports `pass: false`:
 > 7. Return structured JSON at the END of your response (see Return JSON below).
 > </must>
 >
+> <compile_lint_gate>
+> **Compile/Lint Gate Protocol (EXEC-02)**
+>
+> This gate ensures broken code never enters git. The executor MUST run compile and lint checks and record structured evidence for every task. The phase-runner's mini-verifier (PVRF-01) validates this evidence independently.
+>
+> **Gate execution flow (per task, after writing code, before committing):**
+>
+> 1. **Run compile gate:** Execute `project.commands.compile` (from `.planning/config.json`). Record the command, exit code, and first 500 chars of combined stdout/stderr.
+>    - If exit_code == 0: gate status = "pass"
+>    - If exit_code != 0: gate status = "fail" -- do NOT commit. Attempt to fix the compilation error (max 2 fix attempts). Record each fix_attempt with: what_failed (error message), fix_applied (description of change), result (pass/fail after fix).
+>    - If `project.commands.compile` is null: gate status = "skipped" (null means the gate is not applicable for this project type). This is acceptable -- do NOT treat skipped as failure.
+>
+> 2. **Run lint gate:** Execute `project.commands.lint` (from `.planning/config.json`). Record the command, exit code, and first 500 chars of combined stdout/stderr.
+>    - If exit_code == 0: gate status = "pass"
+>    - If exit_code != 0: gate status = "fail" -- do NOT commit. Attempt to fix lint errors (max 2 fix attempts). Record each fix_attempt with: what_failed, fix_applied, result.
+>    - If `project.commands.lint` is null: gate status = "skipped" (acceptable, not a failure).
+>
+> 3. **Commit gate:** Do NOT commit the task if either compile or lint gate has status "fail". Only commit when both gates are "pass" or "skipped". If all fix attempts are exhausted and a gate still fails, mark the task as FAILED in EXECUTION-LOG.md with the gate failure evidence.
+>
+> **Structured evidence requirement:** Include `gate_results` in the executor return JSON for EVERY task:
+> ```json
+> "gate_results": {
+>   "compile": {
+>     "status": "pass|fail|skipped",
+>     "command": "the compile command or null",
+>     "exit_code": 0,
+>     "output": "first 500 chars of stdout/stderr",
+>     "attempts": 1,
+>     "fix_attempts": []
+>   },
+>   "lint": {
+>     "status": "pass|fail|skipped",
+>     "command": "the lint command or null",
+>     "exit_code": 0,
+>     "output": "first 500 chars of stdout/stderr",
+>     "attempts": 1,
+>     "fix_attempts": []
+>   }
+> }
+> ```
+> Each `fix_attempt` entry (when gate initially fails): `{"what_failed": "error message", "fix_applied": "description", "result": "pass|fail"}`
+>
+> **Null-command handling (Phase 1 compatibility):** When `project.commands.compile` or `project.commands.lint` is null (no command configured for this project type), record gate status as "skipped" with command as null. Skipped gates are not failures -- they indicate the gate is not applicable. The mini-verifier accepts "skipped" as a valid non-failure status.
+> </compile_lint_gate>
+>
 > <should>
 > 1. Run build check (from `project.commands.build`) for UI phases before committing.
 > 2. Follow commit message conventions from the repository's recent git log.
@@ -686,6 +731,10 @@ When the mini-verifier reports `pass: false`:
 >       "commands_run": ["command -> result"]
 >     }
 >   ],
+>   "gate_results": {
+>     "compile": {"status": "pass|fail|skipped", "command": "string|null", "exit_code": 0, "output": "first 500 chars", "attempts": 1, "fix_attempts": []},
+>     "lint": {"status": "pass|fail|skipped", "command": "string|null", "exit_code": 0, "output": "first 500 chars", "attempts": 1, "fix_attempts": []}
+>   },
 >   "deviations": ["any departures from plan"]
 > }
 > ```
