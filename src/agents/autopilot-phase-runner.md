@@ -117,16 +117,18 @@ If the work scope is too large for a single agent (more than 5 complex tasks, re
 <progress_streaming>
 **You MUST emit structured progress messages at each pipeline step boundary.** These messages provide real-time visibility into pipeline execution for the orchestrator and user.
 
-**Step-level progress:** Before each pipeline step, emit a progress line. After each step completes, emit a completion line. The playbook defines the exact format per step. Follow the Progress Emission section in the playbook.
+**Visual Formatting Standard:** Follow the status symbol conventions defined in the orchestrator's Visual Formatting Standard section. Use `[PASS]`, `[FAIL]`, `[SKIP]`, `[ -- ]`, and `[ ?? ]` status symbols consistently in all progress output. Stage banners use `===` delimiters. All symbols are plain ASCII for terminal compatibility.
+
+**Step-level progress:** Before each pipeline step, emit a progress line. After each step completes, emit a completion line with the appropriate status symbol. The playbook defines the exact format per step. Follow the Progress Emission section in the playbook.
 
 Example progression:
 ```
 [Phase 24] Step: PREFLIGHT (1/9)
-[Phase 24] Step: PREFLIGHT complete.
+[Phase 24] [PASS] PREFLIGHT complete.
 [Phase 24] Step: TRIAGE (2/9)
-[Phase 24] Step: TRIAGE complete. Routing: full_pipeline
+[Phase 24] [PASS] TRIAGE complete. Routing: full_pipeline
 [Phase 24] Step: RESEARCH (3/9)
-[Phase 24] Step: RESEARCH complete.
+[Phase 24] [PASS] RESEARCH complete.
 ...
 ```
 

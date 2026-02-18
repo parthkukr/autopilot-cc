@@ -960,24 +960,26 @@ During phase execution, the orchestrator and phase-runner emit structured progre
 
 The orchestrator emits progress messages that the user sees directly in the CLI. These are the PRIMARY progress indicators.
 
-Before spawning each phase-runner, emit:
+Before spawning each phase-runner, emit the stage banner:
 ```
---- [PHASE {N}/{total}] {phase_name} ---
+=== [PHASE {N}/{total}] {phase_name} ===
 ```
 
-After receiving the phase-runner's return JSON, emit:
+After receiving the phase-runner's return JSON, emit the step summary using status symbols (see Visual Formatting Standard below):
 ```
-  Step: PREFLIGHT ... pass
-  Step: TRIAGE ... {routing_decision}
-  Step: RESEARCH ... {completed|skipped}
-  Step: PLAN ... {completed|skipped}
-  Step: PLAN-CHECK ... {pass|fail|skipped}
-  Step: EXECUTE ... {tasks_completed}/{tasks_total} tasks
-  Step: VERIFY ... {pass|fail}
-  Step: JUDGE ... {recommendation}
-  Step: RATE ... {alignment_score}/10
---- [PHASE {N}/{total}] Complete: {alignment_score}/10 | {duration}s ---
+  [PASS] PREFLIGHT
+  [PASS] TRIAGE ... {routing_decision}
+  [PASS] RESEARCH ... {completed|skipped}
+  [PASS] PLAN ... {completed|skipped}
+  [PASS] PLAN-CHECK ... {pass|fail|skipped}
+  [PASS] EXECUTE ... {tasks_completed}/{tasks_total} tasks
+  [PASS] VERIFY ... {pass|fail}
+  [PASS] JUDGE ... {recommendation}
+  [PASS] RATE ... {alignment_score}/10
+=== [PHASE {N}/{total}] Complete: {alignment_score}/10 | {duration}s ===
 ```
+
+Replace `[PASS]` with the appropriate status symbol from the Visual Formatting Standard based on each step's actual status. Use `[FAIL]` for failed steps, `[SKIP]` for skipped steps, and `[ -- ]` for steps that did not run due to early termination.
 
 The orchestrator reconstructs step-level progress from the phase-runner's return JSON `pipeline_steps` field. Each step entry has a `status` value that maps to the progress line. This does NOT require real-time streaming from the phase-runner -- the orchestrator emits all step progress lines at once after the phase-runner completes, giving the user a clear summary of what happened during the phase.
 
@@ -1012,6 +1014,91 @@ Step agents (executor, verifier, etc.) emit their own progress within their outp
 - Step-level messages use `[Phase {N}] Step: ...` prefix
 - Task-level messages use `[Phase {N}] Task {task_id}: ...` prefix
 - Compile/lint results use `PASS` or `FAIL` keywords for machine parseability
+
+### Visual Formatting Standard
+
+Autopilot uses a consistent set of visual symbols and formatting patterns matched to GSD's visual language. All orchestrator and phase-runner output follows this standard.
+
+**Status Symbols:**
+
+The following symbols are used as status indicators throughout all autopilot output. Each symbol maps to a single state:
+
+- **Success symbol:** `[PASS]` -- step completed successfully, criterion verified, check passed
+- **Failure symbol:** `[FAIL]` -- step failed, criterion unmet, check failed
+- **In-progress symbol:** `[ -- ]` -- step currently executing (used in real-time streaming output)
+- **Skip symbol:** `[SKIP]` -- step intentionally skipped (e.g., triage routed to verify_only)
+- **Review symbol:** `[ ?? ]` -- step completed but requires human review (needs_human_verification)
+
+Summary table:
+
+| Symbol | Meaning | Usage |
+|--------|---------|-------|
+| `[PASS]` | Success | Step completed successfully, criterion verified |
+| `[FAIL]` | Failure | Step failed, criterion unmet, check failed |
+| `[ -- ]` | In-progress | Step currently executing (used in real-time output) |
+| `[SKIP]` | Skipped | Step intentionally skipped |
+| `[ ?? ]` | Needs review | Step completed but requires human review |
+
+**Stage Banners:**
+
+Phase-level banners use `===` horizontal rule delimiters for strong visual separation:
+```
+=== [PHASE {N}/{total}] {phase_name} ===
+```
+Phase completion banners include the score and duration:
+```
+=== [PHASE {N}/{total}] Complete: {alignment_score}/10 | {duration}s ===
+```
+Failed phases use:
+```
+=== [PHASE {N}/{total}] FAILED: {reason} ===
+```
+
+**Checkpoint Completion Indicators:**
+
+When displaying a multi-phase summary (e.g., after `--complete` or at run end), use checkpoint notation:
+```
+[PASS] Phase 1: Project Detection Foundation (9.5/10)
+[PASS] Phase 2: Compile and Lint Gates (9.2/10)
+[FAIL] Phase 3: Test Execution Pipeline (6.8/10)
+[SKIP] Phase 4: Evidence-Based Verification (blocked by Phase 3)
+```
+
+**Step Status Line Format:**
+
+Each step in the phase summary uses the status symbol prefix:
+```
+  [PASS] PREFLIGHT
+  [PASS] TRIAGE ... full_pipeline
+  [PASS] RESEARCH ... completed
+  [PASS] PLAN ... completed
+  [PASS] PLAN-CHECK ... pass (confidence: 8/10)
+  [PASS] EXECUTE ... 4/4 tasks
+  [PASS] VERIFY ... pass
+  [PASS] JUDGE ... proceed
+  [PASS] RATE ... 8.7/10
+```
+
+For a failed phase:
+```
+  [PASS] PREFLIGHT
+  [PASS] TRIAGE ... full_pipeline
+  [PASS] RESEARCH ... completed
+  [PASS] PLAN ... completed
+  [PASS] PLAN-CHECK ... pass (confidence: 7/10)
+  [FAIL] EXECUTE ... 2/4 tasks (2 failed)
+  [FAIL] VERIFY ... fail (2 criteria unmet)
+  [ -- ] JUDGE ... not reached
+  [ -- ] RATE ... not reached
+```
+
+**Format Rules:**
+- All symbols are plain ASCII (no Unicode emojis) for maximum terminal compatibility
+- Status symbols are always enclosed in square brackets: `[PASS]`, `[FAIL]`, `[SKIP]`, `[ -- ]`, `[ ?? ]`
+- Stage banners use `===` delimiters (three equals signs minimum)
+- All progress messages remain plain text (no markdown formatting in output)
+
+---
 
 ### Human-Defer Rate Tracking (STAT-04)
 
