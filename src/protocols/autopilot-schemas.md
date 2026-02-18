@@ -387,7 +387,6 @@ The `gate_results` field is REQUIRED in every executor return. It provides struc
 - **Null-command mapping:** When `project.commands.compile` or `project.commands.lint` is null (auto-detected as unavailable by the orchestrator's project detection in Section 1.8), the corresponding gate status is `"skipped"` with command set to null. Skipped gates are acceptable -- they are NOT failures.
 - **Fix attempts:** When a gate initially fails, the executor attempts to fix the error (max 2 attempts). Each attempt is recorded with what failed, what fix was applied, and the result. If all attempts fail, the task is marked FAILED.
 - **Commit blocking:** The executor MUST NOT commit if either gate has status `"fail"`. Only `"pass"` or `"skipped"` allow the commit to proceed.
-```
 
 ### Mini-Verifier Return Schema (PVRF-01)
 
