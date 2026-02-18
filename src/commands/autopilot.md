@@ -39,6 +39,12 @@ Run 1-N development phases autonomously using the 3-tier orchestrator pattern. Y
 - `--visual [phases]` -- run visual testing during verification for UI phases; requires `project.visual_testing` configuration in `.planning/config.json` with at least `launch_command`, `base_url`, and `routes`; when used without a phase range, applies to all UI phases in the current run; enables Step 2.5 (Visual Testing) in the verifier even if `visual_testing.enabled` is false in config (allowing one-off visual test runs); can combine with any other flag
 - `--sequential` — force all phases sequential
 - `--checkpoint-every N` — pause for human review every N phases
+
+**Flag Compatibility:** Most flags can combine with each other freely. The exceptions are:
+- `--force` cannot combine with `--quality`, `--gaps`, or `--complete` (force redoes from scratch; the others refine or extend)
+- `--discuss` combines with everything (always runs first)
+- `--lenient` combines with everything
+- See the Flag Validation Protocol in the orchestrator guide for the full compatibility matrix
 </objective>
 
 <reference>

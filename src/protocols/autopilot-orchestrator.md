@@ -26,6 +26,73 @@ Starting phase {first}...
 7. **On start**: Create `.autopilot/` dir, write initial `state.json`, ensure `.autopilot/` is in `.gitignore`.
 8. **Reset learnings file (LRNG-03)**: If `.autopilot/learnings.md` exists, delete it. Learnings are scoped to the current run and must not accumulate across runs to prevent context pollution. Log: "Learnings file reset for new run."
 
+### Flag Validation Protocol
+
+Before proceeding to phase execution (between step 2 and step 3), the orchestrator validates all input flags. Invalid or conflicting flags are caught early with user-friendly error messages, not silently ignored or allowed to cause cryptic downstream failures.
+
+**Mutual Exclusivity Enforcement:**
+
+The following flag combinations are incompatible and MUST produce an immediate error:
+
+| Flag A | Flag B | Reason |
+|--------|--------|--------|
+| `--force` | `--quality` | Force redoes from scratch; quality refines what exists |
+| `--force` | `--gaps` | Force redoes from scratch; gaps refines what exists |
+| `--force` | `--complete` | Force targets completed phases; complete targets incomplete phases |
+
+When an incompatible combination is detected, emit:
+```
+Error: --{flag_a} and --{flag_b} cannot be combined.
+Reason: {reason from table above}.
+Use --{flag_a} to {what flag_a does}, or --{flag_b} to {what flag_b does} -- not both.
+```
+
+**Flag Compatibility Matrix:**
+
+| Flag | --complete | --lenient | --force | --quality | --gaps | --discuss | --visual | --sequential | --map |
+|------|-----------|-----------|---------|-----------|--------|-----------|----------|-------------|-------|
+| --complete | - | yes | NO | yes | yes | yes | yes | yes | yes |
+| --lenient | yes | - | yes | yes | yes | yes | yes | yes | yes |
+| --force | NO | yes | - | NO | NO | yes | yes | yes | no |
+| --quality | yes | yes | NO | - | yes | yes | yes | yes | yes |
+| --gaps | yes | yes | NO | yes | - | yes | yes | yes | yes |
+| --discuss | yes | yes | yes | yes | yes | - | yes | yes | yes |
+| --visual | yes | yes | yes | yes | yes | yes | - | yes | yes |
+| --sequential | yes | yes | yes | yes | yes | yes | yes | - | yes |
+| --map | yes | yes | no | yes | yes | yes | yes | yes | - |
+
+**Unknown Flag Handling:**
+
+If the user passes a flag that is not in the valid flag list (`--complete`, `--lenient`, `--force`, `--quality`, `--gaps`, `--discuss`, `--visual`, `--sequential`, `--checkpoint-every`, `--map`), emit:
+```
+Error: Unknown option '{flag}'.
+Valid options: --complete, --lenient, --force, --quality, --gaps, --discuss, --visual, --sequential, --checkpoint-every N, --map
+Run /autopilot:help for usage details.
+```
+
+Do NOT silently ignore unknown flags. An invalid option likely means the user made a typo or misremembered the flag name.
+
+**Phase Range Validation:**
+
+If a phase number is specified that does not exist in the roadmap, emit:
+```
+Error: Phase {N} not found in roadmap.
+Available phases: {list of phase IDs from roadmap}
+```
+
+**Reliability Checklist:**
+
+Before spawning the first phase-runner, validate all inputs to prevent downstream failures:
+
+1. Spec file exists and hash matches (if not, halt with explanation)
+2. State file is valid JSON (if corrupted, offer recovery: "State file corrupted. Delete `.autopilot/state.json` and re-run to start fresh.")
+3. All flag combinations are compatible (flag validation above)
+4. Phase range is valid (all phases exist in roadmap)
+5. Dependencies are satisfiable (no circular dependencies in the requested range)
+6. Git working tree is clean (warn if dirty, do not halt -- dirty tree is the user's choice)
+
+If any validation fails, emit a three-part error message (PROM-05) and halt. Do not proceed with invalid inputs.
+
 ---
 
 ## 1.1 Batch Completion Mode (CMPL-01, CMPL-02, CMPL-03)
