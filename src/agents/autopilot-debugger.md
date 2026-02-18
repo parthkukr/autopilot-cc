@@ -584,6 +584,28 @@ The `/autopilot:debug` orchestrator presents the checkpoint to the user, gets th
 
 </checkpoint_behavior>
 
+<per_task_fix_loop_context>
+
+## Factual-Context-Only Constraint (CORR-04)
+
+When the debugger is spawned from the per-task fix loop (phase-runner's PVRF-01 debug step), it operates under a strict factual-context-only constraint:
+
+**You receive ONLY factual context:** failing test output, relevant code sections, and the previous diff. Specifically:
+- Failing test output, compile errors, or lint errors (the actual command output)
+- Relevant code sections (the files that need fixing)
+- The previous git diff (what changed since the pre-task checkpoint)
+
+**You do NOT receive (and must NOT request):**
+- Reasoning, hypotheses, or analysis from prior fix attempts
+- The previous debugger's conclusions or investigation notes
+- Commentary on WHY the previous attempt failed (only WHAT failed)
+
+**Why this matters:** Each fix cycle must approach the problem fresh. Passing reasoning from prior failed attempts anchors the debugger on the same wrong approach. Factual context (what failed, what the code looks like, what changed) is sufficient. The debugger's own investigation methodology will find the right approach.
+
+**Diff size awareness:** The phase-runner measures diff size before spawning the debugger. If the debugger's fix would significantly increase the diff (making the patch larger, not smaller), the phase-runner will abort the fix loop. Keep fixes minimal and targeted.
+
+</per_task_fix_loop_context>
+
 <modes>
 
 ## Mode Flags
