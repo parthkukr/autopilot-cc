@@ -1,0 +1,37 @@
+{
+  "phase_id": "3",
+  "timestamp": "2026-02-17T00:00:00Z",
+  "criteria_source": "roadmap",
+  "criteria_checked": [
+    {
+      "criterion": "Executor runs the project's test command after each task",
+      "command": "grep -c 'test_gate\\|<test_gate>' src/protocols/autopilot-playbook.md",
+      "result": "fail",
+      "output": "0 -- no test gate section found in playbook"
+    },
+    {
+      "criterion": "Fix loop on test failure before next task",
+      "command": "grep -c 'test.*fail.*fix.*loop\\|test_gate.*fix' src/protocols/autopilot-playbook.md",
+      "result": "fail",
+      "output": "0 -- no test failure fix loop found"
+    },
+    {
+      "criterion": "Test results captured as structured evidence",
+      "command": "grep -c 'test_results.*pass_count\\|test_results.*fail_count' src/protocols/autopilot-playbook.md",
+      "result": "fail",
+      "output": "0 -- no structured test results schema found"
+    },
+    {
+      "criterion": "No test command proceeds without gating, logs skip",
+      "command": "grep -c 'test.*null.*skipped\\|test.*not configured' src/protocols/autopilot-playbook.md",
+      "result": "fail",
+      "output": "0 -- no null-test-command handling found"
+    }
+  ],
+  "total_criteria": 4,
+  "passed_criteria": 0,
+  "pass_ratio": 0.0,
+  "routing_decision": "full_pipeline",
+  "skipped_steps": [],
+  "note": "No test execution pipeline exists. Phase requires full implementation."
+}

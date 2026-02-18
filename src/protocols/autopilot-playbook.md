@@ -677,7 +677,7 @@ When the mini-verifier reports `pass: false`:
 >    - If exit_code != 0: gate status = "fail" -- do NOT commit. Attempt to fix lint errors (max 2 fix attempts). Record each fix_attempt with: what_failed, fix_applied, result.
 >    - If `project.commands.lint` is null: gate status = "skipped" (acceptable, not a failure).
 >
-> 3. **Commit gate:** Do NOT commit the task if either compile or lint gate has status "fail". Only commit when both gates are "pass" or "skipped". If all fix attempts are exhausted and a gate still fails, mark the task as FAILED in EXECUTION-LOG.md with the gate failure evidence.
+> 3. **Commit gate:** Do NOT commit the task if any gate (compile, lint, OR test) has status "fail". Only commit when all gates are "pass" or "skipped". If all fix attempts are exhausted and a gate still fails, mark the task as FAILED in EXECUTION-LOG.md with the gate failure evidence.
 >
 > **Structured evidence requirement:** Include `gate_results` in the executor return JSON for EVERY task:
 > ```json
@@ -697,13 +697,53 @@ When the mini-verifier reports `pass: false`:
 >     "output": "first 500 chars of stdout/stderr",
 >     "attempts": 1,
 >     "fix_attempts": []
+>   },
+>   "test": {
+>     "status": "pass|fail|skipped",
+>     "command": "the test command or null",
+>     "exit_code": 0,
+>     "output": "first 500 chars of stdout/stderr",
+>     "pass_count": null,
+>     "fail_count": null,
+>     "failing_tests": [],
+>     "attempts": 1,
+>     "fix_attempts": []
 >   }
 > }
 > ```
 > Each `fix_attempt` entry (when gate initially fails): `{"what_failed": "error message", "fix_applied": "description", "result": "pass|fail"}`
 >
-> **Null-command handling (Phase 1 compatibility):** When `project.commands.compile` or `project.commands.lint` is null (no command configured for this project type), record gate status as "skipped" with command as null. Skipped gates are not failures -- they indicate the gate is not applicable. The mini-verifier accepts "skipped" as a valid non-failure status.
+> **Null-command handling (Phase 1 compatibility):** When `project.commands.compile`, `project.commands.lint`, or `project.commands.test` is null (no command configured for this project type), record gate status as "skipped" with command as null. Skipped gates are not failures -- they indicate the gate is not applicable. The mini-verifier accepts "skipped" as a valid non-failure status.
 > </compile_lint_gate>
+>
+> <test_gate>
+> **Test Gate Protocol (EXEC-03)**
+>
+> This gate ensures the project's test suite stays green after every task. The executor MUST run the project's test command after compile and lint gates pass, record structured test results, and enter a fix loop on failure. The phase-runner's mini-verifier (PVRF-01) validates this evidence independently.
+>
+> **Gate execution flow (per task, after compile/lint gates pass or are skipped, before committing):**
+>
+> 1. **Run test gate:** Execute `project.commands.test` (from `.planning/config.json`). Record the command, exit code, and first 500 chars of combined stdout/stderr.
+>    - If exit_code == 0: gate status = "pass". Attempt to extract pass_count and fail_count from the output (best-effort parsing -- see below).
+>    - If exit_code != 0: gate status = "fail" -- do NOT commit. Attempt to fix the failing tests (max 2 fix attempts). Record each fix_attempt with: what_failed (failing test names or error message), fix_applied (description of change), result (pass/fail after fix).
+>    - If `project.commands.test` is null: gate status = "skipped" (null means no test command is configured for this project type). This is acceptable -- do NOT treat skipped as failure. Log: "Test command not configured -- test gate skipped."
+>
+> 2. **Structured test results (best-effort parsing):** After running the test command, attempt to extract structured results from the output:
+>    - `pass_count`: number of passing tests (integer, or null if parsing fails)
+>    - `fail_count`: number of failing tests (integer, or null if parsing fails)
+>    - `failing_tests`: array of failing test names/descriptions (empty array if parsing fails or all tests pass)
+>    - **Parsing guidance:** Look for common patterns: "N passing", "N failing", "N passed, M failed", "Tests: N passed, M failed", "FAIL: test_name". If the output format is non-standard or ambiguous, set pass_count and fail_count to null and failing_tests to []. The raw output is ALWAYS captured in the `output` field regardless of parsing success.
+>    - **Do NOT block on parse failures:** If structured extraction fails, the gate still functions on exit_code alone (0 = pass, non-zero = fail). Structured results are supplementary evidence, not a gate requirement.
+>
+> 3. **Fix loop on test failure:** When the test gate fails (exit_code != 0):
+>    - Read the test output to identify which tests failed and why
+>    - Attempt to fix the failing tests or the code that caused the failures (max 2 fix attempts)
+>    - After each fix attempt, re-run the test command and record: what_failed, fix_applied, result
+>    - If tests pass after a fix: update gate status to "pass" and record the successful fix attempt
+>    - If all 2 fix attempts are exhausted and tests still fail: gate status remains "fail", task is marked FAILED
+>
+> **Test gate timing:** The test gate runs AFTER the compile and lint gates. This ensures only compilable, lint-clean code is tested. The flow per task is: write code -> compile gate -> lint gate -> test gate -> commit gate.
+> </test_gate>
 >
 > <should>
 > 1. Run build check (from `project.commands.build`) for UI phases before committing.
