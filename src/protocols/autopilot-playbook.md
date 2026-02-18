@@ -629,14 +629,28 @@ Return JSON:
 }
 ```
 
-**Mini-verification failure handling:**
+**Mini-verification failure handling (per-task fix loop -- CORR-01, CORR-03, CORR-04):**
 
-When the mini-verifier reports `pass: false`:
+When the mini-verifier reports `pass: false`, enter the per-task fix loop. Fix failures immediately while context is fresh (CORR-01) -- do NOT defer to end-of-phase.
+
 1. Extract the failed criteria from `criteria_results`.
-2. Spawn `autopilot-debugger` (or `gsd-debugger` as fallback) with the failed criteria as the issue list.
-3. After the debugger returns, re-spawn the mini-verifier to confirm the fix.
-4. Max 2 debug attempts per task. If the task still fails after 2 attempts, mark it as FAILED in EXECUTION-LOG.md and proceed to the next task.
-5. At the end of the per-task loop, if ANY task has status FAILED, the phase proceeds to final verification (STEP 4) but the phase-runner notes the failures in its return JSON `issues` array.
+2. **Convergence check (CORR-04):** Before each debug attempt, measure the current diff size:
+   ```bash
+   git diff --stat autopilot-checkpoint-{phase_id}-{task_id}..HEAD | tail -1
+   ```
+   Record: `{lines_added, lines_removed, files_changed}`. If this is debug attempt 2 AND the diff is larger than attempt 1's diff (patch is growing instead of shrinking), the approach is wrong. Abort the fix loop immediately and proceed to rollback (step 6).
+3. Spawn `autopilot-debugger` (or `gsd-debugger` as fallback) with the failed criteria as the issue list. **Factual context only (CORR-04):** Pass ONLY: failing test/check output, relevant code sections, and the git diff. Do NOT pass reasoning, hypotheses, or analysis from prior fix attempts.
+4. After the debugger returns, re-spawn the mini-verifier to confirm the fix.
+5. **Circuit breaker (CORR-03):** Max 2 debug attempts per task. If still failing after 2 attempts, proceed to rollback (step 6).
+6. **Rollback on circuit breaker trip:** When the circuit breaker trips (2 attempts exhausted or convergence check fails):
+   ```bash
+   # Rollback to pre-task checkpoint
+   git reset --soft autopilot-checkpoint-{phase_id}-{task_id} && git checkout -- .
+   # Clean up the checkpoint tag
+   git tag -d autopilot-checkpoint-{phase_id}-{task_id}
+   ```
+   Report the failure honestly: mark task as FAILED in EXECUTION-LOG.md with `circuit_breaker_status: "tripped"`, include all debug attempt evidence and diff metrics. Continue to next task (do not halt entire phase for one task failure).
+7. At the end of the per-task loop, if ANY task has status FAILED, the phase proceeds to final verification (STEP 4) but the phase-runner notes the failures in its return JSON `issues` array.
 
 **EXECUTION-LOG.md per-task entry:** Each entry MUST include a `mini_verification` section (Result, Criteria checked/passed, Failures, Debug attempts) after the executor's self-reported results. Schema: see autopilot-schemas.md Section 5 (PVRF-01).
 
